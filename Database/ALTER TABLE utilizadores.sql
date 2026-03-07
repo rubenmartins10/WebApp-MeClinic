@@ -1,0 +1,3 @@
+ALTER TABLE utilizadores 
+ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN mfa_secret VARCHAR(255);

@@ -1,0 +1,1 @@
+ALTER TABLE consultas ADD COLUMN procedimento_id INTEGER REFERENCES modelos_procedimento(id);

@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --sidebar-bg: #0f172a;  /* Azul Escuro Profundo */
+  --primary: #2563eb;     /* Azul Vivo (Botões/Links) */
+  --bg-color: #f3f4f6;    /* Cinza Claro (Fundo) */
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+/* --- SIDEBAR (Igual à Figura 15) --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--sidebar-bg);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  border-right: 1px solid #1e293b;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  letter-spacing: -0.5px;
+}
+
+.logo-icon {
+  background: var(--primary);
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+}
+
+.nav-link {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 4px;
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.nav-link:hover { color: white; background-color: rgba(255,255,255,0.05); }
+.nav-link.active { background-color: rgba(37, 99, 235, 0.15); color: #60a5fa; border-left: 3px solid #60a5fa; }
+
+/* --- CONTEÚDO PRINCIPAL --- */
+.main-content { flex: 1; padding: 32px; overflow-y: auto; }
+
+h1 { font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 24px; }
+
+/* --- DASHBOARD CARDS (Igual à Figura 16) --- */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 32px; }
+
+.card {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02);
+  border: 1px solid #e2e8f0;
+}
+
+.card h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.card .value { font-size: 32px; font-weight: 700; color: #0f172a; letter-spacing: -1px; }
+
+/* --- TABELAS (Igual à Figura 15) --- */
+.table-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.table-header {
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.search-input {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 300px;
+  color: #334155;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 16px 24px; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+td { padding: 16px 24px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #334155; }
+tr:last-child td { border-bottom: none; }
+
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.badge.critico { background: #fef2f2; color: var(--danger); }
+.badge.ok { background: #f0fdf4; color: var(--success); }
+
+/* Helpers de Cor */
+.text-danger { color: var(--danger); }
+.text-primary { color: var(--primary); }
