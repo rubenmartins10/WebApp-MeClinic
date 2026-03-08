@@ -1,79 +1,91 @@
-import React, { useState, useEffect } from 'react';
+// client/src/App.js
+import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+import { ThemeProvider, ThemeContext } from './ThemeContext'; 
+
 import Sidebar from './components/Sidebar';
+import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Consultas from './pages/Consultas';
 import Users from './pages/Users';
 import FichasTecnicas from './pages/FichasTecnicas';
 import Report from './pages/Report';
-import Auth from './pages/Auth';
+
+// COMPONENTE DE LAYOUT: Aplica a cor de fundo e texto a TODA a aplicação
+const MainLayout = ({ user, onLogout }) => {
+  const { theme } = useContext(ThemeContext);
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      backgroundColor: theme.pageBg, // Fundo dinâmico para todas as páginas
+      color: theme.text,             // Texto dinâmico para todas as páginas
+      minHeight: '100vh',
+      transition: 'all 0.3s ease'
+    }}>
+      <Sidebar onLogout={onLogout} />
+      
+      <main style={{ flexGrow: 1, padding: '20px', marginLeft: '250px' }}>
+        {user && (
+           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', color: theme.subText, fontSize: '0.9rem' }}>
+             Logado como: <strong style={{ marginLeft: '5px', color: theme.text }}>{user.nome}</strong>
+           </div>
+        )}
+
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/consultas" element={<Consultas />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/fichas-tecnicas" element={<FichasTecnicas />} />
+          <Route path="/reports" element={<Report />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
 
-  // 1. Verificar se já existe um utilizador guardado ao carregar a página
   useEffect(() => {
     const storedUser = localStorage.getItem('meclinic_user');
     if (storedUser) {
       setIsAuthenticated(true);
-      setUser(JSON.parse(storedUser)); // Converte o texto guardado de volta para um Objeto
+      setUser(JSON.parse(storedUser));
     }
   }, []);
 
-  // 2. Função de Login: Atualiza o estado e guarda no Local Storage
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
     setUser(userData);
     localStorage.setItem('meclinic_user', JSON.stringify(userData));
   };
 
-  // 3. Função de Logout: Limpa o estado e apaga do Local Storage
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem('meclinic_user');
   };
 
-  if (!isAuthenticated) {
-    return (
-      <Router>
-        <Routes>
-          <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
-          <Route path="*" element={<Navigate to="/auth" replace />} />
-        </Routes>
-      </Router>
-    );
-  }
-
   return (
-    <Router>
-      <div style={{ display: 'flex' }}>
-        <Sidebar onLogout={handleLogout} />
-        
-        <main style={{ flexGrow: 1, padding: '20px', marginLeft: '250px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
-          
-          {/* Opcional: Uma pequena saudação para saberes quem está logado */}
-          {user && (
-             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', color: '#666', fontSize: '0.9rem' }}>
-               Logado como: <strong>{user.nome}</strong> ({user.email})
-             </div>
-          )}
-
+    <ThemeProvider>
+      <Router>
+        {!isAuthenticated ? (
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/consultas" element={<Consultas />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/fichas-tecnicas" element={<FichasTecnicas />} />
-            <Route path="/reports" element={<Report />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
+            <Route path="*" element={<Navigate to="/auth" replace />} />
           </Routes>
-        </main>
-      </div>
-    </Router>
+        ) : (
+          <MainLayout user={user} onLogout={handleLogout} />
+        )}
+      </Router>
+    </ThemeProvider>
   );
 }
 

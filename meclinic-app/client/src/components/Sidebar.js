@@ -1,20 +1,16 @@
 // client/src/components/Sidebar.js
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  Calendar,
-  FileText,
-  BarChart3,
-  Settings,
-  LogOut
+  LayoutDashboard, Package, Users, Calendar,
+  FileText, BarChart3, Settings, LogOut, Sun, Moon 
 } from 'lucide-react';
 
-// Adicionar onLogout aqui nas propriedades (props)
+import { ThemeContext } from '../ThemeContext'; 
+
 const Sidebar = ({ onLogout }) => {
   const location = useLocation();
+  const { theme, toggleTheme } = useContext(ThemeContext);
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -28,12 +24,13 @@ const Sidebar = ({ onLogout }) => {
   return (
     <div style={{ 
       width: '250px', 
-      backgroundColor: '#1976d2', 
+      backgroundColor: theme.sidebarBg, // Cor forte dinâmica (Azul ou Preto)
       color: 'white', 
       height: '100vh', 
       position: 'fixed',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      transition: 'background-color 0.3s ease'
     }}>
       <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <h2 style={{ margin: 0 }}>MeClinic</h2>
@@ -46,13 +43,11 @@ const Sidebar = ({ onLogout }) => {
               <Link 
                 to={item.path} 
                 style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  padding: '12px 20px', 
-                  color: 'white', 
-                  textDecoration: 'none',
-                  backgroundColor: location.pathname === item.path ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  transition: 'background-color 0.2s'
+                  display: 'flex', alignItems: 'center', padding: '12px 20px', 
+                  color: 'white', textDecoration: 'none',
+                  backgroundColor: location.pathname === item.path ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  borderLeft: location.pathname === item.path ? '4px solid white' : '4px solid transparent',
+                  transition: 'all 0.2s'
                 }}
               >
                 <span style={{ marginRight: '15px' }}>{item.icon}</span>
@@ -66,27 +61,34 @@ const Sidebar = ({ onLogout }) => {
       <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           <li>
+            <button 
+              onClick={toggleTheme}
+              style={{ 
+                display: 'flex', alignItems: 'center', padding: '12px 20px', 
+                color: 'white', textDecoration: 'none', background: 'none',
+                border: 'none', cursor: 'pointer', width: '100%', 
+                fontFamily: 'inherit', fontSize: '16px', textAlign: 'left'
+              }}>
+              {theme.isDark ? (
+                <><Sun size={20} style={{ marginRight: '15px', color: '#fbbf24' }} /> Modo Claro</>
+              ) : (
+                <><Moon size={20} style={{ marginRight: '15px', color: '#e2e8f0' }} /> Modo Escuro</>
+              )}
+            </button>
+          </li>
+          <li>
             <Link to="/settings" style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', color: 'white', textDecoration: 'none' }}>
               <Settings size={20} style={{ marginRight: '15px' }} /> Definições
             </Link>
           </li>
           <li>
-            {/* Atualizar este link para um Botão */}
             <button 
               onClick={onLogout}
               style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                padding: '12px 20px', 
-                color: 'white', 
-                textDecoration: 'none',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                width: '100%',
-                fontFamily: 'inherit',
-                fontSize: '16px',
-                textAlign: 'left'
+                display: 'flex', alignItems: 'center', padding: '12px 20px', 
+                color: '#fca5a5', textDecoration: 'none', background: 'none',
+                border: 'none', cursor: 'pointer', width: '100%', 
+                fontFamily: 'inherit', fontSize: '16px', textAlign: 'left'
               }}>
               <LogOut size={20} style={{ marginRight: '15px' }} /> Sair
             </button>
