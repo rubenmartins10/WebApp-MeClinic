@@ -1,160 +1,275 @@
-// client/src/pages/Users.js
-import React, { useState, useContext } from 'react';
-import { Search, Trash2, Shield, User, Circle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Shield, User, Trash2, Mail, Plus, Search, CheckCircle, XCircle, AlertTriangle, X, QrCode } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
-
-// CORREÇÃO: Foram removidos os imports do jsPDF e autoTable que não pertencem a esta página
 
 const Users = () => {
   const { theme } = useContext(ThemeContext);
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Dr. António Silva', email: 'antonio.silva@meclinic.com', role: 'ADMIN', status: 'online', lastSeen: 'Agora mesmo' },
-    { id: 2, name: 'Mariana Costa', email: 'mariana.costa@meclinic.com', role: 'ASSISTENTE', status: 'busy', lastSeen: 'Há 5 min' },
-    { id: 3, name: 'João Pereira', email: 'joao.pereira@meclinic.com', role: 'ASSISTENTE', status: 'offline', lastSeen: 'Há 2 dias' },
-    { id: 4, name: 'Dra. Sofia Martins', email: 'sofia.martins@meclinic.com', role: 'ADMIN', status: 'offline', lastSeen: 'Ontem' },
-  ]);
+  const [utilizadores, setUtilizadores] = useState([]);
+  const [pesquisa, setPesquisa] = useState('');
+  const [notification, setNotification] = useState({ show: false, type: '', message: '' });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentUserRole, setCurrentUserRole] = useState('ADMIN'); 
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [novoUser, setNovoUser] = useState({ nome: '', email: '', password: '', role: 'ASSISTENTE' });
+  const [qrCodeCriado, setQrCodeCriado] = useState(null); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleDeleteUser = (id) => {
-    if (window.confirm('Tem a certeza que deseja remover este acesso?')) {
-      setUsers(users.filter(user => user.id !== id));
+  const currentUser = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
+
+  useEffect(() => {
+    carregarUtilizadores();
+  }, []);
+
+  const carregarUtilizadores = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/utilizadores');
+      const data = await res.json();
+      
+      // ESCUDO DE SEGURANÇA: Garante que os dados são uma Lista, se não forem assume lista vazia
+      if (Array.isArray(data)) {
+        setUtilizadores(data);
+      } else {
+        console.error("Erro retornado pelo backend:", data);
+        setUtilizadores([]);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar utilizadores:", err);
+      setUtilizadores([]); 
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const showNotif = (type, message) => {
+    setNotification({ show: true, type, message });
+    setTimeout(() => setNotification({ show: false, type: '', message: '' }), 4000);
+  };
+
+  const confirmarEliminacao = async () => {
+    if (!showDeleteConfirm) return;
+    
+    if (showDeleteConfirm === currentUser.id) {
+      showNotif('error', 'Não podes apagar a tua própria conta enquanto tens sessão iniciada.');
+      setShowDeleteConfirm(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE' });
+      if (res.ok) {
+        showNotif('success', 'Utilizador removido do sistema com sucesso.');
+        carregarUtilizadores();
+      } else {
+        showNotif('error', 'Erro ao remover utilizador.');
+      }
+    } catch (err) {
+      showNotif('error', 'Falha ao ligar ao servidor.');
+    } finally {
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/utilizadores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novoUser)
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setQrCodeCriado(data.qrCodeUrl); 
+        carregarUtilizadores();
+        setNovoUser({ nome: '', email: '', password: '', role: 'ASSISTENTE' }); 
+        showNotif('success', 'Membro adicionado com sucesso!');
+      } else {
+        showNotif('error', data.error || 'Erro ao criar utilizador.');
+      }
+    } catch (err) {
+      showNotif('error', 'Erro de ligação ao servidor.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', marginBottom: '15px' };
+  const labelStyle = { display: 'block', fontSize: '11px', fontWeight: '800', color: theme.subText, marginBottom: '6px', textTransform: 'uppercase' };
+
+  // Garantir que não crasha caso o array esteja vazio
+  const utilizadoresFiltrados = (utilizadores || []).filter(u => 
+    u.nome.toLowerCase().includes(pesquisa.toLowerCase()) || 
+    u.email.toLowerCase().includes(pesquisa.toLowerCase())
   );
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'online': return '#22c55e';
-      case 'busy': return '#ef4444';
-      default: return '#9ca3af';
-    }
-  };
-
-  // CORREÇÃO: Adicionada a função que estava a faltar para dar o nome da etiqueta
-  const getStatusLabel = (status) => {
-    switch(status) {
-      case 'online': return 'Online';
-      case 'busy': return 'Ocupado';
-      case 'offline': return 'Offline';
-      default: return 'Desconhecido';
-    }
-  };
-
-  const styles = {
-    headerContainer: { marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-    pageTitle: { fontSize: '24px', fontWeight: '700', color: theme.text, margin: 0 },
-    subTitle: { fontSize: '14px', color: theme.subText, marginTop: '5px' },
-    roleToggleBtn: { padding: '8px 16px', backgroundColor: theme.border, color: theme.text, border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
-    controlBar: { backgroundColor: theme.cardBg, padding: '16px 20px', borderRadius: '10px 10px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.border}` },
-    searchWrapper: { position: 'relative', width: '300px' },
-    searchIcon: { position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' },
-    searchInput: { width: '100%', padding: '10px 10px 10px 40px', borderRadius: '6px', border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, color: theme.text, fontSize: '14px', outline: 'none' },
-    userCount: { fontSize: '13px', color: theme.subText, display: 'flex', alignItems: 'center', fontWeight: '500' },
-    tableCard: { backgroundColor: theme.cardBg, borderRadius: '0 0 10px 10px', border: `1px solid ${theme.border}`, borderTop: 'none', overflow: 'hidden' },
-    table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
-    tableHeaderRow: { backgroundColor: theme.tableHead, borderBottom: `1px solid ${theme.border}` },
-    th: { padding: '16px 24px', fontSize: '11px', fontWeight: '600', color: theme.subText, textTransform: 'uppercase' },
-    thRight: { padding: '16px 24px', fontSize: '11px', fontWeight: '600', color: theme.subText, textTransform: 'uppercase', textAlign: 'right' },
-    tableRow: { borderBottom: `1px solid ${theme.border}` },
-    td: { padding: '16px 24px', verticalAlign: 'middle', fontSize: '14px', color: theme.text },
-    tdRight: { padding: '16px 24px', textAlign: 'right' },
-    avatar: { width: '36px', height: '36px', borderRadius: '50%', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: theme.isDark ? '#bfdbfe' : '#1e40af', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' },
-    userName: { fontWeight: '600', color: theme.text },
-    userEmail: { fontSize: '12px', color: theme.subText },
-    badgeAdmin: { display: 'inline-flex', alignItems: 'center', backgroundColor: theme.isDark ? '#4c1d95' : '#f3e8ff', color: theme.isDark ? '#ddd6fe' : '#6b21a8', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-    badgeAssist: { display: 'inline-flex', alignItems: 'center', backgroundColor: theme.isDark ? '#075985' : '#e0f2fe', color: theme.isDark ? '#bae6fd' : '#0369a1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-    lastSeen: { fontSize: '12px', color: theme.subText },
-    deleteBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '6px' },
-    warningBox: { marginTop: '20px', padding: '15px', backgroundColor: theme.isDark ? '#451a03' : '#fff7ed', border: `1px solid ${theme.isDark ? '#78350f' : '#ffedd5'}`, borderRadius: '8px', color: theme.isDark ? '#fdba74' : '#c2410c', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px' }
-  };
-
   return (
-    <div style={{ padding: '10px', transition: 'all 0.3s ease' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
       
-      <div style={styles.headerContainer}>
-        <div>
-          <h1 style={styles.pageTitle}>Utilizadores e Acessos</h1>
-          <p style={styles.subTitle}>Gerencie quem tem acesso ao sistema da clínica.</p>
+      {notification.show && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
+            {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
+              {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
+            </h2>
+            <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
+            <button onClick={() => setNotification({show: false})} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: notification.type === 'success' ? '#059669' : '#ef4444', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+              OK, entendi
+            </button>
+          </div>
         </div>
-        <button onClick={() => setCurrentUserRole(currentUserRole === 'ADMIN' ? 'ASSISTENTE' : 'ADMIN')} style={styles.roleToggleBtn}>
-          Simular: Sou {currentUserRole} (Mudar)
+      )}
+
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
+            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: '#ffffff' }}>Remover Utilizador?</h2>
+            <p style={{ color: theme.subText, marginBottom: '25px' }}>O acesso deste membro será revogado permanentemente.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarEliminacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, width: '450px', borderRadius: '20px', padding: '30px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ margin: 0, color: '#ffffff', fontSize: '22px' }}>Novo Membro</h2>
+              <button onClick={() => { setShowAddModal(false); setQrCodeCriado(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+
+            {qrCodeCriado ? (
+              <div style={{ textAlign: 'center' }}>
+                <QrCode size={50} color="#059669" style={{ marginBottom: '15px' }} />
+                <h3 style={{ margin: '0 0 10px 0', color: '#ffffff' }}>Segurança Obrigatória (MFA)</h3>
+                <p style={{ color: theme.subText, fontSize: '13px', marginBottom: '20px' }}>O membro foi criado. Peça a essa pessoa para abrir a <strong>App Google Authenticator</strong> e ler este código agora mesmo.</p>
+                <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '15px', display: 'inline-block', marginBottom: '25px' }}>
+                  <img src={qrCodeCriado} alt="MFA QR Code" style={{ width: '200px', height: '200px' }} />
+                </div>
+                <button onClick={() => { setShowAddModal(false); setQrCodeCriado(null); }} style={{ width: '100%', padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Concluir Registo
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateUser}>
+                <label style={labelStyle}>Nome Completo</label>
+                <input required type="text" placeholder="Ex: Dra. Ana Silva" style={inputStyle} value={novoUser.nome} onChange={e => setNovoUser({...novoUser, nome: e.target.value})} />
+
+                <label style={labelStyle}>Endereço de E-mail</label>
+                <input required type="email" placeholder="ana.silva@meclinic.com" style={inputStyle} value={novoUser.email} onChange={e => setNovoUser({...novoUser, email: e.target.value})} />
+
+                <label style={labelStyle}>Palavra-Passe Inicial</label>
+                <input required type="text" placeholder="Uma password para o primeiro acesso..." style={inputStyle} value={novoUser.password} onChange={e => setNovoUser({...novoUser, password: e.target.value})} />
+
+                <label style={labelStyle}>Função no Sistema (Acesso)</label>
+                <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
+                  <label style={{ flex: 1, border: `2px solid ${novoUser.role === 'ASSISTENTE' ? '#3b82f6' : theme.border}`, borderRadius: '10px', padding: '15px', cursor: 'pointer', textAlign: 'center', backgroundColor: novoUser.role === 'ASSISTENTE' ? 'rgba(59, 130, 246, 0.1)' : theme.pageBg }}>
+                    <input type="radio" name="role" value="ASSISTENTE" checked={novoUser.role === 'ASSISTENTE'} onChange={() => setNovoUser({...novoUser, role: 'ASSISTENTE'})} style={{ display: 'none' }} />
+                    <User size={24} color={novoUser.role === 'ASSISTENTE' ? '#3b82f6' : theme.subText} style={{ marginBottom: '5px' }} />
+                    <div style={{ fontWeight: 'bold', color: novoUser.role === 'ASSISTENTE' ? '#3b82f6' : theme.text }}>Assistente</div>
+                    <div style={{ fontSize: '11px', color: theme.subText, marginTop: '5px' }}>Agenda e Consultas</div>
+                  </label>
+                  <label style={{ flex: 1, border: `2px solid ${novoUser.role === 'ADMIN' ? '#8b5cf6' : theme.border}`, borderRadius: '10px', padding: '15px', cursor: 'pointer', textAlign: 'center', backgroundColor: novoUser.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.1)' : theme.pageBg }}>
+                    <input type="radio" name="role" value="ADMIN" checked={novoUser.role === 'ADMIN'} onChange={() => setNovoUser({...novoUser, role: 'ADMIN'})} style={{ display: 'none' }} />
+                    <Shield size={24} color={novoUser.role === 'ADMIN' ? '#8b5cf6' : theme.subText} style={{ marginBottom: '5px' }} />
+                    <div style={{ fontWeight: 'bold', color: novoUser.role === 'ADMIN' ? '#8b5cf6' : theme.text }}>Admin</div>
+                    <div style={{ fontSize: '11px', color: theme.subText, marginTop: '5px' }}>Acesso Total e Financeiro</div>
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <button type="button" onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                  <button type="submit" disabled={isSubmitting} style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#059669', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>
+                    {isSubmitting ? 'A Criar...' : 'Criar Membro'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+        <div>
+          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: '#ffffff' }}>Acessos e Equipa</h1>
+          <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>Gere quem tem acesso ao sistema da clínica.</p>
+        </div>
+        
+        <button onClick={() => setShowAddModal(true)} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
+          <Plus size={20} /> Adicionar Membro
         </button>
       </div>
 
-      <div style={styles.controlBar}>
-        <div style={styles.searchWrapper}>
-          <Search size={18} color={theme.subText} style={styles.searchIcon} />
-          <input 
-            type="text" placeholder="Procurar por nome ou email..." style={styles.searchInput}
-            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div style={styles.userCount}>
-          <User size={16} style={{marginRight: 5}}/> {users.length} Utilizadores Ativos
-        </div>
+      <div style={{ marginBottom: '30px', position: 'relative', maxWidth: '400px' }}>
+        <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />
+        <input 
+          type="text" 
+          placeholder="Pesquisar por nome ou email..." 
+          style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px' }}
+          value={pesquisa}
+          onChange={(e) => setPesquisa(e.target.value)}
+        />
       </div>
 
-      <div style={styles.tableCard}>
-        <table style={styles.table}>
-          <thead>
-            <tr style={styles.tableHeaderRow}>
-              <th style={styles.th}>UTILIZADOR</th>
-              <th style={styles.th}>FUNÇÃO</th>
-              <th style={styles.th}>ATIVIDADE</th>
-              <th style={styles.th}>ÚLTIMO ACESSO</th>
-              <th style={styles.thRight}>AÇÕES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user.id} style={styles.tableRow}>
-                <td style={styles.td}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-                    <div style={styles.avatar}>{user.name.charAt(0)}</div>
-                    <div>
-                      <div style={styles.userName}>{user.name}</div>
-                      <div style={styles.userEmail}>{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  <span style={user.role === 'ADMIN' ? styles.badgeAdmin : styles.badgeAssist}>
-                    {user.role === 'ADMIN' && <Shield size={12} style={{marginRight: 4}} />}
-                    {user.role}
-                  </span>
-                </td>
-                <td style={styles.td}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <Circle size={10} fill={getStatusColor(user.status)} stroke="none" />
-                    <span style={{fontSize: '13px', color: theme.text}}>{getStatusLabel(user.status)}</span>
-                  </div>
-                </td>
-                <td style={styles.td}><span style={styles.lastSeen}>{user.lastSeen}</span></td>
-                <td style={styles.tdRight}>
-                  {currentUserRole === 'ADMIN' ? (
-                    <button style={styles.deleteBtn} onClick={() => handleDeleteUser(user.id)} title="Remover Acesso"><Trash2 size={18} /></button>
-                  ) : (
-                    <span style={{fontSize: '11px', color: theme.subText, fontStyle: 'italic'}}>Sem permissão</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
+        {utilizadoresFiltrados.map(u => {
+          const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome)}&background=2563eb&color=fff&rounded=true&bold=true&size=128`;
+          const isAdmin = u.role === 'ADMIN';
 
-      {currentUserRole !== 'ADMIN' && (
-        <div style={styles.warningBox}>
-          <AlertCircle size={18} />
-          <span>Modo de visualização: Apenas Administradores podem remover utilizadores.</span>
-        </div>
-      )}
+          return (
+            <div key={u.id} style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${theme.border}`, padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+              
+              <div style={{ position: 'absolute', top: '25px', right: '25px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: currentUser.id === u.id ? '#10b981' : '#64748b' }}></span>
+                <span style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold' }}>{currentUser.id === u.id ? 'TU' : 'OFFLINE'}</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '25px', marginTop: '10px' }}>
+                <img src={avatarUrl} alt={u.nome} style={{ width: '80px', height: '80px', borderRadius: '50%', marginBottom: '15px', border: `4px solid ${theme.pageBg}` }} />
+                <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', color: '#ffffff' }}>{u.nome}</h3>
+                <p style={{ margin: 0, color: theme.subText, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Mail size={14} /> {u.email}
+                </p>
+              </div>
+
+              <div style={{ height: '1px', backgroundColor: theme.border, marginBottom: '20px', width: '100%' }}></div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', backgroundColor: isAdmin ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)', color: isAdmin ? '#a78bfa' : '#60a5fa', border: `1px solid ${isAdmin ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
+                  {isAdmin ? <Shield size={14} /> : <User size={14} />}
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{u.role || 'ASSISTENTE'}</span>
+                </div>
+
+                {currentUser.id !== u.id && (
+                  <button 
+                    onClick={() => setShowDeleteConfirm(u.id)}
+                    style={{ width: '35px', height: '35px', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
+                    onMouseEnter={(e) => Object.assign(e.currentTarget.style, { backgroundColor: '#fee2e2' })}
+                    onMouseLeave={(e) => Object.assign(e.currentTarget.style, { backgroundColor: 'transparent' })}
+                    title="Remover Utilizador"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+
+            </div>
+          );
+        })}
+
+        {utilizadoresFiltrados.length === 0 && (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '50px', color: theme.subText }}>
+            <User size={40} style={{ opacity: 0.3, marginBottom: '10px' }} />
+            <p>Nenhum utilizador encontrado com essa pesquisa.</p>
+          </div>
+        )}
+      </div>
 
     </div>
   );

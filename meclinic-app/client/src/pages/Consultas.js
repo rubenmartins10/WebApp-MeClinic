@@ -1,173 +1,377 @@
-// client/src/pages/Consultas.js
 import React, { useState, useEffect, useContext } from 'react';
-import { Calendar as CalendarIcon, UserPlus, Save } from 'lucide-react';
-import 'react-phone-number-input/style.css';
-import PhoneInput from 'react-phone-number-input';
+import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, FileText, ChevronDown, Phone, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
+
+const countries = [
+  { code: '+351', flag: '🇵🇹', name: 'Portugal' },
+  { code: '+55', flag: '🇧🇷', name: 'Brasil' },
+  { code: '+34', flag: '🇪🇸', name: 'Espanha' },
+  { code: '+33', flag: '🇫🇷', name: 'França' },
+  { code: '+44', flag: '🇬🇧', name: 'Reino Unido' },
+  { code: '+41', flag: '🇨🇭', name: 'Suíça' },
+  { code: '+244', flag: '🇦🇴', name: 'Angola' }
+];
 
 const Consultas = () => {
   const { theme } = useContext(ThemeContext);
-  const [consultas, setConsultas] = useState([]);
+  
   const [procedimentos, setProcedimentos] = useState([]);
-  const [formData, setFormData] = useState({
-    nome: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''
-  });
+  const [consultas, setConsultas] = useState([]);
+  const [notification, setNotification] = useState({ show: false, type: '', message: '' });
+  
+  // Controlo de Edição e Eliminação
+  const [consultaToEdit, setConsultaToEdit] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
-  const API_CONSULTAS = 'http://localhost:5000/api/consultas';
-  const API_PROCEDIMENTOS = 'http://localhost:5000/api/modelos-procedimento';
-
-  const inputStyle = {
-    border: `1px solid ${theme.border}`,
-    padding: '12px',
-    borderRadius: '8px',
-    width: '100%',
-    boxSizing: 'border-box',
-    marginBottom: '15px',
-    fontSize: '14px',
-    outline: 'none',
-    backgroundColor: theme.pageBg,
-    color: theme.text
-  };
-
-  const carregarDados = () => {
-    fetch(API_CONSULTAS)
-      .then(res => res.json())
-      .then(data => setConsultas(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Erro consultas:", err));
-
-    fetch(API_PROCEDIMENTOS)
-      .then(res => res.json())
-      .then(data => setProcedimentos(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Erro procedimentos:", err));
-  };
+  const initialForm = { nome: '', telefone: '', procedimento_id: '', data: '', hora: '', motivo: '' };
+  const [formData, setFormData] = useState(initialForm);
+  
+  const [selectedCountry, setSelectedCountry] = useState(countries[0]); 
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    carregarDados();
+    fetch('http://localhost:5000/api/modelos-procedimento')
+      .then(res => res.json())
+      .then(data => setProcedimentos(data))
+      .catch(err => console.error(err));
+
+    carregarConsultas();
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const carregarConsultas = () => {
+    fetch('http://localhost:5000/api/consultas')
+      .then(res => res.json())
+      .then(data => setConsultas(data))
+      .catch(err => console.error(err));
+  };
+
+  const showNotif = (type, message) => setNotification({ show: true, type, message });
+  const closeNotif = () => setNotification({ show: false, type: '', message: '' });
+
+  // FUNÇÃO DE PREPARAR EDIÇÃO
+  const handleEditClick = (c) => {
+    setConsultaToEdit(c.id);
+    
+    // Separa o indicativo do número
+    let ind = '+351';
+    let num = c.paciente_telefone || '';
+    if (num.includes(' ')) {
+      const parts = num.split(' ');
+      ind = parts[0];
+      num = parts[1];
+    }
+    
+    const country = countries.find(x => x.code === ind) || countries[0];
+    setSelectedCountry(country);
+    
+    setFormData({
+      nome: c.paciente_nome || '',
+      telefone: num,
+      procedimento_id: c.procedimento_id || '',
+      data: c.data_consulta ? new Date(c.data_consulta).toISOString().split('T')[0] : '',
+      hora: c.hora_consulta ? c.hora_consulta.substring(0, 5) : '',
+      motivo: c.motivo || ''
+    });
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // FUNÇÃO DE CONFIRMAR ELIMINAÇÃO
+  const confirmarDesmarcacao = async () => {
+    if (!showDeleteConfirm) return;
     try {
-      const res = await fetch(API_CONSULTAS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        alert("Consulta agendada com sucesso!");
-        setFormData({ nome: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
-        carregarDados();
+      const response = await fetch(`http://localhost:5000/api/consultas/${showDeleteConfirm}`, { method: 'DELETE' });
+      if (response.ok) {
+        showNotif('success', 'Consulta removida da agenda com sucesso.');
+        carregarConsultas();
+        if (consultaToEdit === showDeleteConfirm) {
+          setConsultaToEdit(null);
+          setFormData(initialForm);
+        }
+      } else {
+        showNotif('error', 'Erro ao remover consulta.');
       }
     } catch (err) {
-      alert("Erro ao conectar ao servidor.");
+      showNotif('error', 'Falha ao ligar ao servidor.');
+    } finally {
+      setShowDeleteConfirm(null);
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const telefoneLimpo = formData.telefone.replace(/\D/g, ''); 
+    
+    if (selectedCountry.code === '+351') {
+      if (telefoneLimpo.length !== 9 || !telefoneLimpo.startsWith('9')) {
+        showNotif('error', 'Número de telemóvel inválido! Um número português deve ter exatamente 9 dígitos e começar por 9.');
+        return;
+      }
+    } else {
+      if (telefoneLimpo.length < 8) {
+        showNotif('error', `Número internacional inválido para ${selectedCountry.name}. Verifique os dígitos.`);
+        return;
+      }
+    }
+
+    const telefoneCompleto = `${selectedCountry.code} ${telefoneLimpo}`;
+
+    try {
+      const url = consultaToEdit ? `http://localhost:5000/api/consultas/${consultaToEdit}` : 'http://localhost:5000/api/consultas';
+      const method = consultaToEdit ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, telefone: telefoneCompleto })
+      });
+
+      if (response.ok) {
+        showNotif('success', consultaToEdit ? 'Alterações guardadas com sucesso!' : 'Consulta agendada com sucesso!');
+        setFormData(initialForm);
+        setConsultaToEdit(null);
+        carregarConsultas();
+      } else {
+        showNotif('error', 'Erro ao guardar a consulta. Tente novamente.');
+      }
+    } catch (err) {
+      showNotif('error', 'Falha de ligação ao servidor.');
+    }
+  };
+
+  const inputStyle = { width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', fontSize: '15px' };
+  const labelStyle = { display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase', marginBottom: '8px', marginTop: '15px' };
+
   return (
-    <div style={{ padding: '10px', transition: 'all 0.3s ease' }}>
-      <style>{`
-        .custom-phone-wrapper {
-          border: 1px solid ${theme.border};
-          padding: 12px;
-          border-radius: 8px;
-          width: 100%;
-          box-sizing: border-box;
-          margin-bottom: 15px;
-          font-size: 14px;
-          background-color: ${theme.pageBg};
-          display: flex;
-          align-items: center;
-        }
-        .custom-phone-wrapper .PhoneInputInput {
-          border: none;
-          outline: none;
-          background: transparent;
-          font-size: 14px;
-          width: 100%;
-          color: ${theme.text};
-        }
-      `}</style>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+      
+      {/* NOTIFICAÇÃO GENÉRICA */}
+      {notification.show && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
+            {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.text }}>
+              {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
+            </h2>
+            <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
+            <button onClick={closeNotif} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: notification.type === 'success' ? '#059669' : '#ef4444', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+              OK, entendi
+            </button>
+          </div>
+        </div>
+      )}
 
-      <h1 style={{ fontSize: '26px', fontWeight: 'bold', marginBottom: '30px', color: theme.text, display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <CalendarIcon size={28} color="#2563eb" /> Gestão de Consultas
-      </h1>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '30px', alignItems: 'start' }}>
-        
-        <div style={{ backgroundColor: theme.cardBg, padding: '25px', borderRadius: '15px', border: `1px solid ${theme.border}` }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: theme.text, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <UserPlus size={20} /> Nova Marcação
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <input 
-              style={inputStyle} type="text" placeholder="Nome do Paciente" required
-              value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})}
-            />
-            
-            <PhoneInput
-              international
-              defaultCountry="PT"
-              placeholder="Telemóvel"
-              className="custom-phone-wrapper"
-              value={formData.telefone}
-              onChange={value => setFormData({...formData, telefone: value})}
-            />
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: theme.subText, display: 'block', marginBottom: '5px', textTransform: 'uppercase' }}>Procedimento Clínico</label>
-              <select 
-                style={inputStyle} 
-                required
-                value={formData.procedimento_id} 
-                onChange={e => setFormData({...formData, procedimento_id: e.target.value})}
-              >
-                <option value="" style={{color: theme.text, background: theme.pageBg}}>Selecione o procedimento...</option>
-                {procedimentos.map(p => (
-                  <option key={p.id} value={p.id} style={{color: theme.text, background: theme.pageBg}}>{p.nome}</option>
-                ))}
-              </select>
-            </div>
-
+      {/* MODAL DE CONFIRMAÇÃO DE APAGAR */}
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
+            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: theme.text }}>Remover Consulta?</h2>
+            <p style={{ color: theme.subText, marginBottom: '25px' }}>Esta ação vai apagar a consulta permanentemente da sua agenda.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input style={{...inputStyle, colorScheme: theme.isDark ? 'dark' : 'light'}} type="date" required value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} />
-              <input style={{...inputStyle, colorScheme: theme.isDark ? 'dark' : 'light'}} type="time" required value={formData.hora} onChange={e => setFormData({...formData, hora: e.target.value})} />
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarDesmarcacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Remover</button>
             </div>
-            <textarea 
-              style={{...inputStyle, height: '80px', resize: 'none'}} placeholder="Notas adicionais..."
-              value={formData.motivo} onChange={e => setFormData({...formData, motivo: e.target.value})}
-            />
-            <button type="submit" style={{ backgroundColor: '#2563eb', color: 'white', padding: '14px', borderRadius: '8px', border: 'none', cursor: 'pointer', width: '100%', fontWeight: '600' }}>
-              <Save size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} /> Confirmar Agenda
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <CalendarIcon size={32} color="#2563eb" />
+        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: '#ffffff' }}>Gestão de Consultas</h1>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px' }}>
+        
+        {/* LADO ESQUERDO: FORMULÁRIO (CRIAR/EDITAR) */}
+        <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${consultaToEdit ? '#059669' : theme.border}`, boxShadow: consultaToEdit ? '0 0 0 2px rgba(5, 150, 105, 0.2)' : 'none', transition: 'all 0.3s' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '18px', color: '#ffffff' }}>
+              {consultaToEdit ? <Edit2 size={20} color="#059669" /> : <User size={20} color={theme.subText} />}
+              {consultaToEdit ? 'A Editar Consulta' : 'Nova Marcação'}
+            </h2>
+            {consultaToEdit && (
+              <button 
+                type="button" 
+                onClick={() => { setConsultaToEdit(null); setFormData(initialForm); }} 
+                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textDecoration: 'underline' }}
+              >
+                Cancelar Edição
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ position: 'relative' }}>
+              <User size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
+              <input required type="text" placeholder="Nome do Paciente" style={{ ...inputStyle, paddingLeft: '45px' }} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+            </div>
+
+            <div style={{ position: 'relative', marginTop: '15px', display: 'flex' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowDropdown(!showDropdown)}
+                style={{ padding: '0 15px', backgroundColor: theme.pageBg, border: `1px solid ${theme.border}`, borderRight: 'none', borderRadius: '8px 0 0 8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: theme.text }}
+              >
+                <span style={{ fontSize: '18px' }}>{selectedCountry.flag}</span>
+                <span style={{ fontSize: '14px', fontWeight: 'bold', color: theme.subText }}>{selectedCountry.code}</span>
+                <ChevronDown size={14} color={theme.subText} />
+              </button>
+
+              {showDropdown && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '5px', width: '220px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '10px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.2)', zIndex: 100, overflow: 'hidden' }}>
+                  {countries.map(c => (
+                    <div 
+                      key={c.code}
+                      onClick={() => { setSelectedCountry(c); setShowDropdown(false); }}
+                      style={{ padding: '12px 15px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', borderBottom: `1px solid ${theme.border}`, color: theme.text, transition: 'background 0.2s' }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = theme.pageBg}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      <span style={{ fontSize: '18px' }}>{c.flag}</span>
+                      <span style={{ fontWeight: 'bold' }}>{c.name}</span>
+                      <span style={{ color: theme.subText, fontSize: '12px', marginLeft: 'auto' }}>{c.code}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <input 
+                required 
+                type="text" 
+                placeholder={selectedCountry.code === '+351' ? "Ex: 912345678" : "Número de telemóvel..."} 
+                style={{ ...inputStyle, borderRadius: '0 8px 8px 0', flex: 1, letterSpacing: '1px' }} 
+                value={formData.telefone} 
+                onChange={e => setFormData({...formData, telefone: e.target.value})} 
+              />
+            </div>
+            {showDropdown && <div onClick={() => setShowDropdown(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} />}
+
+            <label style={labelStyle}>Procedimento Clínico</label>
+            <select required style={inputStyle} value={formData.procedimento_id} onChange={e => setFormData({...formData, procedimento_id: e.target.value})}>
+              <option value="" disabled>Selecione um procedimento...</option>
+              {procedimentos.map(p => (
+                <option key={p.id} value={p.id}>{p.nome}</option>
+              ))}
+            </select>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div>
+                <label style={labelStyle}>Data</label>
+                <div style={{ position: 'relative' }}>
+                  <CalendarIcon size={18} color={theme.subText} style={{ position: 'absolute', right: '15px', top: '15px', pointerEvents: 'none' }} />
+                  <input required type="date" style={inputStyle} value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} />
+                </div>
+              </div>
+              
+              {/* === RELÓGIO ATUALIZADO (SEM OS H'S) === */}
+              <div>
+                <label style={labelStyle}>Hora</label>
+                <div style={{ ...inputStyle, padding: 0, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                  <Clock size={18} color={theme.subText} style={{ marginLeft: '15px', flexShrink: 0 }} />
+                  
+                  <select 
+                    required 
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: theme.text, padding: '12px 5px', outline: 'none', appearance: 'none', textAlign: 'center', fontSize: '15px', cursor: 'pointer' }} 
+                    value={formData.hora ? formData.hora.split(':')[0] : ''} 
+                    onChange={e => {
+                      const m = formData.hora ? formData.hora.split(':')[1] : '00';
+                      setFormData({...formData, hora: `${e.target.value}:${m}`});
+                    }}
+                  >
+                    <option value="" disabled>HH</option>
+                    {Array.from({length: 15}, (_, i) => String(i + 8).padStart(2, '0')).map(h => (
+                      <option key={h} value={h} style={{ background: theme.pageBg, color: theme.text }}>{h}</option>
+                    ))}
+                  </select>
+                  
+                  <span style={{ fontWeight: 'bold', color: theme.subText }}>:</span>
+                  
+                  <select 
+                    required 
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: theme.text, padding: '12px 5px', outline: 'none', appearance: 'none', textAlign: 'center', fontSize: '15px', cursor: 'pointer' }} 
+                    value={formData.hora ? formData.hora.split(':')[1] : ''} 
+                    onChange={e => {
+                      const h = formData.hora ? formData.hora.split(':')[0] : '09';
+                      setFormData({...formData, hora: `${h}:${e.target.value}`});
+                    }}
+                  >
+                    <option value="" disabled>MM</option>
+                    {['00', '10', '20', '30', '40', '50'].map(m => (
+                      <option key={m} value={m} style={{ background: theme.pageBg, color: theme.text }}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
+            <label style={labelStyle}>Notas adicionais...</label>
+            <textarea rows="3" style={{ ...inputStyle, resize: 'none' }} placeholder="Opcional..." value={formData.motivo} onChange={e => setFormData({...formData, motivo: e.target.value})} />
+
+            <button type="submit" style={{ width: '100%', marginTop: '25px', backgroundColor: consultaToEdit ? '#059669' : '#2563eb', color: 'white', padding: '15px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+              {consultaToEdit ? <CheckCircle size={20} /> : <FileText size={20} />}
+              {consultaToEdit ? 'Guardar Alterações' : 'Confirmar Agenda'}
             </button>
           </form>
         </div>
 
-        <div style={{ backgroundColor: theme.cardBg, padding: '25px', borderRadius: '15px', border: `1px solid ${theme.border}`, minHeight: '500px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: theme.text }}>Próximas Marcações</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {consultas.length === 0 ? (
-              <p style={{ color: theme.subText, fontStyle: 'italic', textAlign: 'center', marginTop: '50px' }}>Nenhuma consulta agendada.</p>
+        {/* LADO DIREITO: LISTAGEM */}
+        <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${theme.border}` }}>
+          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: '#ffffff' }}>Próximas Marcações</h2>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {consultas.length > 0 ? (
+              consultas.map(c => {
+                const dataObj = new Date(c.data_consulta);
+                return (
+                  <div key={c.id} style={{ padding: '20px', backgroundColor: theme.pageBg, borderRadius: '12px', border: `1px solid ${theme.border}`, display: 'flex', gap: '20px', alignItems: 'center' }}>
+                    
+                    <div style={{ backgroundColor: '#dbeafe', color: '#1e40af', padding: '10px 15px', borderRadius: '10px', textAlign: 'center', minWidth: '70px' }}>
+                      <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{dataObj.toLocaleDateString('pt-PT', { month: 'short' })}</span>
+                      <span style={{ display: 'block', fontSize: '24px', fontWeight: '900' }}>{dataObj.getDate()}</span>
+                    </div>
+                    
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.text }}>{c.paciente_nome}</h3>
+                      <p style={{ margin: 0, fontSize: '14px', color: theme.subText, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Clock size={14} /> {c.hora_consulta.substring(0, 5)} • {c.procedimento_nome || 'Consulta Geral'}
+                      </p>
+                      {c.paciente_telefone && (
+                        <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: theme.subText, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Phone size={14} /> {c.paciente_telefone}
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <button 
+                        onClick={() => handleEditClick(c)} 
+                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: '#2563eb', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
+                        title="Reagendar/Editar"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      
+                      <button 
+                        onClick={() => setShowDeleteConfirm(c.id)} 
+                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
+                        title="Remover Consulta"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+
+                  </div>
+                )
+              })
             ) : (
-              consultas.map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px', borderLeft: '5px solid #2563eb', backgroundColor: theme.pageBg, borderRadius: '10px', border: `1px solid ${theme.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ backgroundColor: theme.isDark ? '#1e3a8a' : '#eff6ff', padding: '8px 12px', borderRadius: '6px', marginRight: '15px', textAlign: 'center', minWidth: '60px' }}>
-                      <span style={{ fontWeight: 'bold', color: theme.isDark ? '#bfdbfe' : '#2563eb' }}>{c.hora_consulta.substring(0,5)}</span>
-                    </div>
-                    <div>
-                      <h4 style={{ margin: 0, color: theme.text, fontSize: '16px' }}>{c.paciente_nome}</h4>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
-                        <span style={{ fontSize: '12px', backgroundColor: theme.isDark ? '#064e3b' : '#dcfce7', color: theme.isDark ? '#6ee7b7' : '#166534', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
-                          {c.procedimento_nome || 'Consulta Geral'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '13px', color: theme.subText, fontWeight: '500' }}>
-                    {new Date(c.data_consulta).toLocaleDateString('pt-PT')}
-                  </div>
-                </div>
-              ))
+              <div style={{ padding: '50px 0', textAlign: 'center', color: theme.subText }}>
+                <CalendarIcon size={40} style={{ opacity: 0.3, margin: '0 auto 10px auto' }} />
+                <p style={{ margin: 0, fontStyle: 'italic' }}>Nenhuma consulta agendada.</p>
+              </div>
             )}
           </div>
         </div>

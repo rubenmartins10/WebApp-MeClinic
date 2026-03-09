@@ -11,7 +11,9 @@ import Inventory from './pages/Inventory';
 import Consultas from './pages/Consultas';
 import Users from './pages/Users';
 import FichasTecnicas from './pages/FichasTecnicas';
+import Settings from './pages/Settings';
 import Report from './pages/Report';
+
 
 // COMPONENTE DE LAYOUT: Aplica a cor de fundo e texto a TODA a aplicação
 const MainLayout = ({ user, onLogout }) => {
@@ -42,6 +44,7 @@ const MainLayout = ({ user, onLogout }) => {
           <Route path="/users" element={<Users />} />
           <Route path="/fichas-tecnicas" element={<FichasTecnicas />} />
           <Route path="/reports" element={<Report />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
