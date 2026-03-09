@@ -1,0 +1,1 @@
+ALTER TABLE pacientes ADD COLUMN email VARCHAR(255);

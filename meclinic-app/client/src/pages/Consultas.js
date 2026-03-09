@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, FileText, ChevronDown, Phone, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, FileText, ChevronDown, Phone, Edit2, Trash2, AlertTriangle, Mail, DollarSign, X } from 'lucide-react';
+import jsPDF from 'jspdf';
 import { ThemeContext } from '../ThemeContext';
 
 const countries = [
@@ -23,7 +24,11 @@ const Consultas = () => {
   const [consultaToEdit, setConsultaToEdit] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
-  const initialForm = { nome: '', telefone: '', procedimento_id: '', data: '', hora: '', motivo: '' };
+  // MODAL DE CHECKOUT
+  const [checkoutModal, setCheckoutModal] = useState({ show: false, consulta: null, valor: 0, metodo: 'Multibanco', email: '' });
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const initialForm = { nome: '', email: '', telefone: '', procedimento_id: '', data: '', hora: '', motivo: '' };
   const [formData, setFormData] = useState(initialForm);
   
   const [selectedCountry, setSelectedCountry] = useState(countries[0]); 
@@ -45,14 +50,96 @@ const Consultas = () => {
       .catch(err => console.error(err));
   };
 
-  const showNotif = (type, message) => setNotification({ show: true, type, message });
+  const showNotif = (type, message) => {
+    setNotification({ show: true, type, message });
+    setTimeout(() => setNotification({ show: false, type: '', message: '' }), 4000);
+  };
   const closeNotif = () => setNotification({ show: false, type: '', message: '' });
 
-  // FUNÇÃO DE PREPARAR EDIÇÃO
+  // ==========================================
+  // --- CHECKOUT E GERAÇÃO DE PDF ---
+  // ==========================================
+  const abrirCheckout = (c) => {
+    setCheckoutModal({
+      show: true,
+      consulta: c,
+      valor: c.preco_estimado || 0,
+      metodo: 'Multibanco',
+      email: c.paciente_email || ''
+    });
+  };
+
+  const gerarReciboPDFBase64 = (consulta, valor, metodo) => {
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.setTextColor(37, 99, 235);
+    doc.text("MeClinic", 15, 20);
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Resumo de Consulta / Nota de Honorários", 15, 28);
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 35, 195, 35);
+    
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Paciente: ${consulta.paciente_nome}`, 15, 50);
+    doc.text(`Data: ${new Date(consulta.data_consulta).toLocaleDateString('pt-PT')}`, 15, 60);
+    doc.text(`Procedimento: ${consulta.procedimento_nome || 'Consulta Geral'}`, 15, 70);
+    doc.text(`Método de Pagamento: ${metodo}`, 15, 80);
+    
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Valor Total: ${parseFloat(valor).toFixed(2)} EUR`, 15, 100);
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text("Obrigado pela sua preferência!", 15, 120);
+
+    return doc.output('datauristring');
+  };
+
+  const handleConfirmCheckout = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    
+    const { consulta, valor, metodo, email } = checkoutModal;
+    const pdfBase64 = gerarReciboPDFBase64(consulta, valor, metodo);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/faturacao/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consulta_id: consulta.id,
+          paciente_nome: consulta.paciente_nome,
+          procedimento_nome: consulta.procedimento_nome || 'Consulta Geral',
+          valor_total: valor,
+          metodo_pagamento: metodo,
+          email_destino: email,
+          pdfBase64: pdfBase64
+        })
+      });
+
+      if (response.ok) {
+        showNotif('success', 'Consulta finalizada e registada na Faturação!');
+        setCheckoutModal({ show: false, consulta: null, valor: 0, metodo: '', email: '' });
+        carregarConsultas(); 
+      } else {
+        showNotif('error', 'Erro ao finalizar consulta.');
+      }
+    } catch (err) {
+      showNotif('error', 'Falha ao ligar ao servidor.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ==========================================
+  // --- GESTÃO DA AGENDA ---
+  // ==========================================
   const handleEditClick = (c) => {
     setConsultaToEdit(c.id);
     
-    // Separa o indicativo do número
     let ind = '+351';
     let num = c.paciente_telefone || '';
     if (num.includes(' ')) {
@@ -66,6 +153,7 @@ const Consultas = () => {
     
     setFormData({
       nome: c.paciente_nome || '',
+      email: c.paciente_email || '',
       telefone: num,
       procedimento_id: c.procedimento_id || '',
       data: c.data_consulta ? new Date(c.data_consulta).toISOString().split('T')[0] : '',
@@ -76,7 +164,6 @@ const Consultas = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // FUNÇÃO DE CONFIRMAR ELIMINAÇÃO
   const confirmarDesmarcacao = async () => {
     if (!showDeleteConfirm) return;
     try {
@@ -146,12 +233,57 @@ const Consultas = () => {
   return (
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
       
+      {/* MODAL FINALIZAR / CHECKOUT */}
+      {checkoutModal.show && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '450px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign color="#10b981" /> Finalizar Consulta</h2>
+              <button onClick={() => setCheckoutModal({...checkoutModal, show: false})} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+            
+            <div style={{ padding: '15px', backgroundColor: theme.pageBg, borderRadius: '10px', marginBottom: '20px', border: `1px solid ${theme.border}` }}>
+              <p style={{ margin: '0 0 5px 0', color: theme.subText, fontSize: '13px' }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.consulta.paciente_nome}</strong></p>
+              <p style={{ margin: 0, color: theme.subText, fontSize: '13px' }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.consulta.procedimento_nome || 'Geral'}</strong></p>
+            </div>
+
+            <form onSubmit={handleConfirmCheckout}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={labelStyle}>Valor a Cobrar (€)</label>
+                  <input type="number" step="0.01" style={{ ...inputStyle, borderColor: '#10b981', fontWeight: 'bold' }} value={checkoutModal.valor} onChange={e => setCheckoutModal({...checkoutModal, valor: e.target.value})} required />
+                </div>
+                <div>
+                  <label style={labelStyle}>Método</label>
+                  <select style={inputStyle} value={checkoutModal.metodo} onChange={e => setCheckoutModal({...checkoutModal, metodo: e.target.value})}>
+                    <option>Multibanco</option>
+                    <option>Numerário</option>
+                    <option>MB Way</option>
+                    <option>Transferência</option>
+                  </select>
+                </div>
+              </div>
+
+              <label style={labelStyle}>Enviar Recibo por E-mail para:</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
+                <input type="email" style={{ ...inputStyle, paddingLeft: '45px' }} placeholder="E-mail do paciente (opcional)" value={checkoutModal.email} onChange={e => setCheckoutModal({...checkoutModal, email: e.target.value})} />
+              </div>
+
+              <button type="submit" disabled={isProcessing} style={{ width: '100%', marginTop: '20px', padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', opacity: isProcessing ? 0.7 : 1 }}>
+                {isProcessing ? 'A processar...' : 'Confirmar e Fechar Consulta'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* NOTIFICAÇÃO GENÉRICA */}
       {notification.show && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
             {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.text }}>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.isDark ? '#ffffff' : theme.text }}>
               {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
             </h2>
             <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
@@ -162,12 +294,12 @@ const Consultas = () => {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE APAGAR */}
+      {/* MODAL CONFIRMAR APAGAR */}
       {showDeleteConfirm && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
             <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: theme.text }}>Remover Consulta?</h2>
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Remover Consulta?</h2>
             <p style={{ color: theme.subText, marginBottom: '25px' }}>Esta ação vai apagar a consulta permanentemente da sua agenda.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
@@ -179,16 +311,16 @@ const Consultas = () => {
 
       <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
         <CalendarIcon size={32} color="#2563eb" />
-        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: '#ffffff' }}>Gestão de Consultas</h1>
+        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>Gestão de Consultas</h1>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px' }}>
         
-        {/* LADO ESQUERDO: FORMULÁRIO (CRIAR/EDITAR) */}
+        {/* LADO ESQUERDO: FORMULÁRIO */}
         <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${consultaToEdit ? '#059669' : theme.border}`, boxShadow: consultaToEdit ? '0 0 0 2px rgba(5, 150, 105, 0.2)' : 'none', transition: 'all 0.3s' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '18px', color: '#ffffff' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '18px', color: theme.isDark ? '#ffffff' : theme.text }}>
               {consultaToEdit ? <Edit2 size={20} color="#059669" /> : <User size={20} color={theme.subText} />}
               {consultaToEdit ? 'A Editar Consulta' : 'Nova Marcação'}
             </h2>
@@ -207,6 +339,11 @@ const Consultas = () => {
             <div style={{ position: 'relative' }}>
               <User size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
               <input required type="text" placeholder="Nome do Paciente" style={{ ...inputStyle, paddingLeft: '45px' }} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+            </div>
+
+            <div style={{ position: 'relative', marginTop: '15px' }}>
+              <Mail size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
+              <input type="email" placeholder="E-mail (Recomendado)" style={{ ...inputStyle, paddingLeft: '45px' }} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
 
             <div style={{ position: 'relative', marginTop: '15px', display: 'flex' }}>
@@ -266,7 +403,6 @@ const Consultas = () => {
                 </div>
               </div>
               
-              {/* === RELÓGIO ATUALIZADO (SEM OS H'S) === */}
               <div>
                 <label style={labelStyle}>Hora</label>
                 <div style={{ ...inputStyle, padding: 0, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
@@ -320,7 +456,7 @@ const Consultas = () => {
 
         {/* LADO DIREITO: LISTAGEM */}
         <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${theme.border}` }}>
-          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: '#ffffff' }}>Próximas Marcações</h2>
+          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: theme.isDark ? '#ffffff' : theme.text }}>Próximas Marcações</h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {consultas.length > 0 ? (
@@ -347,6 +483,15 @@ const Consultas = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {/* ESTE É O NOVO BOTÃO DE FINALIZAR! */}
+                      <button 
+                        onClick={() => abrirCheckout(c)} 
+                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: '#d1fae5', color: '#059669', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
+                        title="Finalizar e Faturar"
+                      >
+                        <CheckCircle size={18} />
+                      </button>
+
                       <button 
                         onClick={() => handleEditClick(c)} 
                         style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: '#2563eb', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 

@@ -1,98 +1,200 @@
-// client/src/pages/Inventory.js
 import React, { useState, useEffect, useContext } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertTriangle, ScanLine, Image as ImageIcon, CheckCircle, XCircle, X } from 'lucide-react';
-import ProductModal from '../components/ProductModal';
-import BarcodeScanner from '../components/BarcodeScanner';
+import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
 
-const Inventory = () => {
+const Inventario = () => {
   const { theme } = useContext(ThemeContext);
-  const [products, setProducts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   
-  const [showModal, setShowModal] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [produtos, setProdutos] = useState([]);
+  const [pesquisa, setPesquisa] = useState('');
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   
-  const [productToEdit, setProductToEdit] = useState(null);
-  const [scannedBarcode, setScannedBarcode] = useState('');
-  const [idToDelete, setIdToDelete] = useState(null);
+  // Controlo de Modais
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [produtoToEdit, setProdutoToEdit] = useState(null);
 
-  const loadProducts = () => {
-    fetch("http://localhost:5000/api/produtos")
-      .then(res => res.json())
-      .then(data => setProducts(data))
-      .catch(err => console.error("Erro ao ligar ao servidor:", err));
-  };
+  const initialForm = { nome: '', codigo_barras: '', stock_atual: '', stock_minimo: '', unidade_medida: 'un', imagem_url: '' };
+  const [formData, setFormData] = useState(initialForm);
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => {
+    carregarProdutos();
+  }, []);
 
-  const showNotif = (type, message) => setNotification({ show: true, type, message });
-  const closeNotif = () => setNotification({ show: false, type: '', message: '' });
-
-  // --- LÓGICA DO SCANNER DA CÂMARA ---
-  const handleBarcodeDetected = (code) => {
-    setShowScanner(false);
-    setScannedBarcode(code);
-    setProductToEdit(null); // Limpa para o Modal assumir a lógica de verificação
-    setShowModal(true);
-  };
-
-  // --- LÓGICA DE GUARDAR ---
-  const handleSaveProduct = async (formData) => {
+  const carregarProdutos = async () => {
     try {
-      const isEditing = !!formData.id;
-      const url = isEditing ? `http://localhost:5000/api/produtos/${formData.id}` : "http://localhost:5000/api/produtos";
-      
-      const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        loadProducts();
-        setShowModal(false);
-        showNotif('success', `Produto ${isEditing ? 'atualizado' : 'registado'} com sucesso!`);
+      const res = await fetch('http://localhost:5000/api/produtos');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setProdutos(data);
       } else {
-        showNotif('error', 'Erro ao guardar no servidor. Verifique a base de dados.');
+        setProdutos([]);
       }
     } catch (err) {
-      showNotif('error', 'Sem ligação ao servidor.');
+      console.error("Erro ao carregar produtos:", err);
+      setProdutos([]);
     }
   };
 
-  // --- LÓGICA DE APAGAR ---
-  const confirmDelete = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/produtos/${idToDelete}`, { method: "DELETE" });
-      if (response.ok) { 
-        loadProducts(); 
-        setShowDeleteConfirm(false); 
-        showNotif('success', 'Produto removido do sistema.');
-      }
-    } catch (err) { showNotif('error', 'Erro ao apagar.'); }
+  const showNotif = (type, message) => {
+    setNotification({ show: true, type, message });
+    setTimeout(() => setNotification({ show: false, type: '', message: '' }), 4000);
   };
 
-  const filteredProducts = products.filter(p => 
-    p.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.codigo_barras?.includes(searchTerm)
+  const confirmarEliminacao = async () => {
+    if (!showDeleteConfirm) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/produtos/${showDeleteConfirm}`, { method: 'DELETE' });
+      if (res.ok) {
+        showNotif('success', 'Produto removido com sucesso.');
+        carregarProdutos();
+      } else {
+        showNotif('error', 'Erro ao remover produto.');
+      }
+    } catch (err) {
+      showNotif('error', 'Falha ao ligar ao servidor.');
+    } finally {
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  const handleEditClick = (p) => {
+    setProdutoToEdit(p.id);
+    setFormData({
+      nome: p.nome || '',
+      codigo_barras: p.codigo_barras || '',
+      stock_atual: p.stock_atual || 0,
+      stock_minimo: p.stock_minimo || 5,
+      unidade_medida: p.unidade_medida || 'un',
+      imagem_url: p.imagem_url || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const url = produtoToEdit ? `http://localhost:5000/api/produtos/${produtoToEdit}` : 'http://localhost:5000/api/produtos';
+      const method = produtoToEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      if (res.ok) {
+        showNotif('success', produtoToEdit ? 'Produto atualizado!' : 'Produto adicionado ao inventário!');
+        setShowModal(false);
+        setProdutoToEdit(null);
+        setFormData(initialForm);
+        carregarProdutos();
+      } else {
+        showNotif('error', 'Erro ao guardar produto.');
+      }
+    } catch (err) {
+      showNotif('error', 'Erro de ligação ao servidor.');
+    }
+  };
+
+  const produtosFiltrados = produtos.filter(p => 
+    p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || 
+    (p.codigo_barras && p.codigo_barras.toLowerCase().includes(pesquisa.toLowerCase()))
   );
 
-  const btnStyle = { color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' };
+  const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', marginBottom: '15px' };
+  const labelStyle = { display: 'block', fontSize: '11px', fontWeight: '800', color: theme.subText, marginBottom: '6px', textTransform: 'uppercase' };
 
   return (
-    <div style={{ padding: '10px', transition: 'all 0.3s ease', color: theme.text }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
       
-      {/* NOTIFICAÇÃO BONITA NO CENTRO DO ECRÃ */}
+      {/* NOTIFICAÇÃO GENÉRICA */}
       {notification.show && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '40px 30px', borderRadius: '15px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '320px', position: 'relative' }}>
-            <button onClick={closeNotif} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', cursor: 'pointer', color: theme.subText }}><X size={24} /></button>
-            {notification.type === 'success' ? <CheckCircle size={56} color="#059669" style={{ marginBottom: '15px' }} /> : <XCircle size={56} color="#ef4444" style={{ marginBottom: '15px' }} />}
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '22px', fontWeight: 'bold', color: theme.text }}>{notification.type === 'success' ? 'Sucesso!' : 'Erro'}</h3>
-            <p style={{ margin: 0, color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
+            {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.isDark ? '#ffffff' : theme.text }}>
+              {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
+            </h2>
+            <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
+            <button onClick={() => setNotification({show: false})} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: notification.type === 'success' ? '#059669' : '#ef4444', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+              OK, entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE APAGAR */}
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
+            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Remover Produto?</h2>
+            <p style={{ color: theme.subText, marginBottom: '25px' }}>Esta ação vai apagar o produto permanentemente do inventário.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarEliminacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CRIAR/EDITAR PRODUTO */}
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, width: '500px', borderRadius: '20px', padding: '30px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Package size={24} color="#2563eb" /> {produtoToEdit ? 'Editar Produto' : 'Novo Produto'}
+              </h2>
+              <button onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <label style={labelStyle}>Nome do Produto</label>
+              <input required type="text" placeholder="Ex: Luvas de Nitrilo" style={inputStyle} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={labelStyle}>Código de Barras</label>
+                  <input type="text" placeholder="Opcional..." style={inputStyle} value={formData.codigo_barras} onChange={e => setFormData({...formData, codigo_barras: e.target.value})} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Unidade de Medida</label>
+                  <select style={inputStyle} value={formData.unidade_medida} onChange={e => setFormData({...formData, unidade_medida: e.target.value})}>
+                    <option value="un">Unidades (un)</option>
+                    <option value="cx">Caixas (cx)</option>
+                    <option value="mts">Metros (mts)</option>
+                    <option value="lts">Litros (lts)</option>
+                    <option value="ml">Mililitros (ml)</option>
+                    <option value="grs">Gramas (grs)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={labelStyle}>Stock Atual</label>
+                  <input required type="number" style={inputStyle} value={formData.stock_atual} onChange={e => setFormData({...formData, stock_atual: e.target.value})} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Stock Mínimo (Alerta)</label>
+                  <input required type="number" style={inputStyle} value={formData.stock_minimo} onChange={e => setFormData({...formData, stock_minimo: e.target.value})} />
+                </div>
+              </div>
+
+              <label style={labelStyle}>URL da Imagem (Link da net)</label>
+              <input type="text" placeholder="https://..." style={inputStyle} value={formData.imagem_url} onChange={e => setFormData({...formData, imagem_url: e.target.value})} />
+
+              <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                <button type="button" onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                  <Save size={20} /> Guardar
+                </button>
+              </div>
+            </form>
+
           </div>
         </div>
       )}
@@ -100,117 +202,87 @@ const Inventory = () => {
       {/* CABEÇALHO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0 }}>Inventário Ponto de Venda</h1>
+          {/* AQUI ESTÁ A CORREÇÃO DA COR INTELIGENTE NO TÍTULO */}
+          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>
+            Inventário
+          </h1>
           <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>Vista de cartões e leitura de código de barras.</p>
         </div>
         
         <div style={{ display: 'flex', gap: '15px' }}>
-          <button onClick={() => setShowScanner(true)} style={{ ...btnStyle, backgroundColor: '#0f766e', fontSize: '15px' }}>
-            <ScanLine size={22} /> Ler Código (Câmara)
+          <button style={{ backgroundColor: '#059669', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
+            <Camera size={20} /> Ler Código (Câmara)
           </button>
-          
-          <button onClick={() => { setProductToEdit(null); setScannedBarcode(''); setShowModal(true); }} style={{ ...btnStyle, backgroundColor: '#2563eb', fontSize: '15px' }}>
-            <Plus size={22} /> Adicionar Produto
+          <button onClick={() => { setProdutoToEdit(null); setFormData(initialForm); setShowModal(true); }} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
+            <Plus size={20} /> Adicionar Produto
           </button>
         </div>
       </div>
 
       {/* BARRA DE PESQUISA */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '15px' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: '500px' }}>
-          <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input 
-            type="text" placeholder="Pesquisar produto ou digitar código..."
-            style={{ width: '100%', padding: '15px 15px 15px 45px', borderRadius: '12px', border: `2px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '16px' }}
-            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+      <div style={{ marginBottom: '30px', position: 'relative', maxWidth: '400px' }}>
+        <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />
+        <input 
+          type="text" 
+          placeholder="Pesquisar produto ou digitar código..." 
+          style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px' }}
+          value={pesquisa}
+          onChange={(e) => setPesquisa(e.target.value)}
+        />
       </div>
 
-      {/* A NOVA VISTA EM QUADRADOS (GRID DE CARTÕES) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '25px', paddingBottom: '50px' }}>
-        {filteredProducts.map((p) => (
-          <div key={p.id} style={{ backgroundColor: theme.cardBg, borderRadius: '16px', overflow: 'hidden', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', transition: 'transform 0.2s', cursor: 'default' }}>
-            
-            {/* Imagem Grande no Topo */}
-            <div style={{ height: '180px', backgroundColor: theme.pageBg, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-              {p.imagem_url ? (
-                <img src={p.imagem_url} alt={p.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <ImageIcon size={50} color={theme.border} />
-              )}
+      {/* GRELHA DE PRODUTOS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
+        {produtosFiltrados.map(p => (
+           <div key={p.id} style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${theme.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
               
-              {/* Alerta de Stock em cima da foto se estiver baixo */}
-              {p.stock_atual <= p.stock_minimo && (
-                <div style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: '#ef4444', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertTriangle size={12} /> STOCK BAIXO
-                </div>
-              )}
-            </div>
+              <div style={{ height: '200px', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', borderBottom: `1px solid ${theme.border}` }}>
+                {p.imagem_url ? (
+                  <img src={p.imagem_url} alt={p.nome} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
+                ) : (
+                  <Package size={60} color="#e2e8f0" />
+                )}
+              </div>
+              
+              <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.isDark ? '#ffffff' : theme.text, fontWeight: 'bold', lineHeight: '1.4' }}>{p.nome}</h3>
+                <p style={{ margin: '0 0 20px 0', color: theme.subText, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {p.codigo_barras || 'SEM CÓDIGO'}
+                </p>
 
-            {/* Informações Em Baixo */}
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-              <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.text, lineHeight: '1.3' }}>{p.nome}</h3>
-              <p style={{ margin: 0, fontSize: '12px', color: theme.subText, letterSpacing: '1px' }}>{p.codigo_barras || 'SEM CÓDIGO'}</p>
-              
-              <div style={{ marginTop: 'auto', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ display: 'block', fontSize: '10px', color: theme.subText, textTransform: 'uppercase', fontWeight: 'bold' }}>Qtd Atual</span>
-                  <span style={{ fontSize: '24px', fontWeight: '900', color: p.stock_atual <= p.stock_minimo ? '#ef4444' : theme.text }}>
-                    {p.stock_atual} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>{p.unidade_medida}</span>
-                  </span>
-                </div>
-                
-                {/* Botões de Ação */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => {setProductToEdit(p); setShowModal(true);}} style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: '#2563eb', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="Editar">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => {setIdToDelete(p.id); setShowDeleteConfirm(true);}} style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="Apagar">
-                    <Trash2 size={16} />
-                  </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', marginBottom: '4px' }}>QTD ATUAL</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                      <span style={{ fontSize: '24px', fontWeight: '900', color: theme.isDark ? '#ffffff' : theme.text }}>{p.stock_atual}</span>
+                      <span style={{ fontSize: '14px', color: theme.subText, fontWeight: 'bold' }}>{p.unidade_medida}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleEditClick(p)} style={{ width: '38px', height: '38px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: '#2563eb', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
+                      <Edit2 size={18} />
+                    </button>
+                    <button onClick={() => setShowDeleteConfirm(p.id)} style={{ width: '38px', height: '38px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-          </div>
+           </div>
         ))}
+
+        {produtosFiltrados.length === 0 && (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '50px', color: theme.subText }}>
+            <Package size={40} style={{ opacity: 0.3, marginBottom: '10px' }} />
+            <p>Nenhum produto encontrado.</p>
+          </div>
+        )}
       </div>
 
-      {/* COMPONENTES SECUNDÁRIOS */}
-      {showScanner && (
-        <BarcodeScanner 
-          onScan={handleBarcodeDetected} 
-          onClose={() => setShowScanner(false)} 
-        />
-      )}
-
-      <ProductModal 
-        isOpen={showModal} 
-        onClose={() => setShowModal(false)} 
-        onSave={handleSaveProduct} 
-        productToEdit={productToEdit} 
-        scannedBarcode={scannedBarcode}
-        allProducts={products}
-        showNotification={showNotif}
-      />
-
-      {/* MODAL DE APAGAR */}
-      {showDeleteConfirm && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
-            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: theme.text }}>Apagar Produto?</h2>
-            <p style={{ color: theme.subText, marginBottom: '25px' }}>Esta ação não pode ser desfeita.</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowDeleteConfirm(false)} style={{ ...btnStyle, backgroundColor: '#64748b', flex: 1, justifyContent: 'center' }}>Cancelar</button>
-              <button onClick={confirmDelete} style={{ ...btnStyle, backgroundColor: '#ef4444', flex: 1, justifyContent: 'center' }}>Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default Inventory;
+export default Inventario;

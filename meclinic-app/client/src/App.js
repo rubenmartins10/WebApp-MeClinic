@@ -11,6 +11,7 @@ import Inventory from './pages/Inventory';
 import Consultas from './pages/Consultas';
 import Users from './pages/Users';
 import FichasTecnicas from './pages/FichasTecnicas';
+import Faturacao from './pages/Faturacao';
 import Settings from './pages/Settings';
 import Report from './pages/Report';
 
@@ -44,6 +45,7 @@ const MainLayout = ({ user, onLogout }) => {
           <Route path="/users" element={<Users />} />
           <Route path="/fichas-tecnicas" element={<FichasTecnicas />} />
           <Route path="/reports" element={<Report />} />
+          <Route path="/faturacao" element={<Faturacao />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

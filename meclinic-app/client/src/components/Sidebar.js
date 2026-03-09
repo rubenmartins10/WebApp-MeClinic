@@ -1,9 +1,8 @@
-// client/src/components/Sidebar.js
 import React, { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Package, Users, Calendar,
-  FileText, BarChart3, Settings, LogOut, Sun, Moon 
+  FileText, BarChart3, Settings, LogOut, Sun, Moon, DollarSign 
 } from 'lucide-react';
 
 import { ThemeContext } from '../ThemeContext'; 
@@ -18,13 +17,14 @@ const Sidebar = ({ onLogout }) => {
     { path: '/consultas', label: 'Consultas', icon: <Calendar size={20} /> },
     { path: '/fichas-tecnicas', label: 'Fichas Técnicas', icon: <FileText size={20} /> },
     { path: '/users', label: 'Utilizadores', icon: <Users size={20} /> },
+    { path: '/faturacao', label: 'Faturação', icon: <DollarSign size={20} /> },
     { path: '/reports', label: 'Relatórios', icon: <BarChart3 size={20} /> },
   ];
 
   return (
     <div style={{ 
       width: '250px', 
-      backgroundColor: theme.sidebarBg, // Cor forte dinâmica (Azul ou Preto)
+      backgroundColor: theme.sidebarBg,
       color: 'white', 
       height: '100vh', 
       position: 'fixed',

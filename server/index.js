@@ -16,8 +16,8 @@ app.use(express.json({ limit: '50mb' }));
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'rubendavidsilvamartins@gmail.com',
-    pass: '3rubendavid'
+    user: 'o_teu_email_clinica@gmail.com',
+    pass: 'tua_palavra_passe_de_aplicacao'
   }
 });
 
@@ -130,12 +130,8 @@ app.post("/api/change-password", async (req, res) => {
   }
 });
 
-// ==========================================
-// --- GESTÃO DE UTILIZADORES ---
-// ==========================================
 app.get("/api/utilizadores", async (req, res) => {
   try {
-    // CORRIGIDO: Removi o created_at para não falhar com a tua tabela atual
     const result = await pool.query("SELECT id, nome, email, role, mfa_enabled FROM utilizadores ORDER BY nome ASC");
     res.json(result.rows);
   } catch (err) {
@@ -233,16 +229,18 @@ app.delete("/api/produtos/:id", async (req, res) => {
 // ==========================================
 app.get('/api/consultas', async (req, res) => {
   try {
+    // ATUALIZADO: Agora só mostra as consultas que estão marcadas como 'AGENDADA' (não mostra as finalizadas)
     const result = await pool.query(`
       SELECT 
-        c.id, p.nome as paciente_nome, p.telefone as paciente_telefone, c.data_consulta, c.hora_consulta, c.motivo, c.procedimento_id,
-        m.nome as procedimento_nome
+        c.id, p.nome as paciente_nome, p.telefone as paciente_telefone, p.email as paciente_email, 
+        c.data_consulta, c.hora_consulta, c.motivo, c.procedimento_id,
+        m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado
       FROM consultas c
       JOIN pacientes p ON c.paciente_id = p.id
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
       WHERE 
-        c.data_consulta > CURRENT_DATE 
-        OR (c.data_consulta = CURRENT_DATE AND c.hora_consulta >= CURRENT_TIME)
+        c.status = 'AGENDADA' AND
+        (c.data_consulta > CURRENT_DATE OR (c.data_consulta = CURRENT_DATE AND c.hora_consulta >= CURRENT_TIME))
       ORDER BY c.data_consulta ASC, c.hora_consulta ASC
     `);
     res.json(result.rows);
@@ -252,15 +250,16 @@ app.get('/api/consultas', async (req, res) => {
 });
 
 app.post('/api/consultas', async (req, res) => {
-  const { nome, telefone, data, hora, motivo, procedimento_id } = req.body;
+  const { nome, email, telefone, data, hora, motivo, procedimento_id } = req.body;
   try {
     let paciente = await pool.query("SELECT id FROM pacientes WHERE nome = $1", [nome]);
     let pacienteId;
     if (paciente.rows.length === 0) {
-      const novoP = await pool.query("INSERT INTO pacientes (nome, telefone) VALUES ($1, $2) RETURNING id", [nome, telefone]);
+      const novoP = await pool.query("INSERT INTO pacientes (nome, telefone, email) VALUES ($1, $2, $3) RETURNING id", [nome, telefone, email || null]);
       pacienteId = novoP.rows[0].id;
     } else {
       pacienteId = paciente.rows[0].id;
+      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pacienteId]);
     }
     const novaC = await pool.query(
       "INSERT INTO consultas (paciente_id, data_consulta, hora_consulta, motivo, procedimento_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
@@ -274,16 +273,16 @@ app.post('/api/consultas', async (req, res) => {
 
 app.put('/api/consultas/:id', async (req, res) => {
   const { id } = req.params;
-  const { nome, telefone, data, hora, motivo, procedimento_id } = req.body;
+  const { nome, email, telefone, data, hora, motivo, procedimento_id } = req.body;
   try {
     let paciente = await pool.query("SELECT id FROM pacientes WHERE nome = $1", [nome]);
     let pacienteId;
     if (paciente.rows.length === 0) {
-      const novoP = await pool.query("INSERT INTO pacientes (nome, telefone) VALUES ($1, $2) RETURNING id", [nome, telefone]);
+      const novoP = await pool.query("INSERT INTO pacientes (nome, telefone, email) VALUES ($1, $2, $3) RETURNING id", [nome, telefone, email || null]);
       pacienteId = novoP.rows[0].id;
     } else {
       pacienteId = paciente.rows[0].id;
-      await pool.query("UPDATE pacientes SET telefone = $1 WHERE id = $2", [telefone, pacienteId]);
+      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pacienteId]);
     }
     
     await pool.query(
@@ -304,6 +303,53 @@ app.delete('/api/consultas/:id', async (req, res) => {
     res.status(500).json({ error: "Erro ao desmarcar consulta." });
   }
 });
+
+// ==========================================
+// --- FATURAÇÃO E CHECK-OUT ---
+// ==========================================
+app.post('/api/faturacao/checkout', async (req, res) => {
+  const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64 } = req.body;
+
+  try {
+    // 1. Muda a consulta para FINALIZADA
+    await pool.query("UPDATE consultas SET status = 'FINALIZADA' WHERE id = $1", [consulta_id]);
+
+    // 2. Regista o pagamento na Faturação
+    await pool.query(
+      "INSERT INTO faturacao (consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento) VALUES ($1, $2, $3, $4, $5)",
+      [consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento || 'Multibanco']
+    );
+
+    // 3. Se houver e-mail e PDF, envia logo para o cliente
+    if (email_destino && pdfBase64) {
+      const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
+      const mailOptions = {
+        from: 'o_teu_email_clinica@gmail.com',
+        to: email_destino,
+        subject: `Resumo de Consulta - MeClinic`,
+        text: `Olá ${paciente_nome},\n\nAnexo enviamos o resumo e comprovativo da sua consulta de ${procedimento_nome}.\n\nObrigado pela preferência!`,
+        attachments: [{ filename: `Recibo_${paciente_nome.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer }]
+      };
+      await transporter.sendMail(mailOptions);
+    }
+
+    res.json({ message: "Check-out concluído! Recibo processado." });
+  } catch (err) {
+    console.error("Erro no checkout:", err);
+    res.status(500).json({ error: "Erro ao processar o check-out." });
+  }
+});
+
+// Rota para ler o histórico na página de Faturação
+app.get('/api/faturacao', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM faturacao ORDER BY data_emissao DESC");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ==========================================
 // --- FICHAS TÉCNICAS E PROCEDIMENTOS ---
@@ -426,6 +472,21 @@ app.post('/api/reports/send-email', async (req, res) => {
   }
 });
 
+app.get('/api/stats/dashboard-summary', async (req, res) => {
+  const { start } = req.query;
+  try {
+    const stats = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM pacientes WHERE created_at::date BETWEEN $1::date AND $1::date + '6 days'::interval) as pacientes_semana,
+        (SELECT COUNT(*) FROM faturacao WHERE data_emissao BETWEEN $1::date AND $1::date + '6 days'::interval) as consultas_semana,
+        (SELECT COALESCE(SUM(valor_total), 0) FROM faturacao WHERE data_emissao BETWEEN $1::date AND $1::date + '6 days'::interval) as faturacao_semana,
+        (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock
+    `, [start]);
+    res.json(stats.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.get('/api/stats/patients-weekly', async (req, res) => {
   const { start } = req.query; 
   try {
@@ -436,22 +497,6 @@ app.get('/api/stats/patients-weekly', async (req, res) => {
       GROUP BY date_series ORDER BY date_series ASC
     `, [start]);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/stats/dashboard-summary', async (req, res) => {
-  const { start } = req.query;
-  try {
-    const stats = await pool.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM pacientes WHERE created_at::date BETWEEN $1::date AND $1::date + '6 days'::interval) as pacientes_semana,
-        (SELECT COUNT(*) FROM consultas WHERE data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval) as consultas_semana,
-        (SELECT COALESCE(SUM(m.preco_servico), 0) FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval) as faturacao_semana,
-        (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock
-    `, [start]);
-    res.json(stats.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -473,29 +518,21 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
 
     const procedimentos = await pool.query(`
       SELECT m.nome, COUNT(c.id)::int as quantidade, SUM(m.preco_servico)::float as subtotal_faturado 
-      FROM consultas c 
-      JOIN modelos_procedimento m ON c.procedimento_id = m.id 
+      FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id 
       WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval 
       GROUP BY m.nome ORDER BY quantidade DESC
     `, [start]);
 
     const materiais = await pool.query(`
       SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total
-      FROM consultas c
-      JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id
+      FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id
       WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval
-      GROUP BY mpi.nome_item
-      ORDER BY quantidade_total DESC LIMIT 10
+      GROUP BY mpi.nome_item ORDER BY quantidade_total DESC LIMIT 10
     `, [start]);
 
     const alertas = await pool.query(`SELECT nome, stock_atual, stock_minimo, unidade_medida FROM produtos WHERE stock_atual <= stock_minimo`);
 
-    res.json({
-      resumo: report.rows[0],
-      detalhe_procedimentos: procedimentos.rows,
-      top_materiais: materiais.rows,
-      alertas_stock: alertas.rows
-    });
+    res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, alertas_stock: alertas.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

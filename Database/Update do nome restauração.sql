@@ -1,0 +1,1 @@
+UPDATE modelos_procedimento SET nome = 'Restauração' WHERE nome = 'Restauracao';

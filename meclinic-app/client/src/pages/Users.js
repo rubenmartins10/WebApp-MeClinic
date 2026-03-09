@@ -14,7 +14,10 @@ const Users = () => {
   const [qrCodeCriado, setQrCodeCriado] = useState(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // SABER QUEM ESTÁ LOGADO
   const currentUser = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
+  // VARIÁVEL MÁGICA DE SEGURANÇA
+  const isCurrentUserAdmin = currentUser.role === 'ADMIN';
 
   useEffect(() => {
     carregarUtilizadores();
@@ -25,7 +28,6 @@ const Users = () => {
       const res = await fetch('http://localhost:5000/api/utilizadores');
       const data = await res.json();
       
-      // ESCUDO DE SEGURANÇA: Garante que os dados são uma Lista, se não forem assume lista vazia
       if (Array.isArray(data)) {
         setUtilizadores(data);
       } else {
@@ -96,7 +98,6 @@ const Users = () => {
   const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', marginBottom: '15px' };
   const labelStyle = { display: 'block', fontSize: '11px', fontWeight: '800', color: theme.subText, marginBottom: '6px', textTransform: 'uppercase' };
 
-  // Garantir que não crasha caso o array esteja vazio
   const utilizadoresFiltrados = (utilizadores || []).filter(u => 
     u.nome.toLowerCase().includes(pesquisa.toLowerCase()) || 
     u.email.toLowerCase().includes(pesquisa.toLowerCase())
@@ -109,7 +110,7 @@ const Users = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
             {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.isDark ? '#ffffff' : theme.text }}>
               {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
             </h2>
             <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
@@ -124,7 +125,7 @@ const Users = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
             <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: '#ffffff' }}>Remover Utilizador?</h2>
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Remover Utilizador?</h2>
             <p style={{ color: theme.subText, marginBottom: '25px' }}>O acesso deste membro será revogado permanentemente.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
@@ -134,19 +135,19 @@ const Users = () => {
         </div>
       )}
 
-      {showAddModal && (
+      {showAddModal && isCurrentUserAdmin && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)' }}>
           <div style={{ backgroundColor: theme.cardBg, width: '450px', borderRadius: '20px', padding: '30px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-              <h2 style={{ margin: 0, color: '#ffffff', fontSize: '22px' }}>Novo Membro</h2>
+              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px' }}>Novo Membro</h2>
               <button onClick={() => { setShowAddModal(false); setQrCodeCriado(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
 
             {qrCodeCriado ? (
               <div style={{ textAlign: 'center' }}>
                 <QrCode size={50} color="#059669" style={{ marginBottom: '15px' }} />
-                <h3 style={{ margin: '0 0 10px 0', color: '#ffffff' }}>Segurança Obrigatória (MFA)</h3>
+                <h3 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Segurança Obrigatória (MFA)</h3>
                 <p style={{ color: theme.subText, fontSize: '13px', marginBottom: '20px' }}>O membro foi criado. Peça a essa pessoa para abrir a <strong>App Google Authenticator</strong> e ler este código agora mesmo.</p>
                 <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '15px', display: 'inline-block', marginBottom: '25px' }}>
                   <img src={qrCodeCriado} alt="MFA QR Code" style={{ width: '200px', height: '200px' }} />
@@ -196,13 +197,16 @@ const Users = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: '#ffffff' }}>Acessos e Equipa</h1>
+          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>Acessos e Equipa</h1>
           <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>Gere quem tem acesso ao sistema da clínica.</p>
         </div>
         
-        <button onClick={() => setShowAddModal(true)} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
-          <Plus size={20} /> Adicionar Membro
-        </button>
+        {/* BLOQUEIO DE SEGURANÇA: Só renderiza o botão se for ADMIN */}
+        {isCurrentUserAdmin && (
+          <button onClick={() => setShowAddModal(true)} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
+            <Plus size={20} /> Adicionar Membro
+          </button>
+        )}
       </div>
 
       <div style={{ marginBottom: '30px', position: 'relative', maxWidth: '400px' }}>
@@ -219,7 +223,7 @@ const Users = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
         {utilizadoresFiltrados.map(u => {
           const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome)}&background=2563eb&color=fff&rounded=true&bold=true&size=128`;
-          const isAdmin = u.role === 'ADMIN';
+          const isThisCardAdmin = u.role === 'ADMIN';
 
           return (
             <div key={u.id} style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${theme.border}`, padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -231,7 +235,7 @@ const Users = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '25px', marginTop: '10px' }}>
                 <img src={avatarUrl} alt={u.nome} style={{ width: '80px', height: '80px', borderRadius: '50%', marginBottom: '15px', border: `4px solid ${theme.pageBg}` }} />
-                <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', color: '#ffffff' }}>{u.nome}</h3>
+                <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', color: theme.isDark ? '#ffffff' : theme.text }}>{u.nome}</h3>
                 <p style={{ margin: 0, color: theme.subText, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <Mail size={14} /> {u.email}
                 </p>
@@ -241,12 +245,13 @@ const Users = () => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', backgroundColor: isAdmin ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)', color: isAdmin ? '#a78bfa' : '#60a5fa', border: `1px solid ${isAdmin ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
-                  {isAdmin ? <Shield size={14} /> : <User size={14} />}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', backgroundColor: isThisCardAdmin ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)', color: isThisCardAdmin ? '#a78bfa' : '#60a5fa', border: `1px solid ${isThisCardAdmin ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
+                  {isThisCardAdmin ? <Shield size={14} /> : <User size={14} />}
                   <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{u.role || 'ASSISTENTE'}</span>
                 </div>
 
-                {currentUser.id !== u.id && (
+                {/* BLOQUEIO DE SEGURANÇA: Só Admins podem apagar os outros */}
+                {isCurrentUserAdmin && currentUser.id !== u.id && (
                   <button 
                     onClick={() => setShowDeleteConfirm(u.id)}
                     style={{ width: '35px', height: '35px', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
