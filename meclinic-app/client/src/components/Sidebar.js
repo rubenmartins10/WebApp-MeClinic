@@ -30,23 +30,27 @@ const Sidebar = ({ onLogout }) => {
       position: 'fixed',
       display: 'flex',
       flexDirection: 'column',
-      transition: 'background-color 0.3s ease'
+      transition: 'background-color 0.3s ease',
+      borderRight: `1px solid ${theme.border}`
     }}>
-      <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 style={{ margin: 0 }}>MeClinic</h2>
+      
+      <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', letterSpacing: '0.5px' }}>MeClinic</h2>
       </div>
 
-      <nav style={{ flexGrow: 1, padding: '20px 0' }}>
+      <nav style={{ flexGrow: 1, padding: '20px 0', overflowY: 'auto' }}>
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {navItems.map((item) => (
             <li key={item.path}>
               <Link 
                 to={item.path} 
                 style={{ 
-                  display: 'flex', alignItems: 'center', padding: '12px 20px', 
-                  color: 'white', textDecoration: 'none',
+                  display: 'flex', alignItems: 'center', padding: '14px 20px', 
+                  color: location.pathname === item.path ? '#ffffff' : 'rgba(255,255,255,0.7)', 
+                  textDecoration: 'none',
                   backgroundColor: location.pathname === item.path ? 'rgba(255,255,255,0.15)' : 'transparent',
                   borderLeft: location.pathname === item.path ? '4px solid white' : '4px solid transparent',
+                  fontWeight: location.pathname === item.path ? 'bold' : 'normal',
                   transition: 'all 0.2s'
                 }}
               >
@@ -67,7 +71,7 @@ const Sidebar = ({ onLogout }) => {
                 display: 'flex', alignItems: 'center', padding: '12px 20px', 
                 color: 'white', textDecoration: 'none', background: 'none',
                 border: 'none', cursor: 'pointer', width: '100%', 
-                fontFamily: 'inherit', fontSize: '16px', textAlign: 'left'
+                fontFamily: 'inherit', fontSize: '15px', textAlign: 'left', opacity: 0.8
               }}>
               {theme.isDark ? (
                 <><Sun size={20} style={{ marginRight: '15px', color: '#fbbf24' }} /> Modo Claro</>
@@ -77,7 +81,7 @@ const Sidebar = ({ onLogout }) => {
             </button>
           </li>
           <li>
-            <Link to="/settings" style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', color: 'white', textDecoration: 'none' }}>
+            <Link to="/settings" style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', color: 'white', textDecoration: 'none', opacity: 0.8 }}>
               <Settings size={20} style={{ marginRight: '15px' }} /> Definições
             </Link>
           </li>
@@ -88,7 +92,7 @@ const Sidebar = ({ onLogout }) => {
                 display: 'flex', alignItems: 'center', padding: '12px 20px', 
                 color: '#fca5a5', textDecoration: 'none', background: 'none',
                 border: 'none', cursor: 'pointer', width: '100%', 
-                fontFamily: 'inherit', fontSize: '16px', textAlign: 'left'
+                fontFamily: 'inherit', fontSize: '15px', textAlign: 'left', marginTop: '10px'
               }}>
               <LogOut size={20} style={{ marginRight: '15px' }} /> Sair
             </button>

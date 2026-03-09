@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const speakeasy = require("speakeasy"); 
 const QRCode = require("qrcode");
 const nodemailer = require("nodemailer");
+const cron = require("node-cron");
 
 const app = express();
 app.use(cors());
@@ -16,8 +17,8 @@ app.use(express.json({ limit: '50mb' }));
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'o_teu_email_clinica@gmail.com',
-    pass: 'tua_palavra_passe_de_aplicacao'
+    user: 'rubendavidsilvamartins@gmail.com',
+    pass: 'ozrf vmiq mzxt ddii'
   }
 });
 
@@ -27,15 +28,11 @@ const transporter = nodemailer.createTransport({
 app.post("/api/register", async (req, res) => {
   try {
     const { nome, email, password } = req.body;
-    
     const userExists = await pool.query("SELECT * FROM utilizadores WHERE email = $1", [email]);
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: "Já existe uma conta com este email." });
-    }
+    if (userExists.rows.length > 0) return res.status(400).json({ error: "Já existe uma conta com este email." });
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
-
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
 
     const newUser = await pool.query(
@@ -44,113 +41,68 @@ app.post("/api/register", async (req, res) => {
     );
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
-
     res.json({ message: "Conta criada com sucesso!", user: newUser.rows[0], qrCodeUrl });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Erro no servidor ao registar utilizador." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor ao registar utilizador." }); }
 });
 
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password, mfaToken } = req.body;
-
     const userResult = await pool.query("SELECT * FROM utilizadores WHERE email = $1", [email]);
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
-    }
+    if (userResult.rows.length === 0) return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
 
     const user = userResult.rows[0];
-
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
-    }
+    if (!validPassword) return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
 
     if (user.mfa_enabled) {
-      if (!mfaToken) {
-        return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
-      }
-      const verified = speakeasy.totp.verify({
-        secret: user.mfa_secret,
-        encoding: 'base32',
-        token: mfaToken
-      });
-      if (!verified) {
-        return res.status(401).json({ error: "Código da App inválido. Tenta novamente." });
-      }
+      if (!mfaToken) return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
+      const verified = speakeasy.totp.verify({ secret: user.mfa_secret, encoding: 'base32', token: mfaToken });
+      if (!verified) return res.status(401).json({ error: "Código da App inválido. Tenta novamente." });
     }
 
     res.json({ message: "Login bem-sucedido", user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Erro no servidor ao iniciar sessão." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor ao iniciar sessão." }); }
 });
 
 app.post("/api/change-password", async (req, res) => {
   try {
     const { userId, currentPassword, newPassword, mfaToken } = req.body;
-
     const userResult = await pool.query("SELECT * FROM utilizadores WHERE id = $1", [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: "Utilizador não encontrado." });
-    }
+    if (userResult.rows.length === 0) return res.status(404).json({ error: "Utilizador não encontrado." });
+    
     const user = userResult.rows[0];
-
     const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ error: "A palavra-passe atual está incorreta." });
-    }
+    if (!validPassword) return res.status(401).json({ error: "A palavra-passe atual está incorreta." });
 
     if (user.mfa_enabled) {
-      if (!mfaToken) {
-        return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
-      }
-      const verified = speakeasy.totp.verify({
-        secret: user.mfa_secret,
-        encoding: 'base32',
-        token: mfaToken
-      });
-      if (!verified) {
-        return res.status(401).json({ error: "Código MFA inválido ou expirado." });
-      }
+      if (!mfaToken) return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
+      const verified = speakeasy.totp.verify({ secret: user.mfa_secret, encoding: 'base32', token: mfaToken });
+      if (!verified) return res.status(401).json({ error: "Código MFA inválido ou expirado." });
     }
 
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
-
     await pool.query("UPDATE utilizadores SET password_hash = $1 WHERE id = $2", [newPasswordHash, userId]);
-
     res.json({ message: "Palavra-passe alterada com sucesso!" });
-  } catch (err) {
-    console.error("Erro ao alterar password:", err.message);
-    res.status(500).json({ error: "Erro no servidor ao alterar palavra-passe." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor ao alterar palavra-passe." }); }
 });
 
 app.get("/api/utilizadores", async (req, res) => {
   try {
     const result = await pool.query("SELECT id, nome, email, role, mfa_enabled FROM utilizadores ORDER BY nome ASC");
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post("/api/utilizadores", async (req, res) => {
   try {
     const { nome, email, password, role } = req.body;
-    
     const userExists = await pool.query("SELECT * FROM utilizadores WHERE email = $1", [email]);
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: "Já existe uma conta com este email." });
-    }
+    if (userExists.rows.length > 0) return res.status(400).json({ error: "Já existe uma conta com este email." });
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
-
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
 
     const newUser = await pool.query(
@@ -159,21 +111,15 @@ app.post("/api/utilizadores", async (req, res) => {
     );
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
-
-    res.json({ message: "Membro da equipa adicionado com sucesso!", user: newUser.rows[0], qrCodeUrl });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Erro no servidor ao adicionar membro." });
-  }
+    res.json({ message: "Membro adicionado!", user: newUser.rows[0], qrCodeUrl });
+  } catch (err) { res.status(500).json({ error: "Erro no servidor ao adicionar membro." }); }
 });
 
 app.delete("/api/utilizadores/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM utilizadores WHERE id = $1", [req.params.id]);
     res.json({ message: "Utilizador removido com sucesso!" });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao remover utilizador." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao remover utilizador." }); }
 });
 
 // ==========================================
@@ -183,9 +129,7 @@ app.get("/api/produtos", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM produtos ORDER BY id ASC");
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.post("/api/produtos", async (req, res) => {
@@ -196,9 +140,7 @@ app.post("/api/produtos", async (req, res) => {
       [nome, codigo_barras || null, stock_atual || 0, stock_minimo || 5, unidade_medida || 'un', categoria_id || null, imagem_url || '']
     );
     res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put("/api/produtos/:id", async (req, res) => {
@@ -210,18 +152,14 @@ app.put("/api/produtos/:id", async (req, res) => {
       [nome, codigo_barras || null, stock_atual, stock_minimo, unidade_medida, imagem_url || '', id]
     );
     res.json({ message: "Produto atualizado com sucesso!" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete("/api/produtos/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM produtos WHERE id = $1", [req.params.id]);
     res.json({ message: "Produto removido!" });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao apagar produto." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao apagar produto." }); }
 });
 
 // ==========================================
@@ -229,12 +167,11 @@ app.delete("/api/produtos/:id", async (req, res) => {
 // ==========================================
 app.get('/api/consultas', async (req, res) => {
   try {
-    // ATUALIZADO: Agora só mostra as consultas que estão marcadas como 'AGENDADA' (não mostra as finalizadas)
     const result = await pool.query(`
       SELECT 
         c.id, p.nome as paciente_nome, p.telefone as paciente_telefone, p.email as paciente_email, 
         c.data_consulta, c.hora_consulta, c.motivo, c.procedimento_id,
-        m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado
+        m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado, m.preco_servico
       FROM consultas c
       JOIN pacientes p ON c.paciente_id = p.id
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
@@ -244,9 +181,7 @@ app.get('/api/consultas', async (req, res) => {
       ORDER BY c.data_consulta ASC, c.hora_consulta ASC
     `);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/consultas', async (req, res) => {
@@ -266,9 +201,7 @@ app.post('/api/consultas', async (req, res) => {
       [pacienteId, data, hora, motivo, procedimento_id || null]
     );
     res.json(novaC.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao marcar consulta" });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao marcar consulta" }); }
 });
 
 app.put('/api/consultas/:id', async (req, res) => {
@@ -290,18 +223,14 @@ app.put('/api/consultas/:id', async (req, res) => {
       [pacienteId, data, hora, motivo, procedimento_id || null, id]
     );
     res.json({ message: "Consulta atualizada com sucesso!" });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao atualizar consulta" });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao atualizar consulta" }); }
 });
 
 app.delete('/api/consultas/:id', async (req, res) => {
   try {
     await pool.query("DELETE FROM consultas WHERE id = $1", [req.params.id]);
     res.json({ message: "Consulta desmarcada com sucesso!" });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao desmarcar consulta." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao desmarcar consulta." }); }
 });
 
 // ==========================================
@@ -309,47 +238,34 @@ app.delete('/api/consultas/:id', async (req, res) => {
 // ==========================================
 app.post('/api/faturacao/checkout', async (req, res) => {
   const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64 } = req.body;
-
   try {
-    // 1. Muda a consulta para FINALIZADA
     await pool.query("UPDATE consultas SET status = 'FINALIZADA' WHERE id = $1", [consulta_id]);
-
-    // 2. Regista o pagamento na Faturação
     await pool.query(
       "INSERT INTO faturacao (consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento) VALUES ($1, $2, $3, $4, $5)",
       [consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento || 'Multibanco']
     );
 
-    // 3. Se houver e-mail e PDF, envia logo para o cliente
     if (email_destino && pdfBase64) {
       const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
       const mailOptions = {
-        from: 'o_teu_email_clinica@gmail.com',
+        from: 'rubendavidsilvamartins@gmail.com',
         to: email_destino,
-        subject: `Resumo de Consulta - MeClinic`,
+        subject: `Resumo de Consulta - Clínica`,
         text: `Olá ${paciente_nome},\n\nAnexo enviamos o resumo e comprovativo da sua consulta de ${procedimento_nome}.\n\nObrigado pela preferência!`,
         attachments: [{ filename: `Recibo_${paciente_nome.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer }]
       };
       await transporter.sendMail(mailOptions);
     }
-
     res.json({ message: "Check-out concluído! Recibo processado." });
-  } catch (err) {
-    console.error("Erro no checkout:", err);
-    res.status(500).json({ error: "Erro ao processar o check-out." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao processar o check-out." }); }
 });
 
-// Rota para ler o histórico na página de Faturação
 app.get('/api/faturacao', async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM faturacao ORDER BY data_emissao DESC");
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
 
 // ==========================================
 // --- FICHAS TÉCNICAS E PROCEDIMENTOS ---
@@ -358,96 +274,54 @@ app.get('/api/modelos-procedimento', async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM modelos_procedimento ORDER BY nome ASC");
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/modelos-procedimento/:id/itens', async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await pool.query("SELECT * FROM modelo_procedimento_itens WHERE modelo_id = $1 ORDER BY id ASC", [id]);
+    const result = await pool.query("SELECT * FROM modelo_procedimento_itens WHERE modelo_id = $1 ORDER BY id ASC", [req.params.id]);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/modelos-procedimento', async (req, res) => {
-  const { nome } = req.body;
   try {
-    const novo = await pool.query(
-      "INSERT INTO modelos_procedimento (nome, custo_total_estimado) VALUES ($1, 0) RETURNING *",
-      [nome]
-    );
+    const novo = await pool.query("INSERT INTO modelos_procedimento (nome, custo_total_estimado, preco_servico) VALUES ($1, 0, 0) RETURNING *", [req.body.nome]);
     res.json(novo.rows[0]);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Erro ao criar novo procedimento. Verifique se o nome já existe." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao criar novo procedimento." }); }
 });
 
 app.put("/api/modelos-procedimento/:id", async (req, res) => {
   const { id } = req.params;
-  const { itens, custo_total } = req.body;
-  
+  const { itens, custo_total, preco_servico } = req.body;
   try {
     await pool.query("BEGIN"); 
+    await pool.query("UPDATE modelos_procedimento SET custo_total_estimado = $1, preco_servico = $2 WHERE id = $3", [custo_total, preco_servico, id]);
 
-    await pool.query(
-      "UPDATE modelos_procedimento SET custo_total_estimado = $1 WHERE id = $2",
-      [custo_total, id]
-    );
-
-    const idsParaManter = itens
-      .filter(item => !String(item.id).startsWith("temp-"))
-      .map(item => parseInt(item.id));
-
+    const idsParaManter = itens.filter(item => !String(item.id).startsWith("temp-")).map(item => parseInt(item.id));
     if (idsParaManter.length > 0) {
-      await pool.query(
-        "DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1 AND id <> ALL($2::int[])",
-        [id, idsParaManter]
-      );
+      await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1 AND id <> ALL($2::int[])", [id, idsParaManter]);
     } else {
-      await pool.query(
-        "DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1",
-        [id]
-      );
+      await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1", [id]);
     }
 
     for (let item of itens) {
       if (String(item.id).startsWith("temp-")) {
-        await pool.query(
-          "INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)",
-          [id, item.nome_item, item.quantidade, item.preco_unitario]
-        );
+        await pool.query("INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)", [id, item.nome_item, item.quantidade, item.preco_unitario]);
       } else {
-        await pool.query(
-          "UPDATE modelo_procedimento_itens SET nome_item = $1, quantidade = $2, preco_unitario = $3 WHERE id = $4",
-          [item.nome_item, item.quantidade, item.preco_unitario, item.id]
-        );
+        await pool.query("UPDATE modelo_procedimento_itens SET nome_item = $1, quantidade = $2, preco_unitario = $3 WHERE id = $4", [item.nome_item, item.quantidade, item.preco_unitario, item.id]);
       }
     }
-
     await pool.query("COMMIT"); 
     res.json({ message: "Procedimento atualizado com sucesso!" });
-
-  } catch (err) {
-    await pool.query("ROLLBACK"); 
-    console.error("ERRO NO UPDATE DA FICHA:", err.message); 
-    res.status(500).json({ error: "Erro ao atualizar a Ficha Técnica." });
-  }
+  } catch (err) { await pool.query("ROLLBACK"); res.status(500).json({ error: "Erro ao atualizar a Ficha Técnica." }); }
 });
 
 app.delete("/api/modelos-procedimento/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    await pool.query("DELETE FROM modelos_procedimento WHERE id = $1", [id]);
+    await pool.query("DELETE FROM modelos_procedimento WHERE id = $1", [req.params.id]);
     res.json({ message: "Procedimento apagado com sucesso!" });
-  } catch (err) {
-    console.error("Erro ao apagar procedimento:", err.message);
-    res.status(500).json({ error: "Erro ao apagar procedimento." });
-  }
+  } catch (err) { res.status(500).json({ error: "Erro ao apagar procedimento." }); }
 });
 
 // ==========================================
@@ -457,19 +331,15 @@ app.post('/api/reports/send-email', async (req, res) => {
   const { emailDestino, pdfBase64, semana } = req.body;
   try {
     const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
-    const mailOptions = {
-      from: 'o_teu_email_clinica@gmail.com',
+    await transporter.sendMail({
+      from: 'rubendavidsilvamartins@gmail.com',
       to: emailDestino,
-      subject: `Relatório MeClinic - Semana de ${semana}`,
+      subject: `Relatório Clínica - Semana de ${semana}`,
       text: 'Anexo enviamos o relatório semanal detalhado de stock e faturação.',
       attachments: [{ filename: `Relatorio_${semana}.pdf`, content: pdfBuffer }]
-    };
-    await transporter.sendMail(mailOptions);
+    });
     res.json({ message: "Relatório enviado com sucesso!" });
-  } catch (error) {
-    console.error("Erro ao enviar email:", error);
-    res.status(500).json({ error: "Erro ao enviar e-mail." });
-  }
+  } catch (error) { res.status(500).json({ error: "Erro ao enviar e-mail." }); }
 });
 
 app.get('/api/stats/dashboard-summary', async (req, res) => {
@@ -478,30 +348,28 @@ app.get('/api/stats/dashboard-summary', async (req, res) => {
     const stats = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM pacientes WHERE created_at::date BETWEEN $1::date AND $1::date + '6 days'::interval) as pacientes_semana,
-        (SELECT COUNT(*) FROM faturacao WHERE data_emissao BETWEEN $1::date AND $1::date + '6 days'::interval) as consultas_semana,
-        (SELECT COALESCE(SUM(valor_total), 0) FROM faturacao WHERE data_emissao BETWEEN $1::date AND $1::date + '6 days'::interval) as faturacao_semana,
+        (SELECT COUNT(*) FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval) as consultas_semana,
+        (SELECT COALESCE(SUM(valor_total), 0) FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval) as faturacao_semana,
         (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock
     `, [start]);
     res.json(stats.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/stats/patients-weekly', async (req, res) => {
   const { start } = req.query; 
   try {
     const result = await pool.query(`
       SELECT TO_CHAR(date_series, 'DD/MM') as date, COALESCE(COUNT(c.id), 0)::int as count 
       FROM generate_series($1::date, $1::date + '6 days'::interval, '1 day'::interval) date_series 
-      LEFT JOIN consultas c ON c.data_consulta = DATE(date_series) 
+      LEFT JOIN consultas c ON c.data_consulta::date = DATE(date_series) 
       GROUP BY date_series ORDER BY date_series ASC
     `, [start]);
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// AQUI ESTÁ A CORREÇÃO (data_emissao::date) QUE FAZ AS FATURAS APARECEREM!
 app.get('/api/reports/weekly-detail', async (req, res) => {
   const { start } = req.query;
   try {
@@ -513,31 +381,127 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
         (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado
       FROM consultas c
       JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval
+      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
     `, [start]);
 
     const procedimentos = await pool.query(`
       SELECT m.nome, COUNT(c.id)::int as quantidade, SUM(m.preco_servico)::float as subtotal_faturado 
       FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id 
-      WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval 
+      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval 
       GROUP BY m.nome ORDER BY quantidade DESC
     `, [start]);
 
     const materiais = await pool.query(`
-      SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total
+      SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, mpi.preco_unitario, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total
       FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id
-      WHERE c.data_consulta BETWEEN $1::date AND $1::date + '6 days'::interval
-      GROUP BY mpi.nome_item ORDER BY quantidade_total DESC LIMIT 10
+      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
+      GROUP BY mpi.nome_item, mpi.preco_unitario ORDER BY quantidade_total DESC
     `, [start]);
 
-    const alertas = await pool.query(`SELECT nome, stock_atual, stock_minimo, unidade_medida FROM produtos WHERE stock_atual <= stock_minimo`);
+    const notas = await pool.query(`
+      SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total
+      FROM faturacao
+      WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval
+      ORDER BY data_emissao DESC
+    `, [start]);
 
-    res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, alertas_stock: alertas.rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ 
+      resumo: report.rows[0], 
+      detalhe_procedimentos: procedimentos.rows, 
+      top_materiais: materiais.rows, 
+      notas_faturacao: notas.rows 
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// --- FECHO DE SEMANA AUTOMÁTICO (CRON) ---
+// ==========================================
+// Vai correr todas as Sextas-feiras ('5') às 16:00 ('0 16')
+cron.schedule('20 19 * * *', async () => {
+  try {
+    console.log("⏰ A executar o Fecho de Semana Automático...");
+
+    // 1. Ir buscar os emails APENAS dos Administradores
+    const adminsResult = await pool.query("SELECT email FROM utilizadores WHERE role = 'ADMIN'");
+    const adminEmails = adminsResult.rows.map(a => a.email);
+
+    if (adminEmails.length === 0) {
+      console.log("Nenhum Admin encontrado para enviar o relatório.");
+      return;
+    }
+
+    // 2. Calcular a data de Sexta-feira e de Hoje (Sexta)
+    const hoje = new Date();
+    const segunda = new Date(hoje);
+    segunda.setDate(hoje.getDate() - 7); // Recua 7 dias para trás
+
+    const dataInicio = segunda.toISOString().split('T')[0];
+    const dataFim = hoje.toISOString().split('T')[0];
+
+    // 3. Obter os dados da semana na Base de Dados
+    const reportResult = await pool.query(`
+      SELECT 
+        COUNT(c.id)::int as total_consultas,
+        COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total,
+        COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total,
+        (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado
+      FROM consultas c
+      JOIN modelos_procedimento m ON c.procedimento_id = m.id
+      WHERE c.data_consulta::date BETWEEN $1::date AND $2::date
+    `, [dataInicio, dataFim]);
+
+    const dados = reportResult.rows[0];
+
+    // 4. Desenhar o E-mail (O Texto Predefinido)
+    const mailOptions = {
+      from: 'rubendavidsilvamartins@gmail.com', // O teu email
+      to: adminEmails.join(','), // Envia para todos os admins de uma vez
+      subject: `📊 Relatório de Fecho de Semana - Clínica`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          
+          <h2 style="color: #0f172a; text-align: center; margin-bottom: 5px;">Fecho de Semana Concluído</h2>
+          <p style="color: #64748b; text-align: center; margin-top: 0;">Resumo automático do sistema de ${new Date(dataInicio).toLocaleDateString('pt-PT')} a ${new Date(dataFim).toLocaleDateString('pt-PT')}.</p>
+          
+          <hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 25px 0;" />
+
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">👥 Consultas Realizadas:</td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #0f172a; font-size: 15px;">${dados.total_consultas || 0}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">💰 Faturação Total:</td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #10b981; font-size: 15px;">${parseFloat(dados.faturacao_total || 0).toFixed(2)} €</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">💉 Custos Materiais:</td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #ef4444; font-size: 15px;">${parseFloat(dados.custos_materiais_total || 0).toFixed(2)} €</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 20px; background-color: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0;">
+            <p style="margin: 0; color: #64748b; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Lucro Bruto Estimado</p>
+            <h1 style="margin: 5px 0 0 0; color: #2563eb; font-size: 32px;">${parseFloat(dados.lucro_estimado || 0).toFixed(2)} €</h1>
+          </div>
+
+          <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 30px;">
+            Este é um e-mail automático gerado pelo seu portal de gestão.<br>Para exportar o PDF detalhado com as Notas de Faturação, por favor aceda ao sistema.
+          </p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("✅ Fecho de semana enviado com sucesso para os Admins!");
+
+  } catch (error) {
+    console.error("❌ Erro ao enviar fecho de semana automático:", error);
   }
+}, {
+  scheduled: true,
+  timezone: "Europe/Lisbon" // Garante que respeita o fuso horário de Portugal!
 });
 
-app.listen(5000, () => {
-  console.log("Servidor MeClinic ativo na porta 5000");
-});
+app.listen(5000, () => { console.log("Servidor ativo na porta 5000"); });

@@ -12,6 +12,7 @@ const FichasTecnicas = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedProdutos, setEditedProdutos] = useState([]);
   const [editedPrecoTotal, setEditedPrecoTotal] = useState(0);
+  const [editedPrecoServico, setEditedPrecoServico] = useState(0); 
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   
   const [showNewModal, setShowNewModal] = useState(false);
@@ -78,7 +79,8 @@ const FichasTecnicas = () => {
 
   const iniciarEdicao = () => {
     setEditedProdutos(JSON.parse(JSON.stringify(itens)));
-    setEditedPrecoTotal(parseFloat(selecionado.custo_total_estimado));
+    setEditedPrecoTotal(parseFloat(selecionado.custo_total_estimado) || 0);
+    setEditedPrecoServico(parseFloat(selecionado.preco_servico) || 0);
     setIsEditing(true);
   };
   
@@ -108,10 +110,11 @@ const FichasTecnicas = () => {
       const response = await fetch(`http://localhost:5000/api/modelos-procedimento/${selecionado.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itens: editedProdutos, custo_total: editedPrecoTotal })
+        body: JSON.stringify({ itens: editedProdutos, custo_total: editedPrecoTotal, preco_servico: editedPrecoServico })
       });
       if (response.ok) {
-        carregarItens(selecionado); carregarModelos();
+        carregarItens({...selecionado, custo_total_estimado: editedPrecoTotal, preco_servico: editedPrecoServico}); 
+        carregarModelos();
         mostrarNotificacao('success', 'Ficha atualizada e guardada!');
         setIsEditing(false);
       }
@@ -128,6 +131,11 @@ const FichasTecnicas = () => {
 
   const btnStyle = { color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' };
   const tableInputStyle = { width: '100%', background: theme.pageBg, color: theme.text, border: `1px solid ${theme.border}`, padding: '8px', borderRadius: '6px', outline: 'none' };
+
+  const styles = {
+    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' },
+    createCard: { padding: '30px', borderRadius: '15px', border: '1px solid', width: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }
+  };
 
   return (
     <div style={{ padding: '10px', color: theme.text, transition: 'all 0.3s ease' }}>
@@ -197,7 +205,7 @@ const FichasTecnicas = () => {
           {modelos.map(m => (
             <button key={m.id} onClick={() => carregarItens(m)} style={{ width: '100%', padding: '12px', marginBottom: '5px', textAlign: 'left', border: 'none', borderRadius: '8px', cursor: 'pointer', backgroundColor: selecionado?.id === m.id ? '#2563eb' : 'transparent', color: selecionado?.id === m.id ? 'white' : theme.text, transition: 'all 0.2s' }}>
               <div style={{ fontWeight: '600' }}>{m.nome}</div>
-              <div style={{ fontSize: '11px', opacity: selecionado?.id === m.id ? 1 : 0.6, marginTop: '4px' }}>Custo Estimado: {parseFloat(m.custo_total_estimado).toFixed(2)}€</div>
+              <div style={{ fontSize: '11px', opacity: selecionado?.id === m.id ? 1 : 0.6, marginTop: '4px' }}>Preço Venda: {parseFloat(m.preco_servico || 0).toFixed(2)}€</div>
             </button>
           ))}
           {modelos.length === 0 && (
@@ -278,11 +286,28 @@ const FichasTecnicas = () => {
                 </button>
               )}
               
-              <div style={{ marginTop: '20px', padding: '20px', backgroundColor: theme.pageBg, border: `1px solid ${theme.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '14px', color: theme.subText, textTransform: 'uppercase' }}>Custo Total Estimado</span>
-                <span style={{ fontSize: '26px', fontWeight: '900', color: isEditing ? '#f59e0b' : theme.text }}>
-                  {isEditing ? editedPrecoTotal.toFixed(2) : parseFloat(selecionado.custo_total_estimado).toFixed(2)}€
-                </span>
+              <div style={{ marginTop: '20px', padding: '20px', backgroundColor: theme.pageBg, border: `1px solid ${theme.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 'bold', fontSize: '14px', color: theme.subText, textTransform: 'uppercase' }}>Custo Materiais</span>
+                  <span style={{ display: 'block', fontSize: '20px', fontWeight: 'bold', color: theme.text }}>
+                    {isEditing ? editedPrecoTotal.toFixed(2) : parseFloat(selecionado.custo_total_estimado || 0).toFixed(2)}€
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#10b981', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
+                    Preço a Cobrar
+                  </span>
+                  {isEditing ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', justifyContent: 'flex-end' }}>
+                      <input type="number" step="0.01" style={{ ...tableInputStyle, width: '120px', borderColor: '#10b981', borderWidth: '2px', fontSize: '20px', fontWeight: 'bold', textAlign: 'right' }} value={editedPrecoServico} onChange={e => setEditedPrecoServico(e.target.value)} />
+                      <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>€</span>
+                    </div>
+                  ) : (
+                    <span style={{ display: 'block', fontSize: '26px', fontWeight: '900', color: '#10b981' }}>
+                      {parseFloat(selecionado.preco_servico || 0).toFixed(2)}€
+                    </span>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -296,11 +321,6 @@ const FichasTecnicas = () => {
       </div>
     </div>
   );
-};
-
-const styles = {
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' },
-  createCard: { padding: '30px', borderRadius: '15px', border: '1px solid', width: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }
 };
 
 export default FichasTecnicas;

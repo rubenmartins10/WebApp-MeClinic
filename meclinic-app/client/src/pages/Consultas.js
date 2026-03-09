@@ -20,12 +20,11 @@ const Consultas = () => {
   const [consultas, setConsultas] = useState([]);
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   
-  // Controlo de Edição e Eliminação
   const [consultaToEdit, setConsultaToEdit] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // MODAL DE CHECKOUT
-  const [checkoutModal, setCheckoutModal] = useState({ show: false, consulta: null, valor: 0, metodo: 'Multibanco', email: '' });
+  const [checkoutModal, setCheckoutModal] = useState({ show: false, consulta: null, valor: 0, procedimentoFinal: '', metodo: 'Multibanco', email: '' });
   const [isProcessing, setIsProcessing] = useState(false);
 
   const initialForm = { nome: '', email: '', telefone: '', procedimento_id: '', data: '', hora: '', motivo: '' };
@@ -57,19 +56,38 @@ const Consultas = () => {
   const closeNotif = () => setNotification({ show: false, type: '', message: '' });
 
   // ==========================================
-  // --- CHECKOUT E GERAÇÃO DE PDF ---
+  // --- LÓGICA INTELIGENTE DE CHECKOUT ---
   // ==========================================
   const abrirCheckout = (c) => {
+    // 1. Procura no sistema se existe a ficha base "Avaliação" (ignora acentos e maiúsculas)
+    const procAvaliacao = procedimentos.find(p => {
+      const n = p.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      return n === 'avaliacao' || n === 'consulta de avaliacao';
+    });
+
+    let precoFinal = parseFloat(c.preco_servico || 0);
+    let nomeFinal = c.procedimento_nome || 'Consulta Geral';
+
+    // 2. Verifica se a consulta marcada já é uma Avaliação (para não somar 2 vezes)
+    const isJaAvaliacao = nomeFinal.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('avaliacao');
+
+    // 3. Se a ficha "Avaliação" existir no sistema e a consulta marcada for outra coisa (ex: Exodontia)
+    if (procAvaliacao && !isJaAvaliacao) {
+      precoFinal += parseFloat(procAvaliacao.preco_servico || 0);
+      nomeFinal = `${nomeFinal} + ${procAvaliacao.nome}`;
+    }
+
     setCheckoutModal({
       show: true,
       consulta: c,
-      valor: c.preco_estimado || 0,
+      valor: precoFinal,
+      procedimentoFinal: nomeFinal,
       metodo: 'Multibanco',
       email: c.paciente_email || ''
     });
   };
 
-  const gerarReciboPDFBase64 = (consulta, valor, metodo) => {
+  const gerarReciboPDFBase64 = (consulta, nomeProcedimento, valor, metodo) => {
     const doc = new jsPDF();
     doc.setFontSize(22);
     doc.setTextColor(37, 99, 235);
@@ -84,7 +102,7 @@ const Consultas = () => {
     doc.setTextColor(0, 0, 0);
     doc.text(`Paciente: ${consulta.paciente_nome}`, 15, 50);
     doc.text(`Data: ${new Date(consulta.data_consulta).toLocaleDateString('pt-PT')}`, 15, 60);
-    doc.text(`Procedimento: ${consulta.procedimento_nome || 'Consulta Geral'}`, 15, 70);
+    doc.text(`Procedimento: ${nomeProcedimento}`, 15, 70); // Usa o nome somado!
     doc.text(`Método de Pagamento: ${metodo}`, 15, 80);
     
     doc.setFontSize(16);
@@ -102,8 +120,8 @@ const Consultas = () => {
     e.preventDefault();
     setIsProcessing(true);
     
-    const { consulta, valor, metodo, email } = checkoutModal;
-    const pdfBase64 = gerarReciboPDFBase64(consulta, valor, metodo);
+    const { consulta, valor, procedimentoFinal, metodo, email } = checkoutModal;
+    const pdfBase64 = gerarReciboPDFBase64(consulta, procedimentoFinal, valor, metodo);
 
     try {
       const response = await fetch('http://localhost:5000/api/faturacao/checkout', {
@@ -112,7 +130,7 @@ const Consultas = () => {
         body: JSON.stringify({
           consulta_id: consulta.id,
           paciente_nome: consulta.paciente_nome,
-          procedimento_nome: consulta.procedimento_nome || 'Consulta Geral',
+          procedimento_nome: procedimentoFinal, // Envia o nome somado para a Faturação
           valor_total: valor,
           metodo_pagamento: metodo,
           email_destino: email,
@@ -122,7 +140,7 @@ const Consultas = () => {
 
       if (response.ok) {
         showNotif('success', 'Consulta finalizada e registada na Faturação!');
-        setCheckoutModal({ show: false, consulta: null, valor: 0, metodo: '', email: '' });
+        setCheckoutModal({ show: false, consulta: null, valor: 0, procedimentoFinal: '', metodo: '', email: '' });
         carregarConsultas(); 
       } else {
         showNotif('error', 'Erro ao finalizar consulta.');
@@ -244,7 +262,7 @@ const Consultas = () => {
             
             <div style={{ padding: '15px', backgroundColor: theme.pageBg, borderRadius: '10px', marginBottom: '20px', border: `1px solid ${theme.border}` }}>
               <p style={{ margin: '0 0 5px 0', color: theme.subText, fontSize: '13px' }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.consulta.paciente_nome}</strong></p>
-              <p style={{ margin: 0, color: theme.subText, fontSize: '13px' }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.consulta.procedimento_nome || 'Geral'}</strong></p>
+              <p style={{ margin: 0, color: theme.subText, fontSize: '13px' }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.procedimentoFinal}</strong></p>
             </div>
 
             <form onSubmit={handleConfirmCheckout}>
