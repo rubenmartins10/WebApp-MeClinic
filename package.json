@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "Script mestre para rodar Frontend (3001) e Backend (5000)",
   "scripts": {
-  "server": "cd server && npx nodemon index.js",
-  "client": "cd meclinic-app/client && set PORT=3001 && npm start",
-  "dev": "concurrently \"npm run server\" \"npm run client\""
+    "server": "cd server && npx nodemon index.js",
+    "client": "cd meclinic-app/client && set PORT=3001 && npm start",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "dependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "pdfkit-table": "^0.1.99"
   }
 }

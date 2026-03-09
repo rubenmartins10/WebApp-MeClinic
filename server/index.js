@@ -6,6 +6,7 @@ const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
+const PDFDocument = require("pdfkit-table");
 
 const app = express();
 app.use(cors());
@@ -415,93 +416,122 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
 });
 
 // ==========================================
-// --- FECHO DE SEMANA AUTOMÁTICO (CRON) ---
+// --- FECHO DE SEMANA AUTOMÁTICO COM PDF ---
 // ==========================================
-// Vai correr todas as Sextas-feiras ('5') às 16:00 ('0 16')
-cron.schedule('20 19 * * *', async () => {
+//Todas as sextas-feiras às 16h (UTC+1) o sistema irá gerar um PDF completo do relatório semanal e enviar por e-mail para os administradores.
+cron.schedule('0 16 * * 5', async () => {
   try {
-    console.log("⏰ A executar o Fecho de Semana Automático...");
+    console.log("⏰ A criar PDF de Fecho de Semana nos bastidores...");
 
-    // 1. Ir buscar os emails APENAS dos Administradores
     const adminsResult = await pool.query("SELECT email FROM utilizadores WHERE role = 'ADMIN'");
     const adminEmails = adminsResult.rows.map(a => a.email);
+    if (adminEmails.length === 0) return;
 
-    if (adminEmails.length === 0) {
-      console.log("Nenhum Admin encontrado para enviar o relatório.");
-      return;
-    }
-
-    // 2. Calcular a data de Sexta-feira e de Hoje (Sexta)
     const hoje = new Date();
-    const segunda = new Date(hoje);
-    segunda.setDate(hoje.getDate() - 7); // Recua 7 dias para trás
-
-    const dataInicio = segunda.toISOString().split('T')[0];
+    const semanaPassada = new Date(hoje);
+    semanaPassada.setDate(hoje.getDate() - 7); 
+    const dataInicio = semanaPassada.toISOString().split('T')[0];
     const dataFim = hoje.toISOString().split('T')[0];
 
-    // 3. Obter os dados da semana na Base de Dados
-    const reportResult = await pool.query(`
-      SELECT 
-        COUNT(c.id)::int as total_consultas,
-        COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total,
-        COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total,
-        (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado
-      FROM consultas c
-      JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      WHERE c.data_consulta::date BETWEEN $1::date AND $2::date
-    `, [dataInicio, dataFim]);
+    const reportResult = await pool.query(`SELECT COUNT(c.id)::int as total_consultas, COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total, COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total, (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date`, [dataInicio, dataFim]);
+    const procedimentosResult = await pool.query(`SELECT m.nome, COUNT(c.id)::int as quantidade, SUM(m.preco_servico)::float as subtotal_faturado FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date GROUP BY m.nome ORDER BY quantidade DESC`, [dataInicio, dataFim]);
+    const materiaisResult = await pool.query(`SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, mpi.preco_unitario, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date GROUP BY mpi.nome_item, mpi.preco_unitario ORDER BY quantidade_total DESC`, [dataInicio, dataFim]);
+    const notasResult = await pool.query(`SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $2::date ORDER BY data_emissao DESC`, [dataInicio, dataFim]);
 
     const dados = reportResult.rows[0];
 
-    // 4. Desenhar o E-mail (O Texto Predefinido)
-    const mailOptions = {
-      from: 'rubendavidsilvamartins@gmail.com', // O teu email
-      to: adminEmails.join(','), // Envia para todos os admins de uma vez
-      subject: `📊 Relatório de Fecho de Semana - Clínica`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-          
-          <h2 style="color: #0f172a; text-align: center; margin-bottom: 5px;">Fecho de Semana Concluído</h2>
-          <p style="color: #64748b; text-align: center; margin-top: 0;">Resumo automático do sistema de ${new Date(dataInicio).toLocaleDateString('pt-PT')} a ${new Date(dataFim).toLocaleDateString('pt-PT')}.</p>
-          
-          <hr style="border: none; border-top: 1px dashed #cbd5e1; margin: 25px 0;" />
+    // INICIAR A CRIAÇÃO DO PDF NA MEMÓRIA DO SERVIDOR
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    let buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    
+    // CONSTRUIR O PDF
+    doc.fontSize(22).font('Helvetica-Bold').fillColor('#2563eb').text("RELATÓRIO FINANCEIRO E DE GESTÃO", { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(12).fillColor('#64748b').font('Helvetica').text(`Período de: ${new Date(dataInicio).toLocaleDateString('pt-PT')} a ${new Date(dataFim).toLocaleDateString('pt-PT')}`, { align: 'center' });
+    doc.moveDown(2);
 
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">👥 Consultas Realizadas:</td>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #0f172a; font-size: 15px;">${dados.total_consultas || 0}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">💰 Faturação Total:</td>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #10b981; font-size: 15px;">${parseFloat(dados.faturacao_total || 0).toFixed(2)} €</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 15px;">💉 Custos Materiais:</td>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #ef4444; font-size: 15px;">${parseFloat(dados.custos_materiais_total || 0).toFixed(2)} €</td>
-            </tr>
-          </table>
+    doc.fontSize(14).fillColor('#0f172a').font('Helvetica-Bold').text("Resumo Semanal");
+    doc.fontSize(11).font('Helvetica').fillColor('#334155');
+    doc.text(`Consultas Realizadas: ${dados.total_consultas || 0}`);
+    doc.text(`Faturação Total: ${parseFloat(dados.faturacao_total || 0).toFixed(2)} EUR`);
+    doc.text(`Custo de Materiais: ${parseFloat(dados.custos_materiais_total || 0).toFixed(2)} EUR`);
+    doc.font('Helvetica-Bold').fillColor('#10b981').text(`Lucro Bruto Estimado: ${parseFloat(dados.lucro_estimado || 0).toFixed(2)} EUR`);
+    doc.moveDown(2);
 
-          <div style="margin-top: 20px; background-color: #f8fafc; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; color: #64748b; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Lucro Bruto Estimado</p>
-            <h1 style="margin: 5px 0 0 0; color: #2563eb; font-size: 32px;">${parseFloat(dados.lucro_estimado || 0).toFixed(2)} €</h1>
+    if (procedimentosResult.rows.length > 0) {
+      await doc.table({
+        title: "Procedimentos Realizados",
+        headers: ["NOME DO PROCEDIMENTO", "QTD", "VALOR FATURADO"],
+        rows: procedimentosResult.rows.map(p => [p.nome, `${p.quantidade}x`, `${parseFloat(p.subtotal_faturado).toFixed(2)} EUR`])
+      }, { width: 500 });
+    }
+
+    if (materiaisResult.rows.length > 0) {
+      await doc.table({
+        title: "Consumo de Materiais",
+        headers: ["MATERIAL GASTO", "QTD", "CUSTO UN.", "CUSTO TOTAL"],
+        rows: materiaisResult.rows.map(m => [m.material, `${m.quantidade_total}`, `${parseFloat(m.preco_unitario).toFixed(2)} EUR`, `${parseFloat(m.custo_total).toFixed(2)} EUR`])
+      }, { width: 500 });
+    }
+
+    // ANEXAR AS NOTAS/TALÕES NO FINAL DO PDF (Tamanho Recibo 100x150mm -> aprox 283x425 pt)
+    for (let nota of notasResult.rows) {
+      doc.addPage({ size: [283, 425], margin: 20 });
+      doc.fontSize(12).fillColor('#000000').font('Helvetica-Bold').text("NOTA DE HONORÁRIOS", { align: 'center' });
+      doc.fontSize(8).font('Helvetica').text("DOCUMENTO DE CONTROLO INTERNO", { align: 'center' });
+      doc.moveDown(1.5);
+      doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
+      doc.moveDown(1.5);
+      
+      doc.fontSize(10);
+      doc.text(`Paciente: ${nota.paciente_nome}`);
+      doc.text(`Data/Hora: ${new Date(nota.data_emissao).toLocaleString('pt-PT')}`);
+      doc.text(`Procedimento: ${nota.procedimento_nome}`);
+      doc.text(`Método Pag.: ${nota.metodo_pagamento}`);
+      
+      doc.moveDown();
+      doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
+      doc.moveDown(1.5);
+      doc.fontSize(13).font('Helvetica-Bold').text(`TOTAL PAGO: ${parseFloat(nota.valor_total).toFixed(2)} EUR`, { align: 'center' });
+    }
+
+    doc.end();
+
+    // QUANDO O PDF ESTIVER PRONTO, ENVIA O E-MAIL
+    doc.on('end', async () => {
+      let pdfData = Buffer.concat(buffers);
+
+      const mailOptions = {
+        from: 'rubendavidsilvamartins@gmail.com',
+        to: adminEmails.join(','),
+        subject: `📊 Relatório Oficial de Gestão - Clínica`,
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #334155; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #0f172a;">Estimada Administração,</h2>
+            <p>Vimos por este meio enviar o Relatório de Gestão e Fecho de Semana gerado automaticamente pelo sistema.</p>
+            <p>Encontra-se em anexo o documento <strong>PDF Oficial</strong> contendo:</p>
+            <ul>
+              <li>O Resumo Financeiro Completo da Semana</li>
+              <li>A listagem de Procedimentos e Consumo de Materiais</li>
+              <li>As Notas de Honorários Individuais (Talões para Arquivo)</li>
+            </ul>
+            <p style="margin-top: 30px;">Com os melhores cumprimentos,<br><strong style="color: #2563eb;">Sistema de Gestão MeClinic</strong></p>
           </div>
+        `,
+        attachments: [{
+          filename: `Relatorio_Semanal_Gestao.pdf`,
+          content: pdfData,
+          contentType: 'application/pdf'
+        }]
+      };
 
-          <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 30px;">
-            Este é um e-mail automático gerado pelo seu portal de gestão.<br>Para exportar o PDF detalhado com as Notas de Faturação, por favor aceda ao sistema.
-          </p>
-        </div>
-      `
-    };
+      await transporter.sendMail(mailOptions);
+      console.log("✅ E-mail formal com PDF anexado enviado com sucesso!");
+    });
 
-    await transporter.sendMail(mailOptions);
-    console.log("✅ Fecho de semana enviado com sucesso para os Admins!");
+  } catch (error) { console.error("❌ Erro ao enviar:", error); }
+}, { scheduled: true, timezone: "Europe/Lisbon" });
 
-  } catch (error) {
-    console.error("❌ Erro ao enviar fecho de semana automático:", error);
-  }
-}, {
-  scheduled: true,
-  timezone: "Europe/Lisbon" // Garante que respeita o fuso horário de Portugal!
-});
 
 app.listen(5000, () => { console.log("Servidor ativo na porta 5000"); });
