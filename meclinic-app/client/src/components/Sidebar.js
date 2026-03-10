@@ -6,19 +6,22 @@ import {
 } from 'lucide-react';
 
 import { ThemeContext } from '../ThemeContext'; 
+import { LanguageContext } from '../LanguageContext'; // <-- IMPORTA O CÉREBRO DE IDIOMAS
 
 const Sidebar = ({ onLogout }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useContext(ThemeContext);
+  const { t } = useContext(LanguageContext); // <-- CHAMA A FUNÇÃO DE TRADUÇÃO
 
+  // OS NOMES AGORA ESTÃO LIGADOS AO DICIONÁRIO DINÂMICO
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
-    { path: '/inventory', label: 'Inventário', icon: <Package size={20} /> },
-    { path: '/consultas', label: 'Consultas', icon: <Calendar size={20} /> },
-    { path: '/fichas-tecnicas', label: 'Fichas Técnicas', icon: <FileText size={20} /> },
-    { path: '/users', label: 'Utilizadores', icon: <Users size={20} /> },
-    { path: '/faturacao', label: 'Faturação', icon: <DollarSign size={20} /> },
-    { path: '/reports', label: 'Relatórios', icon: <BarChart3 size={20} /> },
+    { path: '/dashboard', label: t('sidebar.dashboard'), icon: <LayoutDashboard size={20} /> },
+    { path: '/inventory', label: t('sidebar.inventory'), icon: <Package size={20} /> },
+    { path: '/consultas', label: t('sidebar.consultations'), icon: <Calendar size={20} /> },
+    { path: '/fichas-tecnicas', label: t('sidebar.technical_sheets'), icon: <FileText size={20} /> },
+    { path: '/users', label: t('sidebar.users'), icon: <Users size={20} /> },
+    { path: '/faturacao', label: t('sidebar.billing'), icon: <DollarSign size={20} /> },
+    { path: '/reports', label: t('sidebar.reports'), icon: <BarChart3 size={20} /> },
   ];
 
   return (
@@ -74,15 +77,15 @@ const Sidebar = ({ onLogout }) => {
                 fontFamily: 'inherit', fontSize: '15px', textAlign: 'left', opacity: 0.8
               }}>
               {theme.isDark ? (
-                <><Sun size={20} style={{ marginRight: '15px', color: '#fbbf24' }} /> Modo Claro</>
+                <><Sun size={20} style={{ marginRight: '15px', color: '#fbbf24' }} /> {t('sidebar.light_mode')}</>
               ) : (
-                <><Moon size={20} style={{ marginRight: '15px', color: '#e2e8f0' }} /> Modo Escuro</>
+                <><Moon size={20} style={{ marginRight: '15px', color: '#e2e8f0' }} /> {t('sidebar.dark_mode')}</>
               )}
             </button>
           </li>
           <li>
             <Link to="/settings" style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', color: 'white', textDecoration: 'none', opacity: 0.8 }}>
-              <Settings size={20} style={{ marginRight: '15px' }} /> Definições
+              <Settings size={20} style={{ marginRight: '15px' }} /> {t('sidebar.settings')}
             </Link>
           </li>
           <li>
@@ -94,7 +97,7 @@ const Sidebar = ({ onLogout }) => {
                 border: 'none', cursor: 'pointer', width: '100%', 
                 fontFamily: 'inherit', fontSize: '15px', textAlign: 'left', marginTop: '10px'
               }}>
-              <LogOut size={20} style={{ marginRight: '15px' }} /> Sair
+              <LogOut size={20} style={{ marginRight: '15px' }} /> {t('sidebar.logout')}
             </button>
           </li>
         </ul>

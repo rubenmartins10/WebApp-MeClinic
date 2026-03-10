@@ -1,12 +1,13 @@
-// client/src/pages/Dashboard.js
 import React, { useEffect, useState, useContext } from 'react';
 import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-// CORREÇÃO: Foram removidos os imports não utilizados (LineChart, Line)
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ThemeContext } from '../ThemeContext';
+import { LanguageContext } from '../LanguageContext'; // <-- Motor de Idiomas
 
 const Dashboard = () => {
   const { theme } = useContext(ThemeContext);
+  const { t } = useContext(LanguageContext); // <-- Função de tradução
+
   const [chartData, setChartData] = useState([]);
   const [summary, setSummary] = useState({ pacientes_semana: 0, consultas_semana: 0, faturacao_semana: 0, alertas_stock: 0 });
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -53,27 +54,27 @@ const Dashboard = () => {
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text, margin: 0 }}>Dashboard MeClinic</h1>
-          <p style={{ color: theme.subText }}>Monitorização de desempenho semanal</p>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text, margin: 0 }}>{t('dashboard.title')}</h1>
+          <p style={{ color: theme.subText }}>{t('dashboard.subtitle')}</p>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', backgroundColor: theme.cardBg, padding: '10px 20px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
           <button onClick={() => navegarSemana(-1)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: theme.subText }}><ChevronLeft size={20} /></button>
-          <span style={{ fontWeight: '700', fontSize: '14px', color: theme.text }}>Semana de {new Date(currentWeekStart).toLocaleDateString('pt-PT')}</span>
+          <span style={{ fontWeight: '700', fontSize: '14px', color: theme.text }}>{t('dashboard.week_of')} {new Date(currentWeekStart).toLocaleDateString('pt-PT')}</span>
           <button onClick={() => navegarSemana(1)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: theme.subText }}><ChevronRight size={20} /></button>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
-        <StatCard title="NOVOS PACIENTES" value={summary.pacientes_semana} icon={Users} color="#2563eb" sub="Registados esta semana" />
-        <StatCard title="CONSULTAS" value={summary.consultas_semana} icon={Calendar} color="#7c3aed" sub="Agendadas para a semana" />
-        <StatCard title="FATURAÇÃO ESTIMADA" value={`${parseFloat(summary.faturacao_semana || 0).toFixed(2)}€`} icon={Euro} color="#059669" sub="Baseado nos procedimentos" />
-        <StatCard title="ALERTAS DE STOCK" value={summary.alertas_stock} icon={AlertTriangle} color={summary.alertas_stock > 0 ? "#ef4444" : "#059669"} sub="Produtos abaixo do mínimo" />
+        <StatCard title={t('dashboard.card.new_patients')} value={summary.pacientes_semana} icon={Users} color="#2563eb" sub={t('dashboard.card.new_patients_sub')} />
+        <StatCard title={t('dashboard.card.consultations')} value={summary.consultas_semana} icon={Calendar} color="#7c3aed" sub={t('dashboard.card.consultations_sub')} />
+        <StatCard title={t('dashboard.card.billing')} value={`${parseFloat(summary.faturacao_semana || 0).toFixed(2)}€`} icon={Euro} color="#059669" sub={t('dashboard.card.billing_sub')} />
+        <StatCard title={t('dashboard.card.stock_alerts')} value={summary.alertas_stock} icon={AlertTriangle} color={summary.alertas_stock > 0 ? "#ef4444" : "#059669"} sub={t('dashboard.card.stock_alerts_sub')} />
       </div>
 
       <div style={{ backgroundColor: theme.cardBg, borderRadius: '15px', padding: '25px', border: `1px solid ${theme.border}` }}>
         <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px', color: theme.text }}>
-          <TrendingUp size={20} color="#2563eb" /> Fluxo de Pacientes por Dia
+          <TrendingUp size={20} color="#2563eb" /> {t('dashboard.chart.title')}
         </h3>
         <div style={{ height: '350px', width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">

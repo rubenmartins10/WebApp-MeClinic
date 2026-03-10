@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 import { ThemeProvider, ThemeContext } from './ThemeContext'; 
+import { LanguageProvider, LanguageContext } from './LanguageContext'; // <-- NOVO
 
 import Sidebar from './components/Sidebar';
 import Auth from './pages/Auth';
@@ -15,16 +16,16 @@ import Faturacao from './pages/Faturacao';
 import Settings from './pages/Settings';
 import Report from './pages/Report';
 
-
 // COMPONENTE DE LAYOUT: Aplica a cor de fundo e texto a TODA a aplicação
 const MainLayout = ({ user, onLogout }) => {
   const { theme } = useContext(ThemeContext);
+  const { t } = useContext(LanguageContext); // <-- Tradutor ativo!
 
   return (
     <div style={{ 
       display: 'flex', 
-      backgroundColor: theme.pageBg, // Fundo dinâmico para todas as páginas
-      color: theme.text,             // Texto dinâmico para todas as páginas
+      backgroundColor: theme.pageBg,
+      color: theme.text,
       minHeight: '100vh',
       transition: 'all 0.3s ease'
     }}>
@@ -33,7 +34,7 @@ const MainLayout = ({ user, onLogout }) => {
       <main style={{ flexGrow: 1, padding: '20px', marginLeft: '250px' }}>
         {user && (
            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px', color: theme.subText, fontSize: '0.9rem' }}>
-             Logado como: <strong style={{ marginLeft: '5px', color: theme.text }}>{user.nome}</strong>
+             {t('app.logged_as')} <strong style={{ marginLeft: '5px', color: theme.text }}>{user.nome}</strong>
            </div>
         )}
 
@@ -79,18 +80,21 @@ function App() {
   };
 
   return (
-    <ThemeProvider>
-      <Router>
-        {!isAuthenticated ? (
-          <Routes>
-            <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
-            <Route path="*" element={<Navigate to="/auth" replace />} />
-          </Routes>
-        ) : (
-          <MainLayout user={user} onLogout={handleLogout} />
-        )}
-      </Router>
-    </ThemeProvider>
+    // O SISTEMA AGORA É ENVOLVIDO PELO MOTOR DE IDIOMAS
+    <LanguageProvider>
+      <ThemeProvider>
+        <Router>
+          {!isAuthenticated ? (
+            <Routes>
+              <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
+              <Route path="*" element={<Navigate to="/auth" replace />} />
+            </Routes>
+          ) : (
+            <MainLayout user={user} onLogout={handleLogout} />
+          )}
+        </Router>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }
 

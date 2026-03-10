@@ -1,539 +1,394 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, FileText, ChevronDown, Phone, Edit2, Trash2, AlertTriangle, Mail, DollarSign, X } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
-
-const countries = [
-  { code: '+351', flag: '🇵🇹', name: 'Portugal' },
-  { code: '+55', flag: '🇧🇷', name: 'Brasil' },
-  { code: '+34', flag: '🇪🇸', name: 'Espanha' },
-  { code: '+33', flag: '🇫🇷', name: 'França' },
-  { code: '+44', flag: '🇬🇧', name: 'Reino Unido' },
-  { code: '+41', flag: '🇨🇭', name: 'Suíça' },
-  { code: '+244', flag: '🇦🇴', name: 'Angola' }
-];
+import { LanguageContext } from '../LanguageContext'; // <-- Importar o motor de idiomas
+import jsPDF from 'jspdf';
 
 const Consultas = () => {
   const { theme } = useContext(ThemeContext);
-  
-  const [procedimentos, setProcedimentos] = useState([]);
+  const { t, language } = useContext(LanguageContext); // <-- Tradutor e língua atual
+
   const [consultas, setConsultas] = useState([]);
-  const [notification, setNotification] = useState({ show: false, type: '', message: '' });
+  const [modelos, setModelos] = useState([]);
   
-  const [consultaToEdit, setConsultaToEdit] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [formData, setFormData] = useState({
+    nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''
+  });
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
-  // MODAL DE CHECKOUT
-  const [checkoutModal, setCheckoutModal] = useState({ show: false, consulta: null, valor: 0, procedimentoFinal: '', metodo: 'Multibanco', email: '' });
+  const [checkoutModal, setCheckoutModal] = useState(null);
+  const [checkoutData, setCheckoutData] = useState({ metodo_pagamento: 'Multibanco' });
+  const [enviarEmail, setEnviarEmail] = useState(false);
+  const [emailPaciente, setEmailPaciente] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const initialForm = { nome: '', email: '', telefone: '', procedimento_id: '', data: '', hora: '', motivo: '' };
-  const [formData, setFormData] = useState(initialForm);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   
-  const [selectedCountry, setSelectedCountry] = useState(countries[0]); 
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [filtro, setFiltro] = useState('dia');
 
-  useEffect(() => {
-    fetch('http://localhost:5000/api/modelos-procedimento')
-      .then(res => res.json())
-      .then(data => setProcedimentos(data))
-      .catch(err => console.error(err));
-
-    carregarConsultas();
-  }, []);
-
-  const carregarConsultas = () => {
+  const fetchDados = () => {
     fetch('http://localhost:5000/api/consultas')
       .then(res => res.json())
-      .then(data => setConsultas(data))
-      .catch(err => console.error(err));
+      .then(data => setConsultas(data));
+    
+    fetch('http://localhost:5000/api/modelos-procedimento')
+      .then(res => res.json())
+      .then(data => setModelos(data));
   };
 
-  const showNotif = (type, message) => {
-    setNotification({ show: true, type, message });
-    setTimeout(() => setNotification({ show: false, type: '', message: '' }), 4000);
-  };
-  const closeNotif = () => setNotification({ show: false, type: '', message: '' });
+  useEffect(() => { fetchDados(); }, []);
 
-  // ==========================================
-  // --- LÓGICA INTELIGENTE DE CHECKOUT ---
-  // ==========================================
-  const abrirCheckout = (c) => {
-    // 1. Procura no sistema se existe a ficha base "Avaliação" (ignora acentos e maiúsculas)
-    const procAvaliacao = procedimentos.find(p => {
-      const n = p.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      return n === 'avaliacao' || n === 'consulta de avaliacao';
-    });
-
-    let precoFinal = parseFloat(c.preco_servico || 0);
-    let nomeFinal = c.procedimento_nome || 'Consulta Geral';
-
-    // 2. Verifica se a consulta marcada já é uma Avaliação (para não somar 2 vezes)
-    const isJaAvaliacao = nomeFinal.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('avaliacao');
-
-    // 3. Se a ficha "Avaliação" existir no sistema e a consulta marcada for outra coisa (ex: Exodontia)
-    if (procAvaliacao && !isJaAvaliacao) {
-      precoFinal += parseFloat(procAvaliacao.preco_servico || 0);
-      nomeFinal = `${nomeFinal} + ${procAvaliacao.nome}`;
-    }
-
-    setCheckoutModal({
-      show: true,
-      consulta: c,
-      valor: precoFinal,
-      procedimentoFinal: nomeFinal,
-      metodo: 'Multibanco',
-      email: c.paciente_email || ''
-    });
+  const showNotif = (msg, type = 'success') => {
+    setNotification({ show: true, message: msg, type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
   };
 
-  const gerarReciboPDFBase64 = (consulta, nomeProcedimento, valor, metodo) => {
-    const doc = new jsPDF();
-    doc.setFontSize(22);
-    doc.setTextColor(37, 99, 235);
-    doc.text("MeClinic", 15, 20);
-    doc.setFontSize(12);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Resumo de Consulta / Nota de Honorários", 15, 28);
-    
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, 35, 195, 35);
-    
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Paciente: ${consulta.paciente_nome}`, 15, 50);
-    doc.text(`Data: ${new Date(consulta.data_consulta).toLocaleDateString('pt-PT')}`, 15, 60);
-    doc.text(`Procedimento: ${nomeProcedimento}`, 15, 70); // Usa o nome somado!
-    doc.text(`Método de Pagamento: ${metodo}`, 15, 80);
-    
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Valor Total: ${parseFloat(valor).toFixed(2)} EUR`, 15, 100);
-    
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text("Obrigado pela sua preferência!", 15, 120);
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    return doc.output('datauristring');
-  };
-
-  const handleConfirmCheckout = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
-    
-    const { consulta, valor, procedimentoFinal, metodo, email } = checkoutModal;
-    const pdfBase64 = gerarReciboPDFBase64(consulta, procedimentoFinal, valor, metodo);
+    const url = isEditing ? `http://localhost:5000/api/consultas/${editId}` : 'http://localhost:5000/api/consultas';
+    const method = isEditing ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch('http://localhost:5000/api/faturacao/checkout', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          consulta_id: consulta.id,
-          paciente_nome: consulta.paciente_nome,
-          procedimento_nome: procedimentoFinal, // Envia o nome somado para a Faturação
-          valor_total: valor,
-          metodo_pagamento: metodo,
-          email_destino: email,
-          pdfBase64: pdfBase64
+          ...formData,
+          telefone: formData.telefone || t('consultations.list.no_phone'),
+          procedimento_id: formData.procedimento_id || null
         })
       });
-
-      if (response.ok) {
-        showNotif('success', 'Consulta finalizada e registada na Faturação!');
-        setCheckoutModal({ show: false, consulta: null, valor: 0, procedimentoFinal: '', metodo: '', email: '' });
-        carregarConsultas(); 
-      } else {
-        showNotif('error', 'Erro ao finalizar consulta.');
+      if (res.ok) {
+        showNotif(isEditing ? t('consultations.msg.updated') : t('consultations.msg.scheduled'));
+        setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
+        setIsEditing(false);
+        setEditId(null);
+        fetchDados();
       }
-    } catch (err) {
-      showNotif('error', 'Falha ao ligar ao servidor.');
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (err) { showNotif(t('consultations.msg.save_err'), 'error'); }
   };
 
-  // ==========================================
-  // --- GESTÃO DA AGENDA ---
-  // ==========================================
-  const handleEditClick = (c) => {
-    setConsultaToEdit(c.id);
-    
-    let ind = '+351';
-    let num = c.paciente_telefone || '';
-    if (num.includes(' ')) {
-      const parts = num.split(' ');
-      ind = parts[0];
-      num = parts[1];
-    }
-    
-    const country = countries.find(x => x.code === ind) || countries[0];
-    setSelectedCountry(country);
-    
-    setFormData({
-      nome: c.paciente_nome || '',
-      email: c.paciente_email || '',
-      telefone: num,
-      procedimento_id: c.procedimento_id || '',
-      data: c.data_consulta ? new Date(c.data_consulta).toISOString().split('T')[0] : '',
-      hora: c.hora_consulta ? c.hora_consulta.substring(0, 5) : '',
-      motivo: c.motivo || ''
-    });
+  const handleEdit = (c) => {
+    setIsEditing(true);
+    setEditId(c.id);
 
+    let dataFormatada = '';
+    if (c.data_consulta) dataFormatada = new Date(c.data_consulta).toISOString().split('T')[0];
+    
+    let horaFormatada = '';
+    if (c.hora_consulta) horaFormatada = c.hora_consulta.substring(0, 5);
+
+    setFormData({
+      nome: c.paciente_nome || '', email: c.paciente_email || '', telefone: c.paciente_telefone || '',
+      data: dataFormatada, hora: horaFormatada, motivo: c.motivo || '', procedimento_id: c.procedimento_id || ''
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const confirmarDesmarcacao = async () => {
+  const clickApagar = (id) => setShowDeleteConfirm(id);
+
+  const confirmarApagar = async () => {
     if (!showDeleteConfirm) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/consultas/${showDeleteConfirm}`, { method: 'DELETE' });
-      if (response.ok) {
-        showNotif('success', 'Consulta removida da agenda com sucesso.');
-        carregarConsultas();
-        if (consultaToEdit === showDeleteConfirm) {
-          setConsultaToEdit(null);
-          setFormData(initialForm);
-        }
-      } else {
-        showNotif('error', 'Erro ao remover consulta.');
-      }
+      await fetch(`http://localhost:5000/api/consultas/${showDeleteConfirm}`, { method: 'DELETE' });
+      showNotif(t('consultations.msg.deleted'));
+      fetchDados();
     } catch (err) {
-      showNotif('error', 'Falha ao ligar ao servidor.');
+      showNotif(t('consultations.msg.delete_err'), 'error');
     } finally {
       setShowDeleteConfirm(null);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const telefoneLimpo = formData.telefone.replace(/\D/g, ''); 
-    
-    if (selectedCountry.code === '+351') {
-      if (telefoneLimpo.length !== 9 || !telefoneLimpo.startsWith('9')) {
-        showNotif('error', 'Número de telemóvel inválido! Um número português deve ter exatamente 9 dígitos e começar por 9.');
-        return;
-      }
+  const abrirCheckout = (c) => {
+    setCheckoutModal(c);
+    setCheckoutData({ metodo_pagamento: 'Multibanco' });
+    if (c.paciente_email) {
+      setEnviarEmail(true);
+      setEmailPaciente(c.paciente_email);
     } else {
-      if (telefoneLimpo.length < 8) {
-        showNotif('error', `Número internacional inválido para ${selectedCountry.name}. Verifique os dígitos.`);
-        return;
-      }
-    }
-
-    const telefoneCompleto = `${selectedCountry.code} ${telefoneLimpo}`;
-
-    try {
-      const url = consultaToEdit ? `http://localhost:5000/api/consultas/${consultaToEdit}` : 'http://localhost:5000/api/consultas';
-      const method = consultaToEdit ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, telefone: telefoneCompleto })
-      });
-
-      if (response.ok) {
-        showNotif('success', consultaToEdit ? 'Alterações guardadas com sucesso!' : 'Consulta agendada com sucesso!');
-        setFormData(initialForm);
-        setConsultaToEdit(null);
-        carregarConsultas();
-      } else {
-        showNotif('error', 'Erro ao guardar a consulta. Tente novamente.');
-      }
-    } catch (err) {
-      showNotif('error', 'Falha de ligação ao servidor.');
+      setEnviarEmail(false);
+      setEmailPaciente('');
     }
   };
 
-  const inputStyle = { width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', fontSize: '15px' };
-  const labelStyle = { display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase', marginBottom: '8px', marginTop: '15px' };
+  const finalizarCheckout = async () => {
+    if (!checkoutModal) return;
+    setIsProcessing(true);
+    let pdfBase64 = null;
+
+    if (enviarEmail && emailPaciente) {
+      try {
+        const doc = new jsPDF({ format: [100, 150] });
+        doc.setTextColor(37, 99, 235);
+        doc.setFontSize(18); doc.setFont(undefined, 'bold'); doc.text("MECLINIC", 50, 18, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text(t('consultations.pdf.title'), 50, 32, { align: 'center' });
+        doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.text(t('consultations.pdf.subtitle'), 50, 37, { align: 'center' });
+        doc.setDrawColor(200, 200, 200); doc.line(10, 42, 90, 42);
+        
+        doc.setFontSize(10);
+        doc.text(`${t('consultations.pdf.patient')}${checkoutModal.paciente_nome}`, 10, 52);
+        doc.text(`${t('consultations.pdf.datetime')}${new Date().toLocaleString(language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT')}`, 10, 62);
+        doc.text(`${t('consultations.pdf.procedure')}${checkoutModal.procedimento_nome || t('consultations.general')}`, 10, 72);
+        doc.text(`${t('consultations.pdf.payment')}${checkoutData.metodo_pagamento}`, 10, 82);
+        doc.line(10, 92, 90, 92);
+        
+        doc.setFontSize(14); doc.setFont(undefined, 'bold');
+        doc.text(`${t('consultations.pdf.total')}${parseFloat(checkoutModal.preco_servico || 0).toFixed(2)} EUR`, 50, 105, { align: 'center' });
+        pdfBase64 = doc.output('datauristring');
+      } catch (e) { console.error("Erro a gerar o PDF na página:", e); }
+    }
+
+    try {
+      const res = await fetch('http://localhost:5000/api/faturacao/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consulta_id: checkoutModal.id, 
+          paciente_nome: checkoutModal.paciente_nome, 
+          procedimento_nome: checkoutModal.procedimento_nome || t('consultations.general'), 
+          valor_total: checkoutModal.preco_servico || 0, 
+          metodo_pagamento: checkoutData.metodo_pagamento, 
+          email_destino: enviarEmail ? emailPaciente : null, 
+          pdfBase64: pdfBase64
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotif(t('consultations.msg.checkout_success'));
+        setCheckoutModal(null);
+        fetchDados();
+      } else { showNotif(data.error || t('consultations.msg.checkout_err'), 'error'); }
+    } catch (err) { showNotif(t('consultations.msg.comm_err'), 'error'); } finally { setIsProcessing(false); }
+  };
+
+  const dataAtual = new Date();
+  const hojeStr = dataAtual.getFullYear() + '-' + String(dataAtual.getMonth() + 1).padStart(2, '0') + '-' + String(dataAtual.getDate()).padStart(2, '0');
+  const hojeObj = new Date(hojeStr + 'T00:00:00'); 
+
+  const consultasFiltradas = consultas.filter(c => {
+    const cDateStr = c.data_consulta.split('T')[0];
+    const dataConsultaObj = new Date(cDateStr + 'T00:00:00');
+    const diffTime = dataConsultaObj.getTime() - hojeObj.getTime();
+    const diffDias = Math.round(diffTime / (1000 * 3600 * 24));
+
+    if (filtro === 'dia') return diffDias === 0;
+    if (filtro === 'semana') return diffDias >= 0 && diffDias <= 7;
+    if (filtro === 'mes') return diffDias >= 0 && diffDias <= 30;
+    return true;
+  });
+
+  const inputStyle = { width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box', marginBottom: '15px' };
+  const iconStyle = { position: 'absolute', left: '12px', top: '12px', color: '#64748b' };
+
+  // Define o fuso para mostrar os meses na língua correta
+  const localeMap = { pt: 'pt-PT', en: 'en-US', es: 'es-ES' };
+  const activeLocale = localeMap[language] || 'pt-PT';
 
   return (
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
       
-      {/* MODAL FINALIZAR / CHECKOUT */}
-      {checkoutModal.show && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, backdropFilter: 'blur(5px)' }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '450px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign color="#10b981" /> Finalizar Consulta</h2>
-              <button onClick={() => setCheckoutModal({...checkoutModal, show: false})} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+      {notification.show && (
+        <div style={{ position: 'fixed', top: '20px', right: '20px', backgroundColor: notification.type === 'success' ? '#10b981' : '#ef4444', color: 'white', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '10px', animation: 'fadeIn 0.3s' }}>
+          {notification.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+          <span style={{ fontWeight: 'bold' }}>{notification.message}</span>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>{t('consultations.delete.title')}</h2>
+            <p style={{ color: theme.subText, marginBottom: '25px' }}>{t('consultations.delete.desc')}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('consultations.delete.cancel')}</button>
+              <button onClick={confirmarApagar} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('consultations.delete.confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9990, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '400px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: '22px' }}>{t('consultations.checkout.title')}</h2>
+            <div style={{ backgroundColor: theme.pageBg, padding: '20px', borderRadius: '10px', marginBottom: '20px' }}>
+              <p style={{ margin: '0 0 10px 0', color: theme.subText }}>{t('consultations.checkout.patient')} <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
+              <p style={{ margin: '0 0 10px 0', color: theme.subText }}>{t('consultations.checkout.procedure')} <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
+              <h3 style={{ margin: '15px 0 0 0', color: '#10b981', fontSize: '28px' }}>{parseFloat(checkoutModal.preco_servico || 0).toFixed(2)} €</h3>
             </div>
             
-            <div style={{ padding: '15px', backgroundColor: theme.pageBg, borderRadius: '10px', marginBottom: '20px', border: `1px solid ${theme.border}` }}>
-              <p style={{ margin: '0 0 5px 0', color: theme.subText, fontSize: '13px' }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.consulta.paciente_nome}</strong></p>
-              <p style={{ margin: 0, color: theme.subText, fontSize: '13px' }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.procedimentoFinal}</strong></p>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>{t('consultations.checkout.payment_method')}</label>
+            <select value={checkoutData.metodo_pagamento} onChange={(e) => setCheckoutData({...checkoutData, metodo_pagamento: e.target.value})} style={{ ...inputStyle, paddingLeft: '12px' }}>
+              <option value={t('consultations.checkout.multibanco')}>{t('consultations.checkout.multibanco')}</option>
+              <option value={t('consultations.checkout.mbway')}>{t('consultations.checkout.mbway')}</option>
+              <option value={t('consultations.checkout.cash')}>{t('consultations.checkout.cash')}</option>
+              <option value={t('consultations.checkout.transfer')}>{t('consultations.checkout.transfer')}</option>
+            </select>
+
+            <div style={{ marginTop: '5px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', padding: '15px', borderRadius: '10px', border: `1px solid ${theme.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input type="checkbox" id="enviarEmail" checked={enviarEmail} onChange={(e) => setEnviarEmail(e.target.checked)} style={{ cursor: 'pointer', width: '18px', height: '18px' }} />
+                <label htmlFor="enviarEmail" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#2563eb' }}>{t('consultations.checkout.send_email')}</label>
+              </div>
+              {enviarEmail && (
+                <div style={{ marginTop: '15px' }}>
+                  <input type="email" value={emailPaciente} onChange={(e) => setEmailPaciente(e.target.value)} placeholder={t('consultations.checkout.email_ph')} style={{ ...inputStyle, marginBottom: 0, paddingLeft: '15px' }} />
+                </div>
+              )}
             </div>
 
-            <form onSubmit={handleConfirmCheckout}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div>
-                  <label style={labelStyle}>Valor a Cobrar (€)</label>
-                  <input type="number" step="0.01" style={{ ...inputStyle, borderColor: '#10b981', fontWeight: 'bold' }} value={checkoutModal.valor} onChange={e => setCheckoutModal({...checkoutModal, valor: e.target.value})} required />
-                </div>
-                <div>
-                  <label style={labelStyle}>Método</label>
-                  <select style={inputStyle} value={checkoutModal.metodo} onChange={e => setCheckoutModal({...checkoutModal, metodo: e.target.value})}>
-                    <option>Multibanco</option>
-                    <option>Numerário</option>
-                    <option>MB Way</option>
-                    <option>Transferência</option>
-                  </select>
-                </div>
-              </div>
-
-              <label style={labelStyle}>Enviar Recibo por E-mail para:</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
-                <input type="email" style={{ ...inputStyle, paddingLeft: '45px' }} placeholder="E-mail do paciente (opcional)" value={checkoutModal.email} onChange={e => setCheckoutModal({...checkoutModal, email: e.target.value})} />
-              </div>
-
-              <button type="submit" disabled={isProcessing} style={{ width: '100%', marginTop: '20px', padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', opacity: isProcessing ? 0.7 : 1 }}>
-                {isProcessing ? 'A processar...' : 'Confirmar e Fechar Consulta'}
+            <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', opacity: isProcessing ? 0.5 : 1 }}>{t('consultations.checkout.cancel')}</button>
+              <button onClick={finalizarCheckout} disabled={isProcessing || (enviarEmail && !emailPaciente)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#10b981', color: 'white', cursor: (isProcessing || (enviarEmail && !emailPaciente)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', opacity: (isProcessing || (enviarEmail && !emailPaciente)) ? 0.6 : 1 }}>
+                {isProcessing ? t('consultations.checkout.processing') : t('consultations.checkout.confirm')}
               </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* NOTIFICAÇÃO GENÉRICA */}
-      {notification.show && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
-            {notification.type === 'success' ? <CheckCircle size={60} color="#059669" style={{ marginBottom: '20px' }} /> : <XCircle size={60} color="#ef4444" style={{ marginBottom: '20px' }} />}
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold', color: theme.isDark ? '#ffffff' : theme.text }}>
-              {notification.type === 'success' ? 'Sucesso!' : 'Atenção'}
-            </h2>
-            <p style={{ margin: '0 0 30px 0', color: theme.subText, fontSize: '15px' }}>{notification.message}</p>
-            <button onClick={closeNotif} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: notification.type === 'success' ? '#059669' : '#ef4444', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
-              OK, entendi
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONFIRMAR APAGAR */}
-      {showDeleteConfirm && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '350px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
-            <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Remover Consulta?</h2>
-            <p style={{ color: theme.subText, marginBottom: '25px' }}>Esta ação vai apagar a consulta permanentemente da sua agenda.</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarDesmarcacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Remover</button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <CalendarIcon size={32} color="#2563eb" />
-        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>Gestão de Consultas</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '40px' }}>
+        <CalendarIcon color="#2563eb" size={32} />
+        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('consultations.title')}</h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '30px' }}>
         
-        {/* LADO ESQUERDO: FORMULÁRIO */}
-        <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${consultaToEdit ? '#059669' : theme.border}`, boxShadow: consultaToEdit ? '0 0 0 2px rgba(5, 150, 105, 0.2)' : 'none', transition: 'all 0.3s' }}>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontSize: '18px', color: theme.isDark ? '#ffffff' : theme.text }}>
-              {consultaToEdit ? <Edit2 size={20} color="#059669" /> : <User size={20} color={theme.subText} />}
-              {consultaToEdit ? 'A Editar Consulta' : 'Nova Marcação'}
-            </h2>
-            {consultaToEdit && (
-              <button 
-                type="button" 
-                onClick={() => { setConsultaToEdit(null); setFormData(initialForm); }} 
-                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textDecoration: 'underline' }}
-              >
-                Cancelar Edição
-              </button>
-            )}
-          </div>
+        <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${theme.border}`, height: 'fit-content' }}>
+          <h3 style={{ margin: '0 0 25px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <User size={20} color="#2563eb" /> {isEditing ? t('consultations.form.edit') : t('consultations.form.new')}
+          </h3>
 
           <form onSubmit={handleSubmit}>
             <div style={{ position: 'relative' }}>
-              <User size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
-              <input required type="text" placeholder="Nome do Paciente" style={{ ...inputStyle, paddingLeft: '45px' }} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+              <User size={18} style={iconStyle} />
+              <input type="text" name="nome" value={formData.nome} onChange={handleChange} placeholder={t('consultations.form.name_ph')} style={inputStyle} required />
             </div>
 
-            <div style={{ position: 'relative', marginTop: '15px' }}>
-              <Mail size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '15px' }} />
-              <input type="email" placeholder="E-mail (Recomendado)" style={{ ...inputStyle, paddingLeft: '45px' }} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+            <div style={{ position: 'relative' }}>
+              <Mail size={18} style={iconStyle} />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder={t('consultations.form.email_ph')} style={inputStyle} />
             </div>
 
-            <div style={{ position: 'relative', marginTop: '15px', display: 'flex' }}>
-              <button 
-                type="button" 
-                onClick={() => setShowDropdown(!showDropdown)}
-                style={{ padding: '0 15px', backgroundColor: theme.pageBg, border: `1px solid ${theme.border}`, borderRight: 'none', borderRadius: '8px 0 0 8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: theme.text }}
-              >
-                <span style={{ fontSize: '18px' }}>{selectedCountry.flag}</span>
-                <span style={{ fontSize: '14px', fontWeight: 'bold', color: theme.subText }}>{selectedCountry.code}</span>
-                <ChevronDown size={14} color={theme.subText} />
-              </button>
-
-              {showDropdown && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '5px', width: '220px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '10px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.2)', zIndex: 100, overflow: 'hidden' }}>
-                  {countries.map(c => (
-                    <div 
-                      key={c.code}
-                      onClick={() => { setSelectedCountry(c); setShowDropdown(false); }}
-                      style={{ padding: '12px 15px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', borderBottom: `1px solid ${theme.border}`, color: theme.text, transition: 'background 0.2s' }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = theme.pageBg}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                    >
-                      <span style={{ fontSize: '18px' }}>{c.flag}</span>
-                      <span style={{ fontWeight: 'bold' }}>{c.name}</span>
-                      <span style={{ color: theme.subText, fontSize: '12px', marginLeft: 'auto' }}>{c.code}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <input 
-                required 
-                type="text" 
-                placeholder={selectedCountry.code === '+351' ? "Ex: 912345678" : "Número de telemóvel..."} 
-                style={{ ...inputStyle, borderRadius: '0 8px 8px 0', flex: 1, letterSpacing: '1px' }} 
-                value={formData.telefone} 
-                onChange={e => setFormData({...formData, telefone: e.target.value})} 
-              />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ width: '100px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${theme.border}`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', marginBottom: '15px' }}>PT +351</div>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Phone size={18} style={iconStyle} />
+                <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} placeholder={t('consultations.form.phone_ph')} style={inputStyle} />
+              </div>
             </div>
-            {showDropdown && <div onClick={() => setShowDropdown(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} />}
 
-            <label style={labelStyle}>Procedimento Clínico</label>
-            <select required style={inputStyle} value={formData.procedimento_id} onChange={e => setFormData({...formData, procedimento_id: e.target.value})}>
-              <option value="" disabled>Selecione um procedimento...</option>
-              {procedimentos.map(p => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.procedure')}</label>
+            <select name="procedimento_id" value={formData.procedimento_id} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required>
+              <option value="">{t('consultations.form.procedure_ph')}</option>
+              {modelos.map(m => (
+                <option key={m.id} value={m.id}>{m.nome}</option>
               ))}
             </select>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
-                <label style={labelStyle}>Data</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.date')}</label>
                 <div style={{ position: 'relative' }}>
-                  <CalendarIcon size={18} color={theme.subText} style={{ position: 'absolute', right: '15px', top: '15px', pointerEvents: 'none' }} />
-                  <input required type="date" style={inputStyle} value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} />
+                  <input type="date" name="data" value={formData.data} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required />
                 </div>
               </div>
-              
               <div>
-                <label style={labelStyle}>Hora</label>
-                <div style={{ ...inputStyle, padding: 0, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                  <Clock size={18} color={theme.subText} style={{ marginLeft: '15px', flexShrink: 0 }} />
-                  
-                  <select 
-                    required 
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: theme.text, padding: '12px 5px', outline: 'none', appearance: 'none', textAlign: 'center', fontSize: '15px', cursor: 'pointer' }} 
-                    value={formData.hora ? formData.hora.split(':')[0] : ''} 
-                    onChange={e => {
-                      const m = formData.hora ? formData.hora.split(':')[1] : '00';
-                      setFormData({...formData, hora: `${e.target.value}:${m}`});
-                    }}
-                  >
-                    <option value="" disabled>HH</option>
-                    {Array.from({length: 15}, (_, i) => String(i + 8).padStart(2, '0')).map(h => (
-                      <option key={h} value={h} style={{ background: theme.pageBg, color: theme.text }}>{h}</option>
-                    ))}
-                  </select>
-                  
-                  <span style={{ fontWeight: 'bold', color: theme.subText }}>:</span>
-                  
-                  <select 
-                    required 
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: theme.text, padding: '12px 5px', outline: 'none', appearance: 'none', textAlign: 'center', fontSize: '15px', cursor: 'pointer' }} 
-                    value={formData.hora ? formData.hora.split(':')[1] : ''} 
-                    onChange={e => {
-                      const h = formData.hora ? formData.hora.split(':')[0] : '09';
-                      setFormData({...formData, hora: `${h}:${e.target.value}`});
-                    }}
-                  >
-                    <option value="" disabled>MM</option>
-                    {['00', '10', '20', '30', '40', '50'].map(m => (
-                      <option key={m} value={m} style={{ background: theme.pageBg, color: theme.text }}>{m}</option>
-                    ))}
-                  </select>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.time')}</label>
+                <div style={{ position: 'relative' }}>
+                  <input type="time" name="hora" value={formData.hora} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required />
                 </div>
               </div>
-
             </div>
 
-            <label style={labelStyle}>Notas adicionais...</label>
-            <textarea rows="3" style={{ ...inputStyle, resize: 'none' }} placeholder="Opcional..." value={formData.motivo} onChange={e => setFormData({...formData, motivo: e.target.value})} />
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.notes')}</label>
+            <textarea name="motivo" value={formData.motivo} onChange={handleChange} placeholder={t('consultations.form.notes_ph')} style={{ ...inputStyle, paddingLeft: '12px', height: '100px', resize: 'none' }}></textarea>
 
-            <button type="submit" style={{ width: '100%', marginTop: '25px', backgroundColor: consultaToEdit ? '#059669' : '#2563eb', color: 'white', padding: '15px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-              {consultaToEdit ? <CheckCircle size={20} /> : <FileText size={20} />}
-              {consultaToEdit ? 'Guardar Alterações' : 'Confirmar Agenda'}
+            <button type="submit" style={{ width: '100%', padding: '14px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'background-color 0.2s' }}>
+              <FileText size={20} /> {isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm')}
             </button>
+            
+            {isEditing && (
+              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''}); }} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: theme.subText, border: 'none', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}>
+                {t('consultations.form.btn_cancel')}
+              </button>
+            )}
           </form>
         </div>
 
-        {/* LADO DIREITO: LISTAGEM */}
         <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${theme.border}` }}>
-          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: theme.isDark ? '#ffffff' : theme.text }}>Próximas Marcações</h2>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px' }}>{t('consultations.list.title')}</h3>
+            
+            <div style={{ display: 'flex', gap: '5px', backgroundColor: theme.pageBg, padding: '5px', borderRadius: '10px' }}>
+              <button onClick={() => setFiltro('dia')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'dia' ? '#2563eb' : 'transparent', color: filtro === 'dia' ? 'white' : theme.subText, transition: 'all 0.2s' }}>
+                {t('consultations.list.filter_today')}
+              </button>
+              <button onClick={() => setFiltro('semana')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'semana' ? '#2563eb' : 'transparent', color: filtro === 'semana' ? 'white' : theme.subText, transition: 'all 0.2s' }}>
+                {t('consultations.list.filter_week')}
+              </button>
+              <button onClick={() => setFiltro('mes')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'mes' ? '#2563eb' : 'transparent', color: filtro === 'mes' ? 'white' : theme.subText, transition: 'all 0.2s' }}>
+                {t('consultations.list.filter_month')}
+              </button>
+            </div>
+          </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {consultas.length > 0 ? (
-              consultas.map(c => {
-                const dataObj = new Date(c.data_consulta);
-                return (
-                  <div key={c.id} style={{ padding: '20px', backgroundColor: theme.pageBg, borderRadius: '12px', border: `1px solid ${theme.border}`, display: 'flex', gap: '20px', alignItems: 'center' }}>
-                    
-                    <div style={{ backgroundColor: '#dbeafe', color: '#1e40af', padding: '10px 15px', borderRadius: '10px', textAlign: 'center', minWidth: '70px' }}>
-                      <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{dataObj.toLocaleDateString('pt-PT', { month: 'short' })}</span>
-                      <span style={{ display: 'block', fontSize: '24px', fontWeight: '900' }}>{dataObj.getDate()}</span>
-                    </div>
-                    
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.text }}>{c.paciente_nome}</h3>
-                      <p style={{ margin: 0, fontSize: '14px', color: theme.subText, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Clock size={14} /> {c.hora_consulta.substring(0, 5)} • {c.procedimento_nome || 'Consulta Geral'}
-                      </p>
-                      {c.paciente_telefone && (
-                        <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: theme.subText, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <Phone size={14} /> {c.paciente_telefone}
-                        </p>
-                      )}
-                    </div>
+            {consultasFiltradas.length > 0 ? consultasFiltradas.map(c => {
+              const isFinalizada = c.status === 'FINALIZADA';
+              const cardBackground = isFinalizada ? (theme.isDark ? '#0f172a' : '#f1f5f9') : (theme.isDark ? '#1e293b' : '#ffffff');
+              const opacityLevel = isFinalizada ? 0.6 : 1;
+              
+              // A magia da data multi-língua acontece aqui
+              const mesCurto = new Date(c.data_consulta).toLocaleDateString(activeLocale, { month: 'short' }).toUpperCase();
+              const dia = new Date(c.data_consulta).getDate();
 
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      {/* ESTE É O NOVO BOTÃO DE FINALIZAR! */}
-                      <button 
-                        onClick={() => abrirCheckout(c)} 
-                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: '#d1fae5', color: '#059669', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
-                        title="Finalizar e Faturar"
-                      >
-                        <CheckCircle size={18} />
-                      </button>
-
-                      <button 
-                        onClick={() => handleEditClick(c)} 
-                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#1e3a8a' : '#dbeafe', color: '#2563eb', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
-                        title="Reagendar/Editar"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      
-                      <button 
-                        onClick={() => setShowDeleteConfirm(c.id)} 
-                        style={{ width: '40px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }} 
-                        title="Remover Consulta"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+              return (
+                <div key={c.id} style={{ backgroundColor: cardBackground, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: opacityLevel, transition: 'all 0.3s' }}>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ backgroundColor: isFinalizada ? theme.border : theme.pageBg, padding: '12px 15px', borderRadius: '10px', textAlign: 'center', minWidth: '60px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: isFinalizada ? theme.subText : '#2563eb' }}>{mesCurto}</div>
+                      <div style={{ fontSize: '22px', fontWeight: '900', color: isFinalizada ? theme.subText : '#2563eb' }}>{dia}</div>
                     </div>
-
+                    <div>
+                      <h4 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.text, textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.paciente_nome}</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: theme.subText, fontSize: '13px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={14} /> {c.hora_consulta.substring(0, 5)} • {c.procedimento_nome || t('consultations.list.no_procedure')}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '13px', marginTop: '5px' }}>
+                        <Phone size={14} /> {c.paciente_telefone || t('consultations.list.no_phone')}
+                      </div>
+                    </div>
                   </div>
-                )
-              })
-            ) : (
-              <div style={{ padding: '50px 0', textAlign: 'center', color: theme.subText }}>
-                <CalendarIcon size={40} style={{ opacity: 0.3, margin: '0 auto 10px auto' }} />
-                <p style={{ margin: 0, fontStyle: 'italic' }}>Nenhuma consulta agendada.</p>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {isFinalizada ? (
+                      <span style={{ backgroundColor: theme.pageBg, color: theme.subText, padding: '8px 15px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <CheckCircle size={16} /> {t('consultations.list.finished')}
+                      </span>
+                    ) : (
+                      <>
+                        <button onClick={() => abrirCheckout(c)} style={{ backgroundColor: '#d1fae5', color: '#10b981', border: 'none', padding: '12px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title={t('consultations.tooltip.finish')}><CheckCircle size={20} /></button>
+                        <button onClick={() => handleEdit(c)} style={{ backgroundColor: '#dbeafe', color: '#2563eb', border: 'none', padding: '12px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title={t('consultations.tooltip.edit')}><Edit size={20} /></button>
+                        <button onClick={() => clickApagar(c.id)} style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', padding: '12px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title={t('consultations.tooltip.delete')}><Trash2 size={20} /></button>
+                      </>
+                    )}
+                  </div>
+
+                </div>
+              );
+            }) : (
+              <div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px' }}>
+                {t('consultations.list.empty')}
               </div>
             )}
           </div>

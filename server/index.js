@@ -12,15 +12,16 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// PREPARAÇÃO DA BASE DE DADOS (Transforma o stock em decimais automaticamente)
+pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)").catch(() => {});
+pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)").catch(() => {});
+
 // ==========================================
 // --- CONFIGURAÇÃO DE E-MAIL ---
 // ==========================================
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  auth: {
-    user: 'rubendavidsilvamartins@gmail.com',
-    pass: 'ozrf vmiq mzxt ddii'
-  }
+  auth: { user: 'rubendavidsilvamartins@gmail.com', pass: 'ozrf vmiq mzxt ddii' }
 });
 
 // ==========================================
@@ -43,27 +44,27 @@ app.post("/api/register", async (req, res) => {
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
     res.json({ message: "Conta criada com sucesso!", user: newUser.rows[0], qrCodeUrl });
-  } catch (err) { res.status(500).json({ error: "Erro no servidor ao registar utilizador." }); }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password, mfaToken } = req.body;
     const userResult = await pool.query("SELECT * FROM utilizadores WHERE email = $1", [email]);
-    if (userResult.rows.length === 0) return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
+    if (userResult.rows.length === 0) return res.status(401).json({ error: "Credenciais incorretas." });
 
     const user = userResult.rows[0];
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) return res.status(401).json({ error: "Email ou palavra-passe incorretos." });
+    if (!validPassword) return res.status(401).json({ error: "Credenciais incorretas." });
 
     if (user.mfa_enabled) {
-      if (!mfaToken) return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
+      if (!mfaToken) return res.status(400).json({ error: "O código do Authenticator é obrigatório." });
       const verified = speakeasy.totp.verify({ secret: user.mfa_secret, encoding: 'base32', token: mfaToken });
-      if (!verified) return res.status(401).json({ error: "Código da App inválido. Tenta novamente." });
+      if (!verified) return res.status(401).json({ error: "Código inválido." });
     }
 
     res.json({ message: "Login bem-sucedido", user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-  } catch (err) { res.status(500).json({ error: "Erro no servidor ao iniciar sessão." }); }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
 app.post("/api/change-password", async (req, res) => {
@@ -77,16 +78,16 @@ app.post("/api/change-password", async (req, res) => {
     if (!validPassword) return res.status(401).json({ error: "A palavra-passe atual está incorreta." });
 
     if (user.mfa_enabled) {
-      if (!mfaToken) return res.status(400).json({ error: "O código do Google Authenticator é obrigatório." });
+      if (!mfaToken) return res.status(400).json({ error: "Código MFA obrigatório." });
       const verified = speakeasy.totp.verify({ secret: user.mfa_secret, encoding: 'base32', token: mfaToken });
-      if (!verified) return res.status(401).json({ error: "Código MFA inválido ou expirado." });
+      if (!verified) return res.status(401).json({ error: "Código inválido." });
     }
 
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
     await pool.query("UPDATE utilizadores SET password_hash = $1 WHERE id = $2", [newPasswordHash, userId]);
-    res.json({ message: "Palavra-passe alterada com sucesso!" });
-  } catch (err) { res.status(500).json({ error: "Erro no servidor ao alterar palavra-passe." }); }
+    res.json({ message: "Palavra-passe alterada!" });
+  } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
 app.get("/api/utilizadores", async (req, res) => {
@@ -100,7 +101,7 @@ app.post("/api/utilizadores", async (req, res) => {
   try {
     const { nome, email, password, role } = req.body;
     const userExists = await pool.query("SELECT * FROM utilizadores WHERE email = $1", [email]);
-    if (userExists.rows.length > 0) return res.status(400).json({ error: "Já existe uma conta com este email." });
+    if (userExists.rows.length > 0) return res.status(400).json({ error: "Já existe uma conta." });
 
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
@@ -113,14 +114,14 @@ app.post("/api/utilizadores", async (req, res) => {
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
     res.json({ message: "Membro adicionado!", user: newUser.rows[0], qrCodeUrl });
-  } catch (err) { res.status(500).json({ error: "Erro no servidor ao adicionar membro." }); }
+  } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
 app.delete("/api/utilizadores/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM utilizadores WHERE id = $1", [req.params.id]);
-    res.json({ message: "Utilizador removido com sucesso!" });
-  } catch (err) { res.status(500).json({ error: "Erro ao remover utilizador." }); }
+    res.json({ message: "Removido!" });
+  } catch (err) { res.status(500).json({ error: "Erro." }); }
 });
 
 // ==========================================
@@ -152,7 +153,7 @@ app.put("/api/produtos/:id", async (req, res) => {
       "UPDATE produtos SET nome=$1, codigo_barras=$2, stock_atual=$3, stock_minimo=$4, unidade_medida=$5, imagem_url=$6 WHERE id=$7",
       [nome, codigo_barras || null, stock_atual, stock_minimo, unidade_medida, imagem_url || '', id]
     );
-    res.json({ message: "Produto atualizado com sucesso!" });
+    res.json({ message: "Produto atualizado!" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -160,7 +161,7 @@ app.delete("/api/produtos/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM produtos WHERE id = $1", [req.params.id]);
     res.json({ message: "Produto removido!" });
-  } catch (err) { res.status(500).json({ error: "Erro ao apagar produto." }); }
+  } catch (err) { res.status(500).json({ error: "Erro." }); }
 });
 
 // ==========================================
@@ -169,16 +170,12 @@ app.delete("/api/produtos/:id", async (req, res) => {
 app.get('/api/consultas', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT 
-        c.id, p.nome as paciente_nome, p.telefone as paciente_telefone, p.email as paciente_email, 
-        c.data_consulta, c.hora_consulta, c.motivo, c.procedimento_id,
-        m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado, m.preco_servico
-      FROM consultas c
-      JOIN pacientes p ON c.paciente_id = p.id
+      SELECT c.id, p.nome as paciente_nome, p.telefone as paciente_telefone, p.email as paciente_email, 
+      c.data_consulta, c.hora_consulta, c.motivo, c.status, c.procedimento_id, m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado, m.preco_servico
+      FROM consultas c 
+      JOIN pacientes p ON c.paciente_id = p.id 
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      WHERE 
-        c.status = 'AGENDADA' AND
-        (c.data_consulta > CURRENT_DATE OR (c.data_consulta = CURRENT_DATE AND c.hora_consulta >= CURRENT_TIME))
+      WHERE c.status = 'AGENDADA' OR c.data_consulta = CURRENT_DATE
       ORDER BY c.data_consulta ASC, c.hora_consulta ASC
     `);
     res.json(result.rows);
@@ -189,20 +186,17 @@ app.post('/api/consultas', async (req, res) => {
   const { nome, email, telefone, data, hora, motivo, procedimento_id } = req.body;
   try {
     let paciente = await pool.query("SELECT id FROM pacientes WHERE nome = $1", [nome]);
-    let pacienteId;
+    let pId;
     if (paciente.rows.length === 0) {
       const novoP = await pool.query("INSERT INTO pacientes (nome, telefone, email) VALUES ($1, $2, $3) RETURNING id", [nome, telefone, email || null]);
-      pacienteId = novoP.rows[0].id;
+      pId = novoP.rows[0].id;
     } else {
-      pacienteId = paciente.rows[0].id;
-      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pacienteId]);
+      pId = paciente.rows[0].id;
+      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pId]);
     }
-    const novaC = await pool.query(
-      "INSERT INTO consultas (paciente_id, data_consulta, hora_consulta, motivo, procedimento_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [pacienteId, data, hora, motivo, procedimento_id || null]
-    );
+    const novaC = await pool.query("INSERT INTO consultas (paciente_id, data_consulta, hora_consulta, motivo, procedimento_id) VALUES ($1, $2, $3, $4, $5) RETURNING *", [pId, data, hora, motivo, procedimento_id || null]);
     res.json(novaC.rows[0]);
-  } catch (err) { res.status(500).json({ error: "Erro ao marcar consulta" }); }
+  } catch (err) { res.status(500).json({ error: "Erro" }); }
 });
 
 app.put('/api/consultas/:id', async (req, res) => {
@@ -210,55 +204,97 @@ app.put('/api/consultas/:id', async (req, res) => {
   const { nome, email, telefone, data, hora, motivo, procedimento_id } = req.body;
   try {
     let paciente = await pool.query("SELECT id FROM pacientes WHERE nome = $1", [nome]);
-    let pacienteId;
+    let pId;
     if (paciente.rows.length === 0) {
       const novoP = await pool.query("INSERT INTO pacientes (nome, telefone, email) VALUES ($1, $2, $3) RETURNING id", [nome, telefone, email || null]);
-      pacienteId = novoP.rows[0].id;
+      pId = novoP.rows[0].id;
     } else {
-      pacienteId = paciente.rows[0].id;
-      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pacienteId]);
+      pId = paciente.rows[0].id;
+      await pool.query("UPDATE pacientes SET telefone = $1, email = $2 WHERE id = $3", [telefone, email || null, pId]);
     }
-    
-    await pool.query(
-      "UPDATE consultas SET paciente_id = $1, data_consulta = $2, hora_consulta = $3, motivo = $4, procedimento_id = $5 WHERE id = $6",
-      [pacienteId, data, hora, motivo, procedimento_id || null, id]
-    );
-    res.json({ message: "Consulta atualizada com sucesso!" });
-  } catch (err) { res.status(500).json({ error: "Erro ao atualizar consulta" }); }
+    await pool.query("UPDATE consultas SET paciente_id = $1, data_consulta = $2, hora_consulta = $3, motivo = $4, procedimento_id = $5 WHERE id = $6", [pId, data, hora, motivo, procedimento_id || null, id]);
+    res.json({ message: "Atualizada!" });
+  } catch (err) { res.status(500).json({ error: "Erro" }); }
 });
 
 app.delete('/api/consultas/:id', async (req, res) => {
   try {
     await pool.query("DELETE FROM consultas WHERE id = $1", [req.params.id]);
-    res.json({ message: "Consulta desmarcada com sucesso!" });
-  } catch (err) { res.status(500).json({ error: "Erro ao desmarcar consulta." }); }
+    res.json({ message: "Desmarcada!" });
+  } catch (err) { res.status(500).json({ error: "Erro." }); }
 });
 
 // ==========================================
-// --- FATURAÇÃO E CHECK-OUT ---
+// --- FATURAÇÃO E CHECK-OUT (MATEMÁTICA AVANÇADA) ---
 // ==========================================
 app.post('/api/faturacao/checkout', async (req, res) => {
   const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64 } = req.body;
+  
   try {
+    await pool.query("BEGIN");
     await pool.query("UPDATE consultas SET status = 'FINALIZADA' WHERE id = $1", [consulta_id]);
+    
+    const procSeguro = procedimento_nome || 'Consulta Geral';
+    const valorSeguro = parseFloat(valor_total) || 0;
+
     await pool.query(
-      "INSERT INTO faturacao (consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento) VALUES ($1, $2, $3, $4, $5)",
-      [consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento || 'Multibanco']
+      "INSERT INTO faturacao (consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento) VALUES ($1, $2, $3, $4, $5)", 
+      [consulta_id, paciente_nome, procSeguro, valorSeguro, metodo_pagamento || 'Multibanco']
     );
 
-    if (email_destino && pdfBase64) {
-      const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
-      const mailOptions = {
-        from: 'rubendavidsilvamartins@gmail.com',
-        to: email_destino,
-        subject: `Resumo de Consulta - Clínica`,
-        text: `Olá ${paciente_nome},\n\nAnexo enviamos o resumo e comprovativo da sua consulta de ${procedimento_nome}.\n\nObrigado pela preferência!`,
-        attachments: [{ filename: `Recibo_${paciente_nome.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer }]
-      };
-      await transporter.sendMail(mailOptions);
+    const consultaRes = await pool.query("SELECT procedimento_id FROM consultas WHERE id = $1", [consulta_id]);
+    
+    if (consultaRes.rows.length > 0 && consultaRes.rows[0].procedimento_id) {
+      const procId = consultaRes.rows[0].procedimento_id;
+      const materiaisRes = await pool.query("SELECT nome_item, quantidade FROM modelo_procedimento_itens WHERE modelo_id = $1", [procId]);
+      
+      for (let item of materiaisRes.rows) {
+        // Vai buscar o nome original ao armazém para ver se tem "(100 un)"
+        const prodRes = await pool.query("SELECT nome FROM produtos WHERE nome = $1", [item.nome_item]);
+        
+        if (prodRes.rows.length > 0) {
+          const prodName = prodRes.rows[0].nome;
+          const match = prodName.match(/\((\d+)\s*[a-zA-Z]+\)/);
+          
+          let deduction = parseFloat(item.quantidade);
+          
+          // A MAGIA: Se o nome tiver multiplicador, divide a quantidade! (ex: 2 luvas / 100 = 0.02 caixas retiradas)
+          if (match) {
+            const unitsPerBox = parseInt(match[1], 10);
+            deduction = deduction / unitsPerBox; 
+          }
+
+          await pool.query(
+            "UPDATE produtos SET stock_atual = stock_atual - $1 WHERE nome = $2",
+            [deduction, item.nome_item]
+          );
+        }
+      }
     }
-    res.json({ message: "Check-out concluído! Recibo processado." });
-  } catch (err) { res.status(500).json({ error: "Erro ao processar o check-out." }); }
+
+    await pool.query("COMMIT");
+
+    if (email_destino && pdfBase64) {
+      try {
+        const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
+        await transporter.sendMail({
+          from: 'rubendavidsilvamartins@gmail.com', to: email_destino,
+          subject: `Resumo de Consulta - Clínica`,
+          text: `Olá ${paciente_nome},\n\nAnexo enviamos o comprovativo e resumo da sua consulta.\n\nObrigado pela preferência!`,
+          attachments: [{ filename: `Recibo_${paciente_nome.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer }]
+        });
+      } catch (emailErr) {
+        console.error("Erro ao enviar email:", emailErr);
+      }
+    }
+
+    res.json({ message: "Check-out concluído e Stock atualizado!" });
+
+  } catch (err) { 
+    await pool.query("ROLLBACK"); 
+    console.error("Erro no check-out:", err.message);
+    res.status(500).json({ error: "Erro ao finalizar a consulta na Base de Dados." }); 
+  }
 });
 
 app.get('/api/faturacao', async (req, res) => {
@@ -289,7 +325,7 @@ app.post('/api/modelos-procedimento', async (req, res) => {
   try {
     const novo = await pool.query("INSERT INTO modelos_procedimento (nome, custo_total_estimado, preco_servico) VALUES ($1, 0, 0) RETURNING *", [req.body.nome]);
     res.json(novo.rows[0]);
-  } catch (err) { res.status(500).json({ error: "Erro ao criar novo procedimento." }); }
+  } catch (err) { res.status(500).json({ error: "Erro." }); }
 });
 
 app.put("/api/modelos-procedimento/:id", async (req, res) => {
@@ -298,31 +334,22 @@ app.put("/api/modelos-procedimento/:id", async (req, res) => {
   try {
     await pool.query("BEGIN"); 
     await pool.query("UPDATE modelos_procedimento SET custo_total_estimado = $1, preco_servico = $2 WHERE id = $3", [custo_total, preco_servico, id]);
-
     const idsParaManter = itens.filter(item => !String(item.id).startsWith("temp-")).map(item => parseInt(item.id));
-    if (idsParaManter.length > 0) {
-      await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1 AND id <> ALL($2::int[])", [id, idsParaManter]);
-    } else {
-      await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1", [id]);
-    }
-
+    if (idsParaManter.length > 0) { await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1 AND id <> ALL($2::int[])", [id, idsParaManter]); } 
+    else { await pool.query("DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1", [id]); }
     for (let item of itens) {
-      if (String(item.id).startsWith("temp-")) {
-        await pool.query("INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)", [id, item.nome_item, item.quantidade, item.preco_unitario]);
-      } else {
-        await pool.query("UPDATE modelo_procedimento_itens SET nome_item = $1, quantidade = $2, preco_unitario = $3 WHERE id = $4", [item.nome_item, item.quantidade, item.preco_unitario, item.id]);
-      }
+      if (String(item.id).startsWith("temp-")) { await pool.query("INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario) VALUES ($1, $2, $3, $4)", [id, item.nome_item, item.quantidade, item.preco_unitario]); } 
+      else { await pool.query("UPDATE modelo_procedimento_itens SET nome_item = $1, quantidade = $2, preco_unitario = $3 WHERE id = $4", [item.nome_item, item.quantidade, item.preco_unitario, item.id]); }
     }
-    await pool.query("COMMIT"); 
-    res.json({ message: "Procedimento atualizado com sucesso!" });
-  } catch (err) { await pool.query("ROLLBACK"); res.status(500).json({ error: "Erro ao atualizar a Ficha Técnica." }); }
+    await pool.query("COMMIT"); res.json({ message: "Atualizado!" });
+  } catch (err) { await pool.query("ROLLBACK"); res.status(500).json({ error: "Erro." }); }
 });
 
 app.delete("/api/modelos-procedimento/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM modelos_procedimento WHERE id = $1", [req.params.id]);
-    res.json({ message: "Procedimento apagado com sucesso!" });
-  } catch (err) { res.status(500).json({ error: "Erro ao apagar procedimento." }); }
+    res.json({ message: "Apagado!" });
+  } catch (err) { res.status(500).json({ error: "Erro." }); }
 });
 
 // ==========================================
@@ -333,14 +360,13 @@ app.post('/api/reports/send-email', async (req, res) => {
   try {
     const pdfBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
     await transporter.sendMail({
-      from: 'rubendavidsilvamartins@gmail.com',
-      to: emailDestino,
+      from: 'rubendavidsilvamartins@gmail.com', to: emailDestino,
       subject: `Relatório Clínica - Semana de ${semana}`,
-      text: 'Anexo enviamos o relatório semanal detalhado de stock e faturação.',
+      text: 'Anexo enviamos o relatório detalhado.',
       attachments: [{ filename: `Relatorio_${semana}.pdf`, content: pdfBuffer }]
     });
-    res.json({ message: "Relatório enviado com sucesso!" });
-  } catch (error) { res.status(500).json({ error: "Erro ao enviar e-mail." }); }
+    res.json({ message: "Sucesso!" });
+  } catch (error) { res.status(500).json({ error: "Erro." }); }
 });
 
 app.get('/api/stats/dashboard-summary', async (req, res) => {
@@ -370,59 +396,30 @@ app.get('/api/stats/patients-weekly', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// AQUI ESTÁ A CORREÇÃO (data_emissao::date) QUE FAZ AS FATURAS APARECEREM!
 app.get('/api/reports/weekly-detail', async (req, res) => {
   const { start } = req.query;
   try {
     const report = await pool.query(`
-      SELECT 
-        COUNT(c.id)::int as total_consultas,
-        COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total,
-        COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total,
-        (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado
-      FROM consultas c
-      JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
+      SELECT COUNT(c.id)::int as total_consultas, COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total, COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total, (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado
+      FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
     `, [start]);
-
     const procedimentos = await pool.query(`
       SELECT m.nome, COUNT(c.id)::int as quantidade, SUM(m.preco_servico)::float as subtotal_faturado 
-      FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id 
-      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval 
-      GROUP BY m.nome ORDER BY quantidade DESC
+      FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval GROUP BY m.nome ORDER BY quantidade DESC
     `, [start]);
-
     const materiais = await pool.query(`
       SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, mpi.preco_unitario, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total
-      FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id
-      WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
-      GROUP BY mpi.nome_item, mpi.preco_unitario ORDER BY quantidade_total DESC
+      FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval GROUP BY mpi.nome_item, mpi.preco_unitario ORDER BY quantidade_total DESC
     `, [start]);
-
     const notas = await pool.query(`
-      SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total
-      FROM faturacao
-      WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval
-      ORDER BY data_emissao DESC
+      SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval ORDER BY data_emissao DESC
     `, [start]);
-
-    res.json({ 
-      resumo: report.rows[0], 
-      detalhe_procedimentos: procedimentos.rows, 
-      top_materiais: materiais.rows, 
-      notas_faturacao: notas.rows 
-    });
+    res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, notas_faturacao: notas.rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// --- FECHO DE SEMANA AUTOMÁTICO COM PDF ---
-// ==========================================
-//Todas as sextas-feiras às 16h (UTC+1) o sistema irá gerar um PDF completo do relatório semanal e enviar por e-mail para os administradores.
 cron.schedule('0 16 * * 5', async () => {
   try {
-    console.log("⏰ A criar PDF de Fecho de Semana nos bastidores...");
-
     const adminsResult = await pool.query("SELECT email FROM utilizadores WHERE role = 'ADMIN'");
     const adminEmails = adminsResult.rows.map(a => a.email);
     if (adminEmails.length === 0) return;
@@ -440,12 +437,10 @@ cron.schedule('0 16 * * 5', async () => {
 
     const dados = reportResult.rows[0];
 
-    // INICIAR A CRIAÇÃO DO PDF NA MEMÓRIA DO SERVIDOR
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
     let buffers = [];
     doc.on('data', buffers.push.bind(buffers));
     
-    // CONSTRUIR O PDF
     doc.fontSize(22).font('Helvetica-Bold').fillColor('#2563eb').text("RELATÓRIO FINANCEIRO E DE GESTÃO", { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(12).fillColor('#64748b').font('Helvetica').text(`Período de: ${new Date(dataInicio).toLocaleDateString('pt-PT')} a ${new Date(dataFim).toLocaleDateString('pt-PT')}`, { align: 'center' });
@@ -475,7 +470,6 @@ cron.schedule('0 16 * * 5', async () => {
       }, { width: 500 });
     }
 
-    // ANEXAR AS NOTAS/TALÕES NO FINAL DO PDF (Tamanho Recibo 100x150mm -> aprox 283x425 pt)
     for (let nota of notasResult.rows) {
       doc.addPage({ size: [283, 425], margin: 20 });
       doc.fontSize(12).fillColor('#000000').font('Helvetica-Bold').text("NOTA DE HONORÁRIOS", { align: 'center' });
@@ -483,13 +477,11 @@ cron.schedule('0 16 * * 5', async () => {
       doc.moveDown(1.5);
       doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
       doc.moveDown(1.5);
-      
       doc.fontSize(10);
       doc.text(`Paciente: ${nota.paciente_nome}`);
       doc.text(`Data/Hora: ${new Date(nota.data_emissao).toLocaleString('pt-PT')}`);
       doc.text(`Procedimento: ${nota.procedimento_nome}`);
       doc.text(`Método Pag.: ${nota.metodo_pagamento}`);
-      
       doc.moveDown();
       doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
       doc.moveDown(1.5);
@@ -498,10 +490,8 @@ cron.schedule('0 16 * * 5', async () => {
 
     doc.end();
 
-    // QUANDO O PDF ESTIVER PRONTO, ENVIA O E-MAIL
     doc.on('end', async () => {
       let pdfData = Buffer.concat(buffers);
-
       const mailOptions = {
         from: 'rubendavidsilvamartins@gmail.com',
         to: adminEmails.join(','),
@@ -511,27 +501,16 @@ cron.schedule('0 16 * * 5', async () => {
             <h2 style="color: #0f172a;">Estimada Administração,</h2>
             <p>Vimos por este meio enviar o Relatório de Gestão e Fecho de Semana gerado automaticamente pelo sistema.</p>
             <p>Encontra-se em anexo o documento <strong>PDF Oficial</strong> contendo:</p>
-            <ul>
-              <li>O Resumo Financeiro Completo da Semana</li>
-              <li>A listagem de Procedimentos e Consumo de Materiais</li>
-              <li>As Notas de Honorários Individuais (Talões para Arquivo)</li>
-            </ul>
+            <ul><li>Resumo Financeiro</li><li>Procedimentos e Consumo de Materiais</li><li>Notas de Honorários Individuais</li></ul>
             <p style="margin-top: 30px;">Com os melhores cumprimentos,<br><strong style="color: #2563eb;">Sistema de Gestão MeClinic</strong></p>
           </div>
         `,
-        attachments: [{
-          filename: `Relatorio_Semanal_Gestao.pdf`,
-          content: pdfData,
-          contentType: 'application/pdf'
-        }]
+        attachments: [{ filename: `Relatorio_Semanal_Gestao.pdf`, content: pdfData, contentType: 'application/pdf' }]
       };
-
       await transporter.sendMail(mailOptions);
-      console.log("✅ E-mail formal com PDF anexado enviado com sucesso!");
     });
 
   } catch (error) { console.error("❌ Erro ao enviar:", error); }
 }, { scheduled: true, timezone: "Europe/Lisbon" });
-
 
 app.listen(5000, () => { console.log("Servidor ativo na porta 5000"); });
