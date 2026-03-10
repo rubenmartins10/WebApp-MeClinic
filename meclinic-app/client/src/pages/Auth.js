@@ -10,11 +10,11 @@ const Auth = ({ onLogin }) => {
   const { t } = useContext(LanguageContext);
   const navigate = useNavigate();
   
-  // MODOS POSSÍVEIS: 'LOGIN', 'REGISTER', 'FORGOT_EMAIL', 'FORGOT_CODE'
   const [authMode, setAuthMode] = useState('LOGIN'); 
   
   const [formData, setFormData] = useState({ nome: '', email: '', password: '', mfaToken: '' });
   const [resetCode, setResetCode] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); 
   
   const [error, setError] = useState('');
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
@@ -57,7 +57,6 @@ const Auth = ({ onLogin }) => {
     finally { setLoading(false); }
   };
 
-  // FUNÇÕES DE RECUPERAÇÃO DE PALAVRA-PASSE
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -69,7 +68,7 @@ const Auth = ({ onLogin }) => {
       const data = await response.json();
       if (response.ok) {
         showNotif('success', data.message);
-        setAuthMode('FORGOT_CODE'); // Avança para inserir código
+        setAuthMode('FORGOT_CODE'); 
       } else { setError(data.error); }
     } catch (err) { setError("Erro ao enviar e-mail."); } 
     finally { setLoading(false); }
@@ -77,6 +76,12 @@ const Auth = ({ onLogin }) => {
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
+
+    if (formData.password !== confirmPassword) {
+      showNotif('error', t('auth.reset.mismatch'));
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch("http://localhost:5000/api/reset-password", {
@@ -89,6 +94,7 @@ const Auth = ({ onLogin }) => {
         setAuthMode('LOGIN'); 
         setFormData({ ...formData, password: '', mfaToken: '' });
         setResetCode('');
+        setConfirmPassword(''); 
       } else { setError(data.error); }
     } catch (err) { setError("Erro ao alterar palavra-passe."); } 
     finally { setLoading(false); }
@@ -143,7 +149,6 @@ const Auth = ({ onLogin }) => {
           </div>
         )}
 
-        {/* MODO REGISTO COM SUCESSO (QR CODE) */}
         {qrCode && authMode === 'REGISTER' ? (
           <div style={{ textAlign: 'center', animation: 'fadeIn 0.5s' }}>
             <div style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold' }}>{t('auth.success.created')}</div>
@@ -158,7 +163,6 @@ const Auth = ({ onLogin }) => {
         ) : (
           
           <>
-            {/* FORMULÁRIOS DE LOGIN E REGISTO */}
             {(authMode === 'LOGIN' || authMode === 'REGISTER') && (
               <form onSubmit={handleSubmit} style={{ animation: 'fadeIn 0.3s' }}>
                 {authMode === 'REGISTER' && (
@@ -200,7 +204,6 @@ const Auth = ({ onLogin }) => {
               </form>
             )}
 
-            {/* FORMULÁRIO: PEDIR EMAIL DE RECUPERAÇÃO */}
             {authMode === 'FORGOT_EMAIL' && (
               <form onSubmit={handleForgotPassword} style={{ animation: 'fadeIn 0.3s' }}>
                 <div style={{ position: 'relative' }}>
@@ -220,7 +223,6 @@ const Auth = ({ onLogin }) => {
               </form>
             )}
 
-            {/* FORMULÁRIO: INSERIR CÓDIGO E NOVA PASSWORD */}
             {authMode === 'FORGOT_CODE' && (
               <form onSubmit={handleResetPassword} style={{ animation: 'fadeIn 0.3s' }}>
                 <div style={{ position: 'relative' }}>
@@ -231,8 +233,12 @@ const Auth = ({ onLogin }) => {
                   <Lock size={20} style={iconStyle} />
                   <input type="password" placeholder={t('auth.reset.new_pass')} required style={inputStyle} value={formData.password} onChange={handleChange} name="password" />
                 </div>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={20} style={iconStyle} />
+                  <input type="password" placeholder={t('auth.reset.confirm_pass')} required style={inputStyle} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} name="confirmPassword" />
+                </div>
 
-                <button type="submit" disabled={loading} style={{ width: '100%', padding: '16px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: loading ? 0.7 : 1 }}>
+                <button type="submit" disabled={loading} style={{ width: '100%', padding: '16px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '10px', opacity: loading ? 0.7 : 1 }}>
                   {t('auth.reset.btn')}
                 </button>
 

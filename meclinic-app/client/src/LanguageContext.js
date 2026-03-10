@@ -30,6 +30,13 @@ export const translations = {
     "dashboard.card.stock_alerts": "ALERTAS DE STOCK",
     "dashboard.card.stock_alerts_sub": "Produtos abaixo do mínimo",
     "dashboard.chart.title": "Fluxo de Pacientes por Dia",
+    "dashboard.modal.stock_title": "Produtos em Alerta de Stock",
+    "dashboard.modal.stock_desc": "Estes materiais atingiram ou estão abaixo do limite mínimo.",
+    "dashboard.modal.table.product": "Produto",
+    "dashboard.modal.table.current": "Stock Atual",
+    "dashboard.modal.table.min": "Mínimo",
+    "dashboard.modal.close": "Fechar",
+    "dashboard.modal.empty": "Nenhum produto em alerta.",
 
     // --- INVENTÁRIO ---
     "inventory.title": "Inventário",
@@ -358,7 +365,9 @@ export const translations = {
     "auth.reset.subtitle": "Insira o código que recebeu no e-mail e a nova palavra-passe.",
     "auth.reset.code": "Código de 6 dígitos",
     "auth.reset.new_pass": "Nova Palavra-passe",
-    "auth.reset.btn": "Alterar Palavra-passe"
+    "auth.reset.btn": "Alterar Palavra-passe",
+    "auth.reset.confirm_pass": "Confirmar Palavra-passe",
+    "auth.reset.mismatch": "As palavras-passe não coincidem."
   },
   en: {
     "app.logged_as": "Logged in as:",
@@ -387,6 +396,13 @@ export const translations = {
     "dashboard.card.stock_alerts": "STOCK ALERTS",
     "dashboard.card.stock_alerts_sub": "Items below minimum",
     "dashboard.chart.title": "Patient Flow per Day",
+    "dashboard.modal.stock_title": "Products in Stock Alert",
+    "dashboard.modal.stock_desc": "These materials have reached or are below the minimum limit.",
+    "dashboard.modal.table.product": "Product",
+    "dashboard.modal.table.current": "Current Stock",
+    "dashboard.modal.table.min": "Minimum",
+    "dashboard.modal.close": "Close",
+    "dashboard.modal.empty": "No products in alert.",
 
     // --- INVENTÁRIO ---
     "inventory.title": "Inventory",
@@ -715,7 +731,9 @@ export const translations = {
     "auth.reset.subtitle": "Enter the code received in your email and the new password.",
     "auth.reset.code": "6-digit code",
     "auth.reset.new_pass": "New Password",
-    "auth.reset.btn": "Change Password"
+    "auth.reset.btn": "Change Password",
+    "auth.reset.confirm_pass": "Confirm Password",
+    "auth.reset.mismatch": "Passwords do not match."
   },
   es: {
     "app.logged_as": "Conectado como:",
@@ -744,6 +762,13 @@ export const translations = {
     "dashboard.card.stock_alerts": "ALERTAS DE STOCK",
     "dashboard.card.stock_alerts_sub": "Productos por debajo del mínimo",
     "dashboard.chart.title": "Flujo de Pacientes por Día",
+    "dashboard.modal.stock_title": "Productos en Alerta de Stock",
+    "dashboard.modal.stock_desc": "Estos materiales han alcanzado o están por debajo del límite mínimo.",
+    "dashboard.modal.table.product": "Producto",
+    "dashboard.modal.table.current": "Stock Actual",
+    "dashboard.modal.table.min": "Mínimo",
+    "dashboard.modal.close": "Cerrar",
+    "dashboard.modal.empty": "Ningún producto en alerta.",
 
     // --- INVENTÁRIO ---
     "inventory.title": "Inventario",
@@ -932,7 +957,7 @@ export const translations = {
     "billing.filter.all": "Todo el Historial",
     "billing.table.date": "FECHA / HORA",
     "billing.table.patient": "PACIENTE",
-    "billing.table.procedure": "PROCEDIMIENTO",
+    "billing.table.procedure": "PROCEDIMENTO",
     "billing.table.method": "MÉTODO",
     "billing.table.value": "VALOR",
     "billing.table.note": "NOTA",
@@ -1072,7 +1097,9 @@ export const translations = {
     "auth.reset.subtitle": "Introduzca el código recibido y su nueva contraseña.",
     "auth.reset.code": "Código de 6 dígitos",
     "auth.reset.new_pass": "Nueva Contraseña",
-    "auth.reset.btn": "Cambiar Contraseña"
+    "auth.reset.btn": "Cambiar Contraseña",
+    "auth.reset.confirm_pass": "Confirmar Contraseña",
+    "auth.reset.mismatch": "Las contraseñas no coinciden."
   }
 };
 

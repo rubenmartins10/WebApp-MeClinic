@@ -15,7 +15,6 @@ app.use(express.json({ limit: '50mb' }));
 // PREPARAÇÃO DA BASE DE DADOS
 pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)").catch(() => {});
 pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)").catch(() => {});
-// NOVAS COLUNAS PARA RECUPERAÇÃO DE PALAVRA-PASSE
 pool.query("ALTER TABLE utilizadores ADD COLUMN reset_code VARCHAR(10)").catch(() => {});
 pool.query("ALTER TABLE utilizadores ADD COLUMN reset_expires TIMESTAMP").catch(() => {});
 
@@ -93,15 +92,14 @@ app.post("/api/change-password", async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
-// --- RECUPERAÇÃO DE PALAVRA-PASSE ---
 app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
   try {
     const userRes = await pool.query("SELECT id, nome FROM utilizadores WHERE email = $1", [email]);
     if (userRes.rows.length === 0) return res.status(404).json({ error: "E-mail não encontrado no sistema." });
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString(); // Código de 6 dígitos
-    const expires = new Date(Date.now() + 15 * 60000); // Expira em 15 minutos
+    const code = Math.floor(100000 + Math.random() * 900000).toString(); 
+    const expires = new Date(Date.now() + 15 * 60000); 
 
     await pool.query("UPDATE utilizadores SET reset_code = $1, reset_expires = $2 WHERE email = $3", [code, expires, email]);
 
@@ -419,6 +417,13 @@ app.get('/api/stats/dashboard-summary', async (req, res) => {
         (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock
     `, [start]);
     res.json(stats.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/stats/stock-alerts', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, nome, stock_atual, stock_minimo, unidade_medida FROM produtos WHERE stock_atual <= stock_minimo ORDER BY nome ASC");
+    res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

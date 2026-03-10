@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { FileText, ClipboardList, ChevronRight, Download, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { FileText, ClipboardList, Download, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Motor de Idiomas
+import { LanguageContext } from '../LanguageContext';
 
 const FichasTecnicas = () => {
   const { theme } = useContext(ThemeContext);
-  const { t } = useContext(LanguageContext); // <-- Tradutor
+  const { t } = useContext(LanguageContext);
 
   const [modelos, setModelos] = useState([]);
+  const [produtosInventario, setProdutosInventario] = useState([]); 
   const [selecionado, setSelecionado] = useState(null);
   const [itens, setItens] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -25,11 +26,17 @@ const FichasTecnicas = () => {
   const user = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
   const isAdmin = user.role === 'ADMIN';
 
-  const carregarModelos = () => {
-    fetch('http://localhost:5000/api/modelos-procedimento').then(res => res.json()).then(data => setModelos(data));
+  const carregarDados = () => {
+    fetch('http://localhost:5000/api/modelos-procedimento')
+      .then(res => res.json())
+      .then(data => setModelos(data));
+      
+    fetch('http://localhost:5000/api/produtos')
+      .then(res => res.json())
+      .then(data => setProdutosInventario(data));
   };
 
-  useEffect(() => carregarModelos(), []);
+  useEffect(() => carregarDados(), []);
 
   const carregarItens = (modelo) => {
     setSelecionado(modelo);
@@ -55,7 +62,7 @@ const FichasTecnicas = () => {
       if (response.ok) {
         const novo = await response.json();
         setShowNewModal(false); setNewProcName('');
-        carregarModelos(); carregarItens(novo);
+        carregarDados(); carregarItens(novo);
         mostrarNotificacao('success', t('tech_sheets.msg.created'));
       }
     } catch (err) { mostrarNotificacao('error', t('inventory.msg.server_err')); }
@@ -69,7 +76,7 @@ const FichasTecnicas = () => {
       if (response.ok) {
         setShowDeleteConfirm(false); 
         setSelecionado(null);        
-        carregarModelos();           
+        carregarDados();           
         mostrarNotificacao('success', t('tech_sheets.msg.removed'));
       } else {
         mostrarNotificacao('error', t('tech_sheets.msg.remove_err'));
@@ -108,6 +115,11 @@ const FichasTecnicas = () => {
   };
 
   const salvarEdicao = async () => {
+    if (editedProdutos.some(p => !p.nome_item)) {
+      mostrarNotificacao('error', 'Selecione o nome para todos os materiais.');
+      return;
+    }
+
     try {
       const response = await fetch(`http://localhost:5000/api/modelos-procedimento/${selecionado.id}`, {
         method: 'PUT',
@@ -116,7 +128,7 @@ const FichasTecnicas = () => {
       });
       if (response.ok) {
         carregarItens({...selecionado, custo_total_estimado: editedPrecoTotal, preco_servico: editedPrecoServico}); 
-        carregarModelos();
+        carregarDados();
         mostrarNotificacao('success', t('tech_sheets.msg.saved'));
         setIsEditing(false);
       }
@@ -137,6 +149,19 @@ const FichasTecnicas = () => {
   const styles = {
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' },
     createCard: { padding: '30px', borderRadius: '15px', border: '1px solid', width: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }
+  };
+
+  // FUNÇÃO MÁGICA PARA A UNIDADE (Lê o parêntesis do nome!)
+  const getDisplayUnit = (nomeItem) => {
+    if (!nomeItem) return '';
+    // Procura por algo tipo "(50 un)" ou "(200 mts)"
+    const match = nomeItem.match(/\(\d+\s*([a-zA-Z]+)\)/);
+    if (match) {
+      return match[1]; // Devolve 'un', 'mts', etc.
+    }
+    // Se não tiver parêntesis, vai buscar a unidade normal da base de dados
+    const prod = produtosInventario.find(p => p.nome === nomeItem);
+    return prod ? prod.unidade_medida : '';
   };
 
   return (
@@ -201,7 +226,7 @@ const FichasTecnicas = () => {
         <div style={{ backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
           {modelos.map(m => (
             <button key={m.id} onClick={() => carregarItens(m)} style={{ width: '100%', padding: '12px', marginBottom: '5px', textAlign: 'left', border: 'none', borderRadius: '8px', cursor: 'pointer', backgroundColor: selecionado?.id === m.id ? '#2563eb' : 'transparent', color: selecionado?.id === m.id ? 'white' : theme.text, transition: 'all 0.2s' }}>
-              <div style={{ fontWeight: '600' }}>{m.nome}</div> {/* <--- Mantido o nome original da BD */}
+              <div style={{ fontWeight: '600' }}>{m.nome}</div>
               <div style={{ fontSize: '11px', opacity: selecionado?.id === m.id ? 1 : 0.6, marginTop: '4px' }}>{t('tech_sheets.list.price')} {parseFloat(m.preco_servico || 0).toFixed(2)}€</div>
             </button>
           ))}
@@ -215,7 +240,7 @@ const FichasTecnicas = () => {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {isEditing && <Edit color="#f59e0b" size={24} />} {selecionado.nome} {/* <--- Mantido o nome original da BD */}
+                  {isEditing && <Edit color="#f59e0b" size={24} />} {selecionado.nome}
                 </h2>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -252,11 +277,33 @@ const FichasTecnicas = () => {
                   {(isEditing ? editedProdutos : itens).map((item, index) => (
                     <tr key={item.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
                       <td style={{ padding: '12px', color: theme.text }}>
-                        {/* <--- O value do input mantém o nome da BD */}
-                        {isEditing ? <input style={tableInputStyle} placeholder={t('tech_sheets.table.ph_material')} value={item.nome_item} onChange={e => handleInputChange(index, 'nome_item', e.target.value)} /> : item.nome_item}
+                        {isEditing ? (
+                          <select 
+                            style={tableInputStyle} 
+                            value={item.nome_item} 
+                            onChange={e => handleInputChange(index, 'nome_item', e.target.value)}
+                          >
+                            <option value="">Selecione o produto...</option>
+                            {produtosInventario.map(prod => (
+                              <option key={prod.id} value={prod.nome}>{prod.nome}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          item.nome_item
+                        )}
                       </td>
                       <td style={{ padding: '12px', color: theme.text }}>
-                        {isEditing ? <input type="number" style={{ ...tableInputStyle, width: '80px' }} value={item.quantidade} onChange={e => handleInputChange(index, 'quantidade', e.target.value)} /> : item.quantidade}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {isEditing ? (
+                            <input type="number" step="any" style={{ ...tableInputStyle, width: '80px' }} value={item.quantidade} onChange={e => handleInputChange(index, 'quantidade', e.target.value)} />
+                          ) : (
+                            <span>{item.quantidade}</span>
+                          )}
+                          {/* A UNIDADE APARECE AQUI! 'un', 'mts', 'ml', consoante o que está no nome */}
+                          <span style={{ fontSize: '12px', color: theme.subText, fontWeight: 'bold' }}>
+                            {getDisplayUnit(item.nome_item)}
+                          </span>
+                        </div>
                       </td>
                       <td style={{ padding: '12px', color: theme.text }}>
                         {isEditing ? <input type="number" step="0.01" style={{ ...tableInputStyle, width: '100px' }} value={item.preco_unitario} onChange={e => handleInputChange(index, 'preco_unitario', e.target.value)} /> : `${parseFloat(item.preco_unitario).toFixed(2)}€`}

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle, Globe } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Importar o motor de idiomas
+import { LanguageContext } from '../LanguageContext'; 
 import jsPDF from 'jspdf';
 
 const Consultas = () => {
   const { theme } = useContext(ThemeContext);
-  const { t, language } = useContext(LanguageContext); // <-- Tradutor e língua atual
+  const { t, language } = useContext(LanguageContext);
 
   const [consultas, setConsultas] = useState([]);
   const [modelos, setModelos] = useState([]);
   
+  // ESTADO PARA O PREFIXO DO TELEFONE
+  const [phonePrefix, setPhonePrefix] = useState('+351');
+
   const [formData, setFormData] = useState({
     nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''
   });
@@ -52,19 +55,23 @@ const Consultas = () => {
     const url = isEditing ? `http://localhost:5000/api/consultas/${editId}` : 'http://localhost:5000/api/consultas';
     const method = isEditing ? 'PUT' : 'POST';
 
+    // Junta o prefixo ao número antes de enviar para o servidor
+    const telefoneCompleto = formData.telefone ? `${phonePrefix} ${formData.telefone}` : t('consultations.list.no_phone');
+
     try {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          telefone: formData.telefone || t('consultations.list.no_phone'),
+          telefone: telefoneCompleto,
           procedimento_id: formData.procedimento_id || null
         })
       });
       if (res.ok) {
         showNotif(isEditing ? t('consultations.msg.updated') : t('consultations.msg.scheduled'));
         setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
+        setPhonePrefix('+351'); // Volta ao padrão
         setIsEditing(false);
         setEditId(null);
         fetchDados();
@@ -82,8 +89,21 @@ const Consultas = () => {
     let horaFormatada = '';
     if (c.hora_consulta) horaFormatada = c.hora_consulta.substring(0, 5);
 
+    // Lógica para separar o prefixo do número de telemóvel quando editas
+    let numLimpo = c.paciente_telefone || '';
+    let prefixo = '+351';
+    
+    if (numLimpo.includes(' ')) {
+      const partes = numLimpo.split(' ');
+      prefixo = partes[0];
+      numLimpo = partes.slice(1).join(' '); // O resto é o número
+    } else if (numLimpo === t('consultations.list.no_phone')) {
+      numLimpo = '';
+    }
+
+    setPhonePrefix(prefixo);
     setFormData({
-      nome: c.paciente_nome || '', email: c.paciente_email || '', telefone: c.paciente_telefone || '',
+      nome: c.paciente_nome || '', email: c.paciente_email || '', telefone: numLimpo,
       data: dataFormatada, hora: horaFormatada, motivo: c.motivo || '', procedimento_id: c.procedimento_id || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -149,13 +169,7 @@ const Consultas = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          consulta_id: checkoutModal.id, 
-          paciente_nome: checkoutModal.paciente_nome, 
-          procedimento_nome: checkoutModal.procedimento_nome || t('consultations.general'), 
-          valor_total: checkoutModal.preco_servico || 0, 
-          metodo_pagamento: checkoutData.metodo_pagamento, 
-          email_destino: enviarEmail ? emailPaciente : null, 
-          pdfBase64: pdfBase64
+          consulta_id: checkoutModal.id, paciente_nome: checkoutModal.paciente_nome, procedimento_nome: checkoutModal.procedimento_nome || t('consultations.general'), valor_total: checkoutModal.preco_servico || 0, metodo_pagamento: checkoutData.metodo_pagamento, email_destino: enviarEmail ? emailPaciente : null, pdfBase64: pdfBase64
         })
       });
       const data = await res.json();
@@ -183,10 +197,25 @@ const Consultas = () => {
     return true;
   });
 
-  const inputStyle = { width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box', marginBottom: '15px' };
-  const iconStyle = { position: 'absolute', left: '12px', top: '12px', color: '#64748b' };
+  // FUNÇÃO MÁGICA: Retorna o exemplo correto baseado no prefixo escolhido
+  const getPhonePlaceholder = (prefix) => {
+    switch(prefix) {
+      case '+351': return 'Ex: 912 345 678'; // Portugal
+      case '+34': return 'Ex: 612 345 678'; // Espanha
+      case '+33': return 'Ex: 6 12 34 56 78'; // França
+      case '+44': return 'Ex: 7911 123456'; // Reino Unido
+      case '+49': return 'Ex: 1512 3456789'; // Alemanha
+      case '+41': return 'Ex: 79 123 45 67'; // Suíça
+      case '+1': return 'Ex: (555) 123-4567'; // EUA
+      case '+55': return 'Ex: 11 91234-5678'; // Brasil
+      case '+352': return 'Ex: 621 123 456'; // Luxemburgo
+      default: return t('consultations.form.phone_ph'); // Tradução padrão
+    }
+  };
 
-  // Define o fuso para mostrar os meses na língua correta
+  const inputStyle = { width: '100%', padding: '14px 14px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box', marginBottom: '15px' };
+  const iconStyle = { position: 'absolute', left: '15px', top: '14px', color: '#64748b' };
+
   const localeMap = { pt: 'pt-PT', en: 'en-US', es: 'es-ES' };
   const activeLocale = localeMap[language] || 'pt-PT';
 
@@ -277,11 +306,38 @@ const Consultas = () => {
               <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder={t('consultations.form.email_ph')} style={inputStyle} />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div style={{ width: '100px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${theme.border}`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', marginBottom: '15px' }}>PT +351</div>
+            {/* SELETOR DE PAÍSES (PREFIXOS) DINÂMICO */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <div style={{ position: 'relative', width: '130px' }}>
+                <Globe size={16} style={{ position: 'absolute', left: '12px', top: '15px', color: '#64748b', zIndex: 1 }} />
+                <select 
+                  value={phonePrefix} 
+                  onChange={(e) => setPhonePrefix(e.target.value)}
+                  style={{ 
+                    width: '100%', padding: '14px 10px 14px 38px', borderRadius: '10px', 
+                    border: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc',
+                    color: theme.text, fontSize: '14px', fontWeight: 'bold', outline: 'none', cursor: 'pointer',
+                    appearance: 'none', position: 'relative'
+                  }}
+                >
+                  <option value="+351">PT +351</option>
+                  <option value="+34">ES +34</option>
+                  <option value="+33">FR +33</option>
+                  <option value="+44">UK +44</option>
+                  <option value="+49">DE +49</option>
+                  <option value="+41">CH +41</option>
+                  <option value="+1">US +1</option>
+                  <option value="+55">BR +55</option>
+                  <option value="+352">LU +352</option>
+                </select>
+              </div>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Phone size={18} style={iconStyle} />
-                <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} placeholder={t('consultations.form.phone_ph')} style={inputStyle} />
+                <input 
+                  type="text" name="telefone" value={formData.telefone} onChange={handleChange} 
+                  placeholder={getPhonePlaceholder(phonePrefix)} 
+                  style={{ ...inputStyle, marginBottom: 0 }} 
+                />
               </div>
             </div>
 
@@ -316,7 +372,7 @@ const Consultas = () => {
             </button>
             
             {isEditing && (
-              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''}); }} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: theme.subText, border: 'none', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}>
+              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''}); setPhonePrefix('+351'); }} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: theme.subText, border: 'none', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}>
                 {t('consultations.form.btn_cancel')}
               </button>
             )}
@@ -347,7 +403,6 @@ const Consultas = () => {
               const cardBackground = isFinalizada ? (theme.isDark ? '#0f172a' : '#f1f5f9') : (theme.isDark ? '#1e293b' : '#ffffff');
               const opacityLevel = isFinalizada ? 0.6 : 1;
               
-              // A magia da data multi-língua acontece aqui
               const mesCurto = new Date(c.data_consulta).toLocaleDateString(activeLocale, { month: 'short' }).toUpperCase();
               const dia = new Date(c.data_consulta).getDate();
 
