@@ -12,9 +12,12 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// PREPARAÇÃO DA BASE DE DADOS (Transforma o stock em decimais automaticamente)
+// PREPARAÇÃO DA BASE DE DADOS
 pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)").catch(() => {});
 pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)").catch(() => {});
+// NOVAS COLUNAS PARA RECUPERAÇÃO DE PALAVRA-PASSE
+pool.query("ALTER TABLE utilizadores ADD COLUMN reset_code VARCHAR(10)").catch(() => {});
+pool.query("ALTER TABLE utilizadores ADD COLUMN reset_expires TIMESTAMP").catch(() => {});
 
 // ==========================================
 // --- CONFIGURAÇÃO DE E-MAIL ---
@@ -87,6 +90,51 @@ app.post("/api/change-password", async (req, res) => {
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
     await pool.query("UPDATE utilizadores SET password_hash = $1 WHERE id = $2", [newPasswordHash, userId]);
     res.json({ message: "Palavra-passe alterada!" });
+  } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
+});
+
+// --- RECUPERAÇÃO DE PALAVRA-PASSE ---
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const userRes = await pool.query("SELECT id, nome FROM utilizadores WHERE email = $1", [email]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: "E-mail não encontrado no sistema." });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString(); // Código de 6 dígitos
+    const expires = new Date(Date.now() + 15 * 60000); // Expira em 15 minutos
+
+    await pool.query("UPDATE utilizadores SET reset_code = $1, reset_expires = $2 WHERE email = $3", [code, expires, email]);
+
+    await transporter.sendMail({
+      from: 'rubendavidsilvamartins@gmail.com',
+      to: email,
+      subject: 'Recuperação de Palavra-passe - MeClinic',
+      html: `<h3>Olá ${userRes.rows[0].nome},</h3>
+             <p>Foi pedido um reset de palavra-passe para a sua conta.</p>
+             <p>O seu código de verificação é: <strong style="font-size: 24px; color: #2563eb;">${code}</strong></p>
+             <p>Este código expira em 15 minutos.</p>`
+    });
+
+    res.json({ message: "Código enviado para o seu e-mail." });
+  } catch (err) { res.status(500).json({ error: "Erro no servidor ao enviar e-mail." }); }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  try {
+    const userRes = await pool.query("SELECT id, reset_expires FROM utilizadores WHERE email = $1 AND reset_code = $2", [email, code]);
+    if (userRes.rows.length === 0) return res.status(400).json({ error: "Código inválido ou e-mail incorreto." });
+
+    if (new Date() > new Date(userRes.rows[0].reset_expires)) {
+      return res.status(400).json({ error: "Este código já expirou. Peça um novo." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(newPassword, salt);
+
+    await pool.query("UPDATE utilizadores SET password_hash = $1, reset_code = NULL, reset_expires = NULL WHERE email = $2", [hash, email]);
+
+    res.json({ message: "Palavra-passe alterada com sucesso! Já pode fazer login." });
   } catch (err) { res.status(500).json({ error: "Erro no servidor." }); }
 });
 
@@ -225,7 +273,7 @@ app.delete('/api/consultas/:id', async (req, res) => {
 });
 
 // ==========================================
-// --- FATURAÇÃO E CHECK-OUT (MATEMÁTICA AVANÇADA) ---
+// --- FATURAÇÃO E CHECK-OUT ---
 // ==========================================
 app.post('/api/faturacao/checkout', async (req, res) => {
   const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64 } = req.body;
@@ -249,21 +297,15 @@ app.post('/api/faturacao/checkout', async (req, res) => {
       const materiaisRes = await pool.query("SELECT nome_item, quantidade FROM modelo_procedimento_itens WHERE modelo_id = $1", [procId]);
       
       for (let item of materiaisRes.rows) {
-        // Vai buscar o nome original ao armazém para ver se tem "(100 un)"
         const prodRes = await pool.query("SELECT nome FROM produtos WHERE nome = $1", [item.nome_item]);
-        
         if (prodRes.rows.length > 0) {
           const prodName = prodRes.rows[0].nome;
           const match = prodName.match(/\((\d+)\s*[a-zA-Z]+\)/);
-          
           let deduction = parseFloat(item.quantidade);
-          
-          // A MAGIA: Se o nome tiver multiplicador, divide a quantidade! (ex: 2 luvas / 100 = 0.02 caixas retiradas)
           if (match) {
             const unitsPerBox = parseInt(match[1], 10);
             deduction = deduction / unitsPerBox; 
           }
-
           await pool.query(
             "UPDATE produtos SET stock_atual = stock_atual - $1 WHERE nome = $2",
             [deduction, item.nome_item]
@@ -287,12 +329,9 @@ app.post('/api/faturacao/checkout', async (req, res) => {
         console.error("Erro ao enviar email:", emailErr);
       }
     }
-
     res.json({ message: "Check-out concluído e Stock atualizado!" });
-
   } catch (err) { 
     await pool.query("ROLLBACK"); 
-    console.error("Erro no check-out:", err.message);
     res.status(500).json({ error: "Erro ao finalizar a consulta na Base de Dados." }); 
   }
 });
@@ -417,100 +456,5 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
     res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, notas_faturacao: notas.rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-cron.schedule('0 16 * * 5', async () => {
-  try {
-    const adminsResult = await pool.query("SELECT email FROM utilizadores WHERE role = 'ADMIN'");
-    const adminEmails = adminsResult.rows.map(a => a.email);
-    if (adminEmails.length === 0) return;
-
-    const hoje = new Date();
-    const semanaPassada = new Date(hoje);
-    semanaPassada.setDate(hoje.getDate() - 7); 
-    const dataInicio = semanaPassada.toISOString().split('T')[0];
-    const dataFim = hoje.toISOString().split('T')[0];
-
-    const reportResult = await pool.query(`SELECT COUNT(c.id)::int as total_consultas, COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total, COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total, (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date`, [dataInicio, dataFim]);
-    const procedimentosResult = await pool.query(`SELECT m.nome, COUNT(c.id)::int as quantidade, SUM(m.preco_servico)::float as subtotal_faturado FROM consultas c JOIN modelos_procedimento m ON c.procedimento_id = m.id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date GROUP BY m.nome ORDER BY quantidade DESC`, [dataInicio, dataFim]);
-    const materiaisResult = await pool.query(`SELECT mpi.nome_item as material, SUM(mpi.quantidade)::int as quantidade_total, mpi.preco_unitario, SUM(mpi.quantidade * mpi.preco_unitario)::float as custo_total FROM consultas c JOIN modelo_procedimento_itens mpi ON c.procedimento_id = mpi.modelo_id WHERE c.data_consulta::date BETWEEN $1::date AND $2::date GROUP BY mpi.nome_item, mpi.preco_unitario ORDER BY quantidade_total DESC`, [dataInicio, dataFim]);
-    const notasResult = await pool.query(`SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $2::date ORDER BY data_emissao DESC`, [dataInicio, dataFim]);
-
-    const dados = reportResult.rows[0];
-
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    let buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-    
-    doc.fontSize(22).font('Helvetica-Bold').fillColor('#2563eb').text("RELATÓRIO FINANCEIRO E DE GESTÃO", { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).fillColor('#64748b').font('Helvetica').text(`Período de: ${new Date(dataInicio).toLocaleDateString('pt-PT')} a ${new Date(dataFim).toLocaleDateString('pt-PT')}`, { align: 'center' });
-    doc.moveDown(2);
-
-    doc.fontSize(14).fillColor('#0f172a').font('Helvetica-Bold').text("Resumo Semanal");
-    doc.fontSize(11).font('Helvetica').fillColor('#334155');
-    doc.text(`Consultas Realizadas: ${dados.total_consultas || 0}`);
-    doc.text(`Faturação Total: ${parseFloat(dados.faturacao_total || 0).toFixed(2)} EUR`);
-    doc.text(`Custo de Materiais: ${parseFloat(dados.custos_materiais_total || 0).toFixed(2)} EUR`);
-    doc.font('Helvetica-Bold').fillColor('#10b981').text(`Lucro Bruto Estimado: ${parseFloat(dados.lucro_estimado || 0).toFixed(2)} EUR`);
-    doc.moveDown(2);
-
-    if (procedimentosResult.rows.length > 0) {
-      await doc.table({
-        title: "Procedimentos Realizados",
-        headers: ["NOME DO PROCEDIMENTO", "QTD", "VALOR FATURADO"],
-        rows: procedimentosResult.rows.map(p => [p.nome, `${p.quantidade}x`, `${parseFloat(p.subtotal_faturado).toFixed(2)} EUR`])
-      }, { width: 500 });
-    }
-
-    if (materiaisResult.rows.length > 0) {
-      await doc.table({
-        title: "Consumo de Materiais",
-        headers: ["MATERIAL GASTO", "QTD", "CUSTO UN.", "CUSTO TOTAL"],
-        rows: materiaisResult.rows.map(m => [m.material, `${m.quantidade_total}`, `${parseFloat(m.preco_unitario).toFixed(2)} EUR`, `${parseFloat(m.custo_total).toFixed(2)} EUR`])
-      }, { width: 500 });
-    }
-
-    for (let nota of notasResult.rows) {
-      doc.addPage({ size: [283, 425], margin: 20 });
-      doc.fontSize(12).fillColor('#000000').font('Helvetica-Bold').text("NOTA DE HONORÁRIOS", { align: 'center' });
-      doc.fontSize(8).font('Helvetica').text("DOCUMENTO DE CONTROLO INTERNO", { align: 'center' });
-      doc.moveDown(1.5);
-      doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
-      doc.moveDown(1.5);
-      doc.fontSize(10);
-      doc.text(`Paciente: ${nota.paciente_nome}`);
-      doc.text(`Data/Hora: ${new Date(nota.data_emissao).toLocaleString('pt-PT')}`);
-      doc.text(`Procedimento: ${nota.procedimento_nome}`);
-      doc.text(`Método Pag.: ${nota.metodo_pagamento}`);
-      doc.moveDown();
-      doc.moveTo(20, doc.y).lineTo(263, doc.y).strokeColor('#cccccc').stroke();
-      doc.moveDown(1.5);
-      doc.fontSize(13).font('Helvetica-Bold').text(`TOTAL PAGO: ${parseFloat(nota.valor_total).toFixed(2)} EUR`, { align: 'center' });
-    }
-
-    doc.end();
-
-    doc.on('end', async () => {
-      let pdfData = Buffer.concat(buffers);
-      const mailOptions = {
-        from: 'rubendavidsilvamartins@gmail.com',
-        to: adminEmails.join(','),
-        subject: `📊 Relatório Oficial de Gestão - Clínica`,
-        html: `
-          <div style="font-family: Arial, sans-serif; color: #334155; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #0f172a;">Estimada Administração,</h2>
-            <p>Vimos por este meio enviar o Relatório de Gestão e Fecho de Semana gerado automaticamente pelo sistema.</p>
-            <p>Encontra-se em anexo o documento <strong>PDF Oficial</strong> contendo:</p>
-            <ul><li>Resumo Financeiro</li><li>Procedimentos e Consumo de Materiais</li><li>Notas de Honorários Individuais</li></ul>
-            <p style="margin-top: 30px;">Com os melhores cumprimentos,<br><strong style="color: #2563eb;">Sistema de Gestão MeClinic</strong></p>
-          </div>
-        `,
-        attachments: [{ filename: `Relatorio_Semanal_Gestao.pdf`, content: pdfData, contentType: 'application/pdf' }]
-      };
-      await transporter.sendMail(mailOptions);
-    });
-
-  } catch (error) { console.error("❌ Erro ao enviar:", error); }
-}, { scheduled: true, timezone: "Europe/Lisbon" });
 
 app.listen(5000, () => { console.log("Servidor ativo na porta 5000"); });
