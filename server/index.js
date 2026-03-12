@@ -12,11 +12,30 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// PREPARAÇÃO DA BASE DE DADOS
-pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)").catch(() => {});
-pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)").catch(() => {});
-pool.query("ALTER TABLE utilizadores ADD COLUMN reset_code VARCHAR(10)").catch(() => {});
-pool.query("ALTER TABLE utilizadores ADD COLUMN reset_expires TIMESTAMP").catch(() => {});
+// ==========================================
+// --- INICIALIZAÇÃO DA BASE DE DADOS (GARANTIDA) ---
+// ==========================================
+async function initDB() {
+  console.log("A preparar a base de dados e a organizar o inventário...");
+  try { await pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)"); } catch(e){}
+  try { await pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)"); } catch(e){}
+  try { await pool.query("ALTER TABLE utilizadores ADD COLUMN reset_code VARCHAR(10)"); } catch(e){}
+  try { await pool.query("ALTER TABLE utilizadores ADD COLUMN reset_expires TIMESTAMP"); } catch(e){}
+  try { await pool.query("ALTER TABLE produtos ADD COLUMN categoria VARCHAR(100) DEFAULT 'Descartáveis'"); } catch(e){}
+  try { await pool.query("ALTER TABLE produtos ADD COLUMN data_validade DATE"); } catch(e){}
+  try { await pool.query("ALTER TABLE pacientes ADD COLUMN notas_clinicas TEXT DEFAULT ''"); } catch(e){}
+
+  try {
+    await pool.query(`UPDATE produtos SET categoria = 'Esterilizacao' WHERE nome ILIKE '%manga%' OR nome ILIKE '%desinfe%' OR nome ILIKE '%esteriliz%' OR nome ILIKE '%líquido%' OR nome ILIKE '%liquido%' OR nome ILIKE '%autoclave%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Anestesia' WHERE nome ILIKE '%anest%' OR nome ILIKE '%agulha%' OR nome ILIKE '%seringa%' OR nome ILIKE '%carpule%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Endo_Restauro' WHERE nome ILIKE '%resina%' OR nome ILIKE '%cimento%' OR nome ILIKE '%lima%' OR nome ILIKE '%broca%' OR nome ILIKE '%ácido%' OR nome ILIKE '%acido%' OR nome ILIKE '%adesivo%' OR nome ILIKE '%compósito%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Cirurgia' WHERE nome ILIKE '%implante%' OR nome ILIKE '%sutura%' OR nome ILIKE '%bisturi%' OR nome ILIKE '%enxerto%' OR nome ILIKE '%membrana%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Ortodontia' WHERE nome ILIKE '%bracket%' OR nome ILIKE '%arame%' OR nome ILIKE '%elástico%' OR nome ILIKE '%elastico%' OR nome ILIKE '%arco%' OR nome ILIKE '%braquete%' OR nome ILIKE '%tubo%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Equipamento' WHERE nome ILIKE '%espelho%' OR nome ILIKE '%pinça%' OR nome ILIKE '%pinca%' OR nome ILIKE '%sonda%' OR nome ILIKE '%explorador%' OR nome ILIKE '%motor%' OR nome ILIKE '%turbina%'`);
+    await pool.query(`UPDATE produtos SET categoria = 'Descartáveis' WHERE nome ILIKE '%luva%' OR nome ILIKE '%aspirador%' OR nome ILIKE '%babete%' OR nome ILIKE '%copo%' OR nome ILIKE '%algodão%' OR nome ILIKE '%algodao%' OR nome ILIKE '%compressa%' OR nome ILIKE '%rolo%' OR nome ILIKE '%máscara%' OR nome ILIKE '%mascara%' OR nome ILIKE '%toca%' OR nome ILIKE '%touca%' OR nome ILIKE '%protetor%'`);
+  } catch (e) {}
+}
+initDB();
 
 // ==========================================
 // --- CONFIGURAÇÃO DE E-MAIL ---
@@ -181,11 +200,11 @@ app.get("/api/produtos", async (req, res) => {
 });
 
 app.post("/api/produtos", async (req, res) => {
-  const { nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, categoria_id, imagem_url } = req.body;
+  const { nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, imagem_url, categoria, data_validade } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO produtos (nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, categoria_id, imagem_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
-      [nome, codigo_barras || null, stock_atual || 0, stock_minimo || 5, unidade_medida || 'un', categoria_id || null, imagem_url || '']
+      "INSERT INTO produtos (nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, imagem_url, categoria, data_validade) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+      [nome, codigo_barras || null, stock_atual || 0, stock_minimo || 5, unidade_medida || 'un', imagem_url || '', categoria || 'Descartáveis', data_validade || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -193,11 +212,11 @@ app.post("/api/produtos", async (req, res) => {
 
 app.put("/api/produtos/:id", async (req, res) => {
   const { id } = req.params;
-  const { nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, imagem_url } = req.body;
+  const { nome, codigo_barras, stock_atual, stock_minimo, unidade_medida, imagem_url, categoria, data_validade } = req.body;
   try {
     await pool.query(
-      "UPDATE produtos SET nome=$1, codigo_barras=$2, stock_atual=$3, stock_minimo=$4, unidade_medida=$5, imagem_url=$6 WHERE id=$7",
-      [nome, codigo_barras || null, stock_atual, stock_minimo, unidade_medida, imagem_url || '', id]
+      "UPDATE produtos SET nome=$1, codigo_barras=$2, stock_atual=$3, stock_minimo=$4, unidade_medida=$5, imagem_url=$6, categoria=$7, data_validade=$8 WHERE id=$9",
+      [nome, codigo_barras || null, stock_atual, stock_minimo, unidade_medida, imagem_url || '', categoria || 'Descartáveis', data_validade || null, id]
     );
     res.json({ message: "Produto atualizado!" });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -271,10 +290,10 @@ app.delete('/api/consultas/:id', async (req, res) => {
 });
 
 // ==========================================
-// --- FATURAÇÃO E CHECK-OUT ---
+// --- FATURAÇÃO E CHECK-OUT DINÂMICO ---
 // ==========================================
 app.post('/api/faturacao/checkout', async (req, res) => {
-  const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64 } = req.body;
+  const { consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, email_destino, pdfBase64, materiais_gastos } = req.body;
   
   try {
     await pool.query("BEGIN");
@@ -288,26 +307,24 @@ app.post('/api/faturacao/checkout', async (req, res) => {
       [consulta_id, paciente_nome, procSeguro, valorSeguro, metodo_pagamento || 'Multibanco']
     );
 
-    const consultaRes = await pool.query("SELECT procedimento_id FROM consultas WHERE id = $1", [consulta_id]);
-    
-    if (consultaRes.rows.length > 0 && consultaRes.rows[0].procedimento_id) {
-      const procId = consultaRes.rows[0].procedimento_id;
-      const materiaisRes = await pool.query("SELECT nome_item, quantidade FROM modelo_procedimento_itens WHERE modelo_id = $1", [procId]);
-      
-      for (let item of materiaisRes.rows) {
-        const prodRes = await pool.query("SELECT nome FROM produtos WHERE nome = $1", [item.nome_item]);
-        if (prodRes.rows.length > 0) {
-          const prodName = prodRes.rows[0].nome;
-          const match = prodName.match(/\((\d+)\s*[a-zA-Z]+\)/);
-          let deduction = parseFloat(item.quantidade);
-          if (match) {
-            const unitsPerBox = parseInt(match[1], 10);
-            deduction = deduction / unitsPerBox; 
+    // O NOVO CHECK-OUT DINÂMICO: Em vez de ir buscar à ficha técnica, abate a lista exata enviada pelo Ecrã!
+    if (materiais_gastos && materiais_gastos.length > 0) {
+      for (let item of materiais_gastos) {
+        if (parseFloat(item.quantidade) > 0) {
+          const prodRes = await pool.query("SELECT nome FROM produtos WHERE nome = $1", [item.nome_item]);
+          if (prodRes.rows.length > 0) {
+            const prodName = prodRes.rows[0].nome;
+            const match = prodName.match(/\((\d+)\s*[a-zA-Z]+\)/);
+            let deduction = parseFloat(item.quantidade);
+            if (match) {
+              const unitsPerBox = parseInt(match[1], 10);
+              deduction = deduction / unitsPerBox; 
+            }
+            await pool.query(
+              "UPDATE produtos SET stock_atual = stock_atual - $1 WHERE nome = $2",
+              [deduction, item.nome_item]
+            );
           }
-          await pool.query(
-            "UPDATE produtos SET stock_atual = stock_atual - $1 WHERE nome = $2",
-            [deduction, item.nome_item]
-          );
         }
       }
     }
@@ -327,7 +344,7 @@ app.post('/api/faturacao/checkout', async (req, res) => {
         console.error("Erro ao enviar email:", emailErr);
       }
     }
-    res.json({ message: "Check-out concluído e Stock atualizado!" });
+    res.json({ message: "Check-out concluído e Stock atualizado com precisão!" });
   } catch (err) { 
     await pool.query("ROLLBACK"); 
     res.status(500).json({ error: "Erro ao finalizar a consulta na Base de Dados." }); 
@@ -414,7 +431,8 @@ app.get('/api/stats/dashboard-summary', async (req, res) => {
         (SELECT COUNT(*) FROM pacientes WHERE created_at::date BETWEEN $1::date AND $1::date + '6 days'::interval) as pacientes_semana,
         (SELECT COUNT(*) FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval) as consultas_semana,
         (SELECT COALESCE(SUM(valor_total), 0) FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval) as faturacao_semana,
-        (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock
+        (SELECT COUNT(*) FROM produtos WHERE stock_atual <= stock_minimo) as alertas_stock,
+        (SELECT COUNT(*) FROM produtos WHERE data_validade IS NOT NULL AND data_validade <= CURRENT_DATE + interval '30 days') as alertas_validade
     `, [start]);
     res.json(stats.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -423,6 +441,13 @@ app.get('/api/stats/dashboard-summary', async (req, res) => {
 app.get('/api/stats/stock-alerts', async (req, res) => {
   try {
     const result = await pool.query("SELECT id, nome, stock_atual, stock_minimo, unidade_medida FROM produtos WHERE stock_atual <= stock_minimo ORDER BY nome ASC");
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/stats/validade-alerts', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, nome, data_validade, categoria FROM produtos WHERE data_validade IS NOT NULL AND data_validade <= CURRENT_DATE + interval '30 days' ORDER BY data_validade ASC");
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -459,6 +484,48 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
       SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval ORDER BY data_emissao DESC
     `, [start]);
     res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, notas_faturacao: notas.rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// --- CRM PACIENTES --- (Adiciona este bloco em qualquer lado antes do app.listen)
+// ==========================================
+app.get('/api/pacientes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        p.id, p.nome, p.telefone, p.email, p.notas_clinicas, p.created_at,
+        COUNT(c.id)::int as total_consultas,
+        COALESCE(SUM(f.valor_total), 0)::float as total_faturado,
+        MAX(c.data_consulta) as ultima_consulta
+      FROM pacientes p
+      LEFT JOIN consultas c ON p.id = c.paciente_id
+      LEFT JOIN faturacao f ON c.id = f.consulta_id
+      GROUP BY p.id
+      ORDER BY p.nome ASC
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/pacientes/:id/historico', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.id, c.data_consulta, c.hora_consulta, c.status, m.nome as procedimento_nome
+      FROM consultas c
+      LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
+      WHERE c.paciente_id = $1
+      ORDER BY c.data_consulta DESC, c.hora_consulta DESC
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/pacientes/:id/notas', async (req, res) => {
+  try {
+    const { notas } = req.body;
+    await pool.query("UPDATE pacientes SET notas_clinicas = $1 WHERE id = $2", [notas, req.params.id]);
+    res.json({ message: "Notas atualizadas!" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

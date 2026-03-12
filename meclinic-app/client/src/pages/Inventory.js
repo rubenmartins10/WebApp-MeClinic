@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save } from 'lucide-react';
+import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Importar Idiomas
+import { LanguageContext } from '../LanguageContext'; 
 
 const Inventario = () => {
   const { theme } = useContext(ThemeContext);
-  const { t } = useContext(LanguageContext); // <-- Tradutor
+  const { t, language } = useContext(LanguageContext);
   
   const [produtos, setProdutos] = useState([]);
   const [pesquisa, setPesquisa] = useState('');
+  const [categoriaAtiva, setCategoriaAtiva] = useState('Todas'); 
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [produtoToEdit, setProdutoToEdit] = useState(null);
 
-  const initialForm = { nome: '', codigo_barras: '', stock_atual: '', stock_minimo: '', unidade_medida: 'un', imagem_url: '' };
+  const initialForm = { nome: '', codigo_barras: '', stock_atual: '', stock_minimo: '', unidade_medida: 'un', categoria: 'Descartáveis', imagem_url: '', data_validade: '' };
   const [formData, setFormData] = useState(initialForm);
 
   useEffect(() => { carregarProdutos(); }, []);
@@ -60,7 +61,9 @@ const Inventario = () => {
       stock_atual: p.stock_atual || 0,
       stock_minimo: p.stock_minimo || 5,
       unidade_medida: p.unidade_medida || 'un',
-      imagem_url: p.imagem_url || ''
+      categoria: p.categoria || 'Descartáveis',
+      imagem_url: p.imagem_url || '',
+      data_validade: p.data_validade ? p.data_validade.split('T')[0] : ''
     });
     setShowModal(true);
   };
@@ -91,10 +94,30 @@ const Inventario = () => {
     }
   };
 
-  const produtosFiltrados = produtos.filter(p => 
-    p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || 
-    (p.codigo_barras && p.codigo_barras.toLowerCase().includes(pesquisa.toLowerCase()))
-  );
+  const handleBarcodeLookup = (codigo) => {
+    setFormData({ ...formData, codigo_barras: codigo });
+    
+    if (codigo.length >= 8 && !produtoToEdit) {
+      const produtoConhecido = produtos.find(p => p.codigo_barras === codigo);
+      if (produtoConhecido) {
+        setFormData(prev => ({
+          ...prev,
+          nome: produtoConhecido.nome,
+          categoria: produtoConhecido.categoria || 'Descartáveis',
+          unidade_medida: produtoConhecido.unidade_medida || 'un',
+          stock_minimo: produtoConhecido.stock_minimo,
+          imagem_url: produtoConhecido.imagem_url || ''
+        }));
+        showNotif('success', 'Produto reconhecido! Dados preenchidos automaticamente.');
+      }
+    }
+  };
+
+  const produtosFiltrados = produtos.filter(p => {
+    const matchPesquisa = p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || (p.codigo_barras && p.codigo_barras.toLowerCase().includes(pesquisa.toLowerCase()));
+    const matchCategoria = categoriaAtiva === 'Todas' || p.categoria === categoriaAtiva;
+    return matchPesquisa && matchCategoria;
+  });
 
   const calcularTotalUnidades = (nomeProduto, stockAtual, stockMinimo) => {
     const match = nomeProduto.match(/\((\d+)\s*([a-zA-Z]+)\)/);
@@ -114,12 +137,58 @@ const Inventario = () => {
     return null; 
   };
 
-  const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, outline: 'none', marginBottom: '15px' };
-  const labelStyle = { display: 'block', fontSize: '11px', fontWeight: '800', color: theme.subText, marginBottom: '6px', textTransform: 'uppercase' };
+  const inputStyle = { 
+    width: '100%', padding: '14px', borderRadius: '10px', 
+    border: `1px solid ${theme.border}`, background: theme.pageBg, 
+    color: theme.text, outline: 'none', boxSizing: 'border-box', fontSize: '14px', transition: 'border-color 0.2s' 
+  };
+  const labelStyle = { 
+    display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, 
+    marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' 
+  };
+
+  const categoryMap = {
+    'Todas': t('inventory.cat.all'),
+    'Descartáveis': t('inventory.cat.disposables'),
+    'Anestesia': t('inventory.cat.anesthesia'),
+    'Endo_Restauro': t('inventory.cat.endo'),
+    'Cirurgia': t('inventory.cat.surgery'),
+    'Ortodontia': t('inventory.cat.ortho'),
+    'Esterilizacao': t('inventory.cat.sterilization'),
+    'Equipamento': t('inventory.cat.instruments')
+  };
+
+  const CategoryBtn = ({ label, id }) => (
+    <button 
+      onClick={() => setCategoriaAtiva(id)}
+      style={{
+        flexShrink: 0, 
+        padding: '10px 20px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px',
+        backgroundColor: categoriaAtiva === id ? '#2563eb' : theme.cardBg,
+        color: categoriaAtiva === id ? 'white' : theme.text,
+        border: categoriaAtiva === id ? '1px solid #2563eb' : `1px solid ${theme.border}`,
+        transition: 'all 0.2s', boxShadow: categoriaAtiva === id ? '0 4px 6px -1px rgba(37, 99, 235, 0.3)' : 'none'
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
 
   return (
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
       
+      <style>
+        {`
+          .scroll-categorias::-webkit-scrollbar { height: 8px; }
+          .scroll-categorias::-webkit-scrollbar-track { background: transparent; }
+          .scroll-categorias::-webkit-scrollbar-thumb { background-color: ${theme.border}; border-radius: 10px; }
+          .scroll-categorias::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
+          .form-input:focus { border-color: #2563eb !important; }
+        `}
+      </style>
+
       {notification.show && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '40px', borderRadius: '20px', border: `1px solid ${theme.border}`, textAlign: 'center', minWidth: '350px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'fadeIn 0.2s ease-out' }}>
@@ -150,28 +219,50 @@ const Inventario = () => {
       )}
 
       {showModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)' }}>
-          <div style={{ backgroundColor: theme.cardBg, width: '500px', borderRadius: '20px', padding: '30px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)', padding: '20px' }}>
+          <div style={{ backgroundColor: theme.cardBg, width: '100%', maxWidth: '550px', borderRadius: '20px', padding: '35px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Package size={24} color="#2563eb" /> {produtoToEdit ? t('inventory.modal.edit_title') : t('inventory.modal.add_title')}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Package size={26} color="#2563eb" /> {produtoToEdit ? t('inventory.modal.edit_title') : t('inventory.modal.add_title')}
               </h2>
-              <button onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+              <button onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer', padding: '5px' }}><X size={24} /></button>
             </div>
 
-            <form onSubmit={handleSubmit}>
-              <label style={labelStyle}>{t('inventory.modal.name')}</label>
-              <input required type="text" placeholder={t('inventory.modal.name_ph')} style={inputStyle} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              <div>
+                <label style={{...labelStyle, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                   <Search size={14}/> {t('inventory.modal.barcode')}
+                </label>
+                <input 
+                  className="form-input" type="text" placeholder={t('inventory.modal.barcode_ph')} style={{...inputStyle, borderColor: '#2563eb', borderWidth: '2px'}} 
+                  value={formData.codigo_barras} 
+                  onChange={e => handleBarcodeLookup(e.target.value)} 
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>{t('inventory.modal.name')}</label>
+                <input required className="form-input" type="text" placeholder={t('inventory.modal.name_ph')} style={inputStyle} value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label style={labelStyle}>{t('inventory.modal.barcode')}</label>
-                  <input type="text" placeholder={t('inventory.modal.barcode_ph')} style={inputStyle} value={formData.codigo_barras} onChange={e => setFormData({...formData, codigo_barras: e.target.value})} />
+                  <label style={labelStyle}>{t('inventory.modal.category')}</label>
+                  <select className="form-input" style={inputStyle} value={formData.categoria} onChange={e => setFormData({...formData, categoria: e.target.value})}>
+                    <option value="Descartáveis">{t('inventory.cat.disposables')}</option>
+                    <option value="Anestesia">{t('inventory.cat.anesthesia')}</option>
+                    <option value="Endo_Restauro">{t('inventory.cat.endo')}</option>
+                    <option value="Cirurgia">{t('inventory.cat.surgery')}</option>
+                    <option value="Ortodontia">{t('inventory.cat.ortho')}</option>
+                    <option value="Esterilizacao">{t('inventory.cat.sterilization')}</option>
+                    <option value="Equipamento">{t('inventory.cat.instruments')}</option>
+                  </select>
                 </div>
                 <div>
                   <label style={labelStyle}>{t('inventory.modal.unit')}</label>
-                  <select style={inputStyle} value={formData.unidade_medida} onChange={e => setFormData({...formData, unidade_medida: e.target.value})}>
+                  <select className="form-input" style={inputStyle} value={formData.unidade_medida} onChange={e => setFormData({...formData, unidade_medida: e.target.value})}>
                     <option value="un">{t('inventory.modal.unit.un')}</option>
                     <option value="cx">{t('inventory.modal.unit.cx')}</option>
                     <option value="mts">{t('inventory.modal.unit.mts')}</option>
@@ -182,33 +273,39 @@ const Inventario = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div style={{ backgroundColor: theme.isDark ? '#0f172a' : '#f1f5f9', padding: '20px', borderRadius: '15px', border: `1px solid ${theme.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label style={labelStyle}>{t('inventory.modal.stock_current')}</label>
-                  <input required type="number" step="any" style={inputStyle} value={formData.stock_atual} onChange={e => setFormData({...formData, stock_atual: e.target.value})} />
+                  <label style={{...labelStyle, color: theme.text}}>{t('inventory.modal.stock_current')}</label>
+                  <input required className="form-input" type="number" step="any" style={{...inputStyle, backgroundColor: theme.cardBg}} value={formData.stock_atual} onChange={e => setFormData({...formData, stock_atual: e.target.value})} />
                 </div>
                 <div>
-                  <label style={labelStyle}>{t('inventory.modal.stock_min')}</label>
-                  <input required type="number" step="any" style={inputStyle} value={formData.stock_minimo} onChange={e => setFormData({...formData, stock_minimo: e.target.value})} />
+                  <label style={{...labelStyle, color: '#ef4444'}}>{t('inventory.modal.stock_min')}</label>
+                  <input required className="form-input" type="number" step="any" style={{...inputStyle, backgroundColor: theme.cardBg, borderColor: theme.isDark ? '#7f1d1d' : '#fca5a5'}} value={formData.stock_minimo} onChange={e => setFormData({...formData, stock_minimo: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{...labelStyle, color: '#f59e0b'}}>{t('inventory.modal.expiry')}</label>
+                  <input className="form-input" type="date" style={{...inputStyle, backgroundColor: theme.cardBg}} value={formData.data_validade} onChange={e => setFormData({...formData, data_validade: e.target.value})} />
                 </div>
               </div>
 
-              <label style={labelStyle}>{t('inventory.modal.img_url')}</label>
-              <input type="text" placeholder={t('inventory.modal.img_url_ph')} style={inputStyle} value={formData.imagem_url} onChange={e => setFormData({...formData, imagem_url: e.target.value})} />
+              <div>
+                <label style={labelStyle}>{t('inventory.modal.img_url')}</label>
+                <input className="form-input" type="text" placeholder={t('inventory.modal.img_url_ph')} style={inputStyle} value={formData.imagem_url} onChange={e => setFormData({...formData, imagem_url: e.target.value})} />
+              </div>
 
               <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                <button type="button" onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>{t('inventory.modal.cancel')}</button>
-                <button type="submit" style={{ flex: 1, padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                <button type="button" onClick={() => { setShowModal(false); setFormData(initialForm); setProdutoToEdit(null); }} style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', backgroundColor: '#64748b', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>{t('inventory.modal.cancel')}</button>
+                <button type="submit" style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)' }}>
                   <Save size={20} /> {t('inventory.modal.save')}
                 </button>
               </div>
-            </form>
 
+            </form>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>
             {t('inventory.title')}
@@ -226,27 +323,74 @@ const Inventario = () => {
         </div>
       </div>
 
-      <div style={{ marginBottom: '30px', position: 'relative', maxWidth: '400px' }}>
-        <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />
-        <input 
-          type="text" 
-          placeholder={t('inventory.search.placeholder')} 
-          style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px' }}
-          value={pesquisa}
-          onChange={(e) => setPesquisa(e.target.value)}
-        />
+      <div style={{ marginBottom: '30px', width: '100%' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '400px', marginBottom: '20px' }}>
+          <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />
+          <input 
+            type="text" 
+            placeholder={t('inventory.search.placeholder')} 
+            style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px', boxSizing: 'border-box' }}
+            value={pesquisa}
+            onChange={(e) => setPesquisa(e.target.value)}
+          />
+        </div>
+
+        <div className="scroll-categorias" style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '12px', width: '100%' }}>
+          <CategoryBtn label={t('inventory.cat.all')} id="Todas" />
+          <CategoryBtn label={t('inventory.cat.disposables')} id="Descartáveis" />
+          <CategoryBtn label={t('inventory.cat.anesthesia')} id="Anestesia" />
+          <CategoryBtn label={t('inventory.cat.endo')} id="Endo_Restauro" />
+          <CategoryBtn label={t('inventory.cat.surgery')} id="Cirurgia" />
+          <CategoryBtn label={t('inventory.cat.ortho')} id="Ortodontia" />
+          <CategoryBtn label={t('inventory.cat.sterilization')} id="Esterilizacao" />
+          <CategoryBtn label={t('inventory.cat.instruments')} id="Equipamento" />
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
         {produtosFiltrados.map(p => {
-          
           const totalCalc = calcularTotalUnidades(p.nome, p.stock_atual, p.stock_minimo);
-          const stockVisual = parseFloat(p.stock_atual) % 1 === 0 ? parseInt(p.stock_atual) : parseFloat(p.stock_atual).toFixed(2);
+          
+          // =========================================================================
+          // MAGIA: ARREDONDAMENTO INTELIGENTE DE CAIXAS PARA O ECRÃ
+          // =========================================================================
+          const stockFloat = parseFloat(p.stock_atual);
+          let stockVisual;
+          if (p.unidade_medida === 'cx' || p.nome.match(/\((\d+)\s*[a-zA-Z]+\)/)) {
+            stockVisual = Math.ceil(stockFloat); // 2.98 vira 3.
+          } else {
+            stockVisual = stockFloat % 1 === 0 ? stockFloat : stockFloat.toFixed(2);
+          }
+          
+          const categoriaTraduzida = categoryMap[p.categoria] || categoryMap['Descartáveis'];
+          
+          let isExpiring = false;
+          let validadeText = '';
+          if (p.data_validade) {
+            const expDate = new Date(p.data_validade);
+            const today = new Date();
+            const diffTime = expDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays <= 30) isExpiring = true;
+            validadeText = expDate.toLocaleDateString(activeLocale, { month: 'short', year: 'numeric' });
+          }
 
           return (
-           <div key={p.id} style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${theme.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+           <div key={p.id} style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${isExpiring ? '#ef4444' : theme.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'transform 0.2s', boxShadow: isExpiring ? '0 4px 15px rgba(239, 68, 68, 0.15)' : '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
               
-              <div style={{ height: '200px', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', borderBottom: `1px solid ${theme.border}` }}>
+              <div style={{ height: '200px', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', borderBottom: `1px solid ${theme.border}`, position: 'relative' }}>
+                
+                <div style={{ position: 'absolute', top: '10px', left: '10px', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', backdropFilter: 'blur(4px)' }}>
+                  {categoriaTraduzida}
+                </div>
+
+                {p.data_validade && (
+                  <div style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: isExpiring ? '#ef4444' : '#f59e0b', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                    <Clock size={12} /> VAL: {validadeText}
+                  </div>
+                )}
+
                 {p.imagem_url ? (
                   <img src={p.imagem_url} alt={p.nome} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
                 ) : (

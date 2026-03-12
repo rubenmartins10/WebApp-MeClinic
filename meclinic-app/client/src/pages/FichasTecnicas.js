@@ -151,15 +151,12 @@ const FichasTecnicas = () => {
     createCard: { padding: '30px', borderRadius: '15px', border: '1px solid', width: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }
   };
 
-  // FUNÇÃO MÁGICA PARA A UNIDADE (Lê o parêntesis do nome!)
   const getDisplayUnit = (nomeItem) => {
     if (!nomeItem) return '';
-    // Procura por algo tipo "(50 un)" ou "(200 mts)"
     const match = nomeItem.match(/\(\d+\s*([a-zA-Z]+)\)/);
     if (match) {
-      return match[1]; // Devolve 'un', 'mts', etc.
+      return match[1]; 
     }
-    // Se não tiver parêntesis, vai buscar a unidade normal da base de dados
     const prod = produtosInventario.find(p => p.nome === nomeItem);
     return prod ? prod.unidade_medida : '';
   };
@@ -263,6 +260,15 @@ const FichasTecnicas = () => {
                 </div>
               </div>
 
+              {/* LISTA INVISÍVEL PARA PESQUISA (DATALIST) */}
+              {isEditing && (
+                <datalist id="lista-produtos-inventario">
+                  {produtosInventario.map(prod => (
+                    <option key={prod.id} value={prod.nome} />
+                  ))}
+                </datalist>
+              )}
+
               <table style={{ width: '100%', color: theme.text, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: `2px solid ${theme.border}`, color: theme.subText }}>
@@ -278,16 +284,14 @@ const FichasTecnicas = () => {
                     <tr key={item.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
                       <td style={{ padding: '12px', color: theme.text }}>
                         {isEditing ? (
-                          <select 
+                          // NOVA CAIXA COM PESQUISA INCORPORADA
+                          <input 
+                            list="lista-produtos-inventario"
                             style={tableInputStyle} 
+                            placeholder={t('tech_sheets.table.ph_material')}
                             value={item.nome_item} 
                             onChange={e => handleInputChange(index, 'nome_item', e.target.value)}
-                          >
-                            <option value="">Selecione o produto...</option>
-                            {produtosInventario.map(prod => (
-                              <option key={prod.id} value={prod.nome}>{prod.nome}</option>
-                            ))}
-                          </select>
+                          />
                         ) : (
                           item.nome_item
                         )}
@@ -299,7 +303,6 @@ const FichasTecnicas = () => {
                           ) : (
                             <span>{item.quantidade}</span>
                           )}
-                          {/* A UNIDADE APARECE AQUI! 'un', 'mts', 'ml', consoante o que está no nome */}
                           <span style={{ fontSize: '12px', color: theme.subText, fontWeight: 'bold' }}>
                             {getDisplayUnit(item.nome_item)}
                           </span>

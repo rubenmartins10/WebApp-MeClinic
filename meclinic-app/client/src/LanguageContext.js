@@ -16,8 +16,8 @@ export const translations = {
     "sidebar.dark_mode": "Modo Escuro",
     "sidebar.settings": "Definições",
     "sidebar.logout": "Sair",
+    "sidebar.patients": "Pacientes",
     
-    // --- DASHBOARD ---
     "dashboard.title": "Dashboard MeClinic",
     "dashboard.subtitle": "Monitorização de desempenho semanal",
     "dashboard.week_of": "Semana de",
@@ -37,8 +37,20 @@ export const translations = {
     "dashboard.modal.table.min": "Mínimo",
     "dashboard.modal.close": "Fechar",
     "dashboard.modal.empty": "Nenhum produto em alerta.",
+    "dashboard.card.expiry_alerts": "ALERTAS VALIDADE",
+    "dashboard.card.expiry_alerts_sub": "A caducar em < 30 dias",
+    "dashboard.modal.expiry_title": "Produtos a Caducar",
+    "dashboard.modal.expiry_desc": "Estes materiais expiram nos próximos 30 dias ou já caducaram.",
+    "dashboard.modal.table.category": "Categoria",
+    "dashboard.modal.table.expiry": "Validade",
+    "dashboard.modal.btn_order": "Gerar Encomenda (PDF)",
+    "dashboard.order.title": "NOTA DE ENCOMENDA",
+    "dashboard.order.date": "Data:",
+    "dashboard.order.product": "Produto",
+    "dashboard.order.current": "Stock Atual",
+    "dashboard.order.suggested": "Qtd Encomendar",
+    "dashboard.order.signature": "Assinatura do Responsável:",
 
-    // --- INVENTÁRIO ---
     "inventory.title": "Inventário",
     "inventory.subtitle": "Vista de cartões e leitura de código de barras.",
     "inventory.btn.camera": "Ler Código (Câmara)",
@@ -80,8 +92,18 @@ export const translations = {
     "inventory.msg.added": "Produto adicionado ao inventário!",
     "inventory.msg.updated": "Produto atualizado!",
     "inventory.msg.save_err": "Erro ao guardar produto.",
+    "inventory.cat.all": "Todas as Categorias",
+    "inventory.cat.disposables": "Descartáveis",
+    "inventory.cat.anesthesia": "Anestesia & Fármacos",
+    "inventory.cat.endo": "Endo & Restauração",
+    "inventory.cat.surgery": "Cirurgia & Implantes",
+    "inventory.cat.ortho": "Ortodontia",
+    "inventory.cat.sterilization": "Esterilização",
+    "inventory.cat.instruments": "Instrumentos",
+    "inventory.modal.category": "Categoria do Produto",
+    "inventory.modal.expiry": "Data de Validade",
+    "inventory.modal.expiry_ph": "Opcional...",
 
-    // --- FICHAS TÉCNICAS ---
     "tech_sheets.title": "Fichas Técnicas",
     "tech_sheets.btn.new": "Novo Procedimento",
     "tech_sheets.list.price": "Preço Venda:",
@@ -115,7 +137,6 @@ export const translations = {
     "tech_sheets.msg.saved": "Ficha atualizada e guardada!",
     "tech_sheets.msg.save_err": "Erro ao salvar a ficha técnica.",
 
-    // --- CONSULTAS ---
     "consultations.title": "Gestão de Consultas",
     "consultations.form.new": "Nova Marcação",
     "consultations.form.edit": "Editar Marcação",
@@ -175,8 +196,11 @@ export const translations = {
     "consultations.msg.checkout_success": "Consulta finalizada com sucesso!",
     "consultations.msg.checkout_err": "Erro ao finalizar no servidor.",
     "consultations.msg.comm_err": "Erro de comunicação.",
+    "consultations.view.list": "Lista",
+    "consultations.view.calendar": "Calendário",
+    "consultations.checkout.materials": "Materiais Utilizados (Ajuste se necessário)",
+    "consultations.checkout.no_materials": "Nenhum material previsto para este procedimento.",
 
-    // --- USERS ---
     "users.title": "Acessos e Equipa",
     "users.subtitle": "Gere quem tem acesso ao sistema da clínica.",
     "users.btn.add": "Adicionar Membro",
@@ -213,7 +237,6 @@ export const translations = {
     "users.msg.added": "Membro adicionado com sucesso!",
     "users.msg.add_err": "Erro ao criar utilizador.",
 
-    // --- BILLING (FATURAÇÃO) ---
     "billing.title": "Histórico e Faturação",
     "billing.subtitle": "Registo financeiro interno de todas as consultas finalizadas.",
     "billing.dashboard.total": "Total Cobrado",
@@ -241,7 +264,6 @@ export const translations = {
     "billing.modal.btn_close": "Fechar",
     "billing.modal.btn_print": "Imprimir Nota",
 
-    // --- REPORTS (RELATÓRIOS) ---
     "reports.title": "Relatório Financeiro",
     "reports.subtitle": "Análise de desempenho e custos.",
     "reports.week_of": "Semana de",
@@ -278,7 +300,6 @@ export const translations = {
     "reports.alert.warning": "Aviso do Sistema",
     "reports.alert.btn_ok": "OK, entendi",
 
-    // --- SETTINGS ---
     "settings.title": "Definições Gerais",
     "settings.subtitle": "Gere as tuas preferências, interface e segurança da conta.",
     "settings.tab.profile": "O Meu Perfil",
@@ -340,7 +361,6 @@ export const translations = {
     "settings.alert.mfa_empty": "Por favor, insira o código do Google Authenticator.",
     "settings.alert.server_error": "Erro ao ligar ao servidor.",
 
-    // --- AUTH (LOGIN) ---
     "auth.login.title": "Bem-vindo de volta",
     "auth.login.subtitle": "Introduza as suas credenciais para aceder.",
     "auth.login.email": "E-mail",
@@ -367,7 +387,22 @@ export const translations = {
     "auth.reset.new_pass": "Nova Palavra-passe",
     "auth.reset.btn": "Alterar Palavra-passe",
     "auth.reset.confirm_pass": "Confirmar Palavra-passe",
-    "auth.reset.mismatch": "As palavras-passe não coincidem."
+    "auth.reset.mismatch": "As palavras-passe não coincidem.",
+
+    // --- PACIENTES (CRM) ---
+    "patients.title": "Pacientes",
+    "patients.subtitle": "Gestão de fichas clínicas e histórico.",
+    "patients.search": "Pesquisar paciente...",
+    "patients.table.name": "Nome",
+    "patients.table.contact": "Contacto",
+    "patients.table.consultations": "Consultas",
+    "patients.table.billed": "Faturado",
+    "patients.modal.info": "Ficha do Paciente",
+    "patients.modal.notes": "Notas Clínicas",
+    "patients.modal.notes_ph": "Escreva aqui alergias, histórico médico ou detalhes de tratamentos...",
+    "patients.modal.history": "Histórico de Consultas",
+    "patients.modal.save_notes": "Guardar Notas",
+    "patients.modal.empty_history": "Nenhuma consulta registada.",
   },
   en: {
     "app.logged_as": "Logged in as:",
@@ -382,8 +417,8 @@ export const translations = {
     "sidebar.dark_mode": "Dark Mode",
     "sidebar.settings": "Settings",
     "sidebar.logout": "Logout",
+    "sidebar.patients": "Patients",
 
-    // --- DASHBOARD ---
     "dashboard.title": "MeClinic Dashboard",
     "dashboard.subtitle": "Weekly performance monitoring",
     "dashboard.week_of": "Week of",
@@ -403,8 +438,20 @@ export const translations = {
     "dashboard.modal.table.min": "Minimum",
     "dashboard.modal.close": "Close",
     "dashboard.modal.empty": "No products in alert.",
+    "dashboard.card.expiry_alerts": "EXPIRY ALERTS",
+    "dashboard.card.expiry_alerts_sub": "Expiring in < 30 days",
+    "dashboard.modal.expiry_title": "Expiring Products",
+    "dashboard.modal.expiry_desc": "These materials will expire in the next 30 days or have already expired.",
+    "dashboard.modal.table.category": "Category",
+    "dashboard.modal.table.expiry": "Expiry Date",
+    "dashboard.modal.btn_order": "Generate Order (PDF)",
+    "dashboard.order.title": "PURCHASE ORDER",
+    "dashboard.order.date": "Date:",
+    "dashboard.order.product": "Product",
+    "dashboard.order.current": "Current Stock",
+    "dashboard.order.suggested": "Qty to Order",
+    "dashboard.order.signature": "Authorized Signature:",
 
-    // --- INVENTÁRIO ---
     "inventory.title": "Inventory",
     "inventory.subtitle": "Card view and barcode scanning.",
     "inventory.btn.camera": "Scan Barcode (Camera)",
@@ -446,8 +493,18 @@ export const translations = {
     "inventory.msg.added": "Product added to inventory!",
     "inventory.msg.updated": "Product updated!",
     "inventory.msg.save_err": "Error saving product.",
+    "inventory.cat.all": "All Categories",
+    "inventory.cat.disposables": "Disposables",
+    "inventory.cat.anesthesia": "Anesthesia & Pharma",
+    "inventory.cat.endo": "Endo & Restoration",
+    "inventory.cat.surgery": "Surgery & Implants",
+    "inventory.cat.ortho": "Orthodontics",
+    "inventory.cat.sterilization": "Sterilization",
+    "inventory.cat.instruments": "Instruments",
+    "inventory.modal.category": "Product Category",
+    "inventory.modal.expiry": "Expiration Date",
+    "inventory.modal.expiry_ph": "Optional...",
 
-    // --- FICHAS TÉCNICAS ---
     "tech_sheets.title": "Technical Sheets",
     "tech_sheets.btn.new": "New Procedure",
     "tech_sheets.list.price": "Selling Price:",
@@ -481,7 +538,6 @@ export const translations = {
     "tech_sheets.msg.saved": "Sheet updated and saved!",
     "tech_sheets.msg.save_err": "Error saving the technical sheet.",
 
-    // --- CONSULTAS ---
     "consultations.title": "Appointments Management",
     "consultations.form.new": "New Appointment",
     "consultations.form.edit": "Edit Appointment",
@@ -541,8 +597,11 @@ export const translations = {
     "consultations.msg.checkout_success": "Appointment finished successfully!",
     "consultations.msg.checkout_err": "Error finishing on server.",
     "consultations.msg.comm_err": "Communication error.",
+    "consultations.view.list": "List",
+    "consultations.view.calendar": "Calendar",
+    "consultations.checkout.materials": "Used Materials (Adjust if needed)",
+    "consultations.checkout.no_materials": "No materials expected for this procedure.",
 
-    // --- USERS ---
     "users.title": "Access & Team",
     "users.subtitle": "Manage who has access to the clinic system.",
     "users.btn.add": "Add Member",
@@ -579,7 +638,6 @@ export const translations = {
     "users.msg.added": "Member added successfully!",
     "users.msg.add_err": "Error creating user.",
 
-    // --- BILLING (FATURAÇÃO) ---
     "billing.title": "History & Billing",
     "billing.subtitle": "Internal financial record of all finished appointments.",
     "billing.dashboard.total": "Total Charged",
@@ -607,7 +665,6 @@ export const translations = {
     "billing.modal.btn_close": "Close",
     "billing.modal.btn_print": "Print Note",
 
-    // --- REPORTS (RELATÓRIOS) ---
     "reports.title": "Financial Report",
     "reports.subtitle": "Performance and cost analysis.",
     "reports.week_of": "Week of",
@@ -644,7 +701,6 @@ export const translations = {
     "reports.alert.warning": "System Warning",
     "reports.alert.btn_ok": "OK, got it",
 
-    // --- SETTINGS ---
     "settings.title": "General Settings",
     "settings.subtitle": "Manage your preferences, interface, and account security.",
     "settings.tab.profile": "My Profile",
@@ -706,7 +762,6 @@ export const translations = {
     "settings.alert.mfa_empty": "Please enter the Google Authenticator code.",
     "settings.alert.server_error": "Error connecting to server.",
 
-    // --- AUTH (LOGIN) ---
     "auth.login.title": "Welcome back",
     "auth.login.subtitle": "Enter your credentials to access.",
     "auth.login.email": "Email",
@@ -733,7 +788,22 @@ export const translations = {
     "auth.reset.new_pass": "New Password",
     "auth.reset.btn": "Change Password",
     "auth.reset.confirm_pass": "Confirm Password",
-    "auth.reset.mismatch": "Passwords do not match."
+    "auth.reset.mismatch": "Passwords do not match.",
+
+    // --- PACIENTES (CRM) ---
+    "patients.title": "Patients",
+    "patients.subtitle": "Clinical records and history management.",
+    "patients.search": "Search patient...",
+    "patients.table.name": "Name",
+    "patients.table.contact": "Contact",
+    "patients.table.consultations": "Visits",
+    "patients.table.billed": "Billed",
+    "patients.modal.info": "Patient Record",
+    "patients.modal.notes": "Clinical Notes",
+    "patients.modal.notes_ph": "Write allergies, medical history or treatment details here...",
+    "patients.modal.history": "Consultation History",
+    "patients.modal.save_notes": "Save Notes",
+    "patients.modal.empty_history": "No consultations recorded.",
   },
   es: {
     "app.logged_as": "Conectado como:",
@@ -748,8 +818,8 @@ export const translations = {
     "sidebar.dark_mode": "Modo Oscuro",
     "sidebar.settings": "Ajustes",
     "sidebar.logout": "Cerrar sesión",
+    "sidebar.patients": "Pacientes",
 
-    // --- DASHBOARD ---
     "dashboard.title": "Panel MeClinic",
     "dashboard.subtitle": "Monitoreo de rendimiento semanal",
     "dashboard.week_of": "Semana del",
@@ -769,8 +839,20 @@ export const translations = {
     "dashboard.modal.table.min": "Mínimo",
     "dashboard.modal.close": "Cerrar",
     "dashboard.modal.empty": "Ningún producto en alerta.",
+    "dashboard.card.expiry_alerts": "ALERTAS CADUCIDAD",
+    "dashboard.card.expiry_alerts_sub": "Caducan en < 30 días",
+    "dashboard.modal.expiry_title": "Productos a Caducar",
+    "dashboard.modal.expiry_desc": "Estos materiales caducarán en los próximos 30 días o ya han caducado.",
+    "dashboard.modal.table.category": "Categoría",
+    "dashboard.modal.table.expiry": "Caducidad",
+    "dashboard.modal.btn_order": "Generar Pedido (PDF)",
+    "dashboard.order.title": "NOTA DE PEDIDO",
+    "dashboard.order.date": "Fecha:",
+    "dashboard.order.product": "Producto",
+    "dashboard.order.current": "Stock Actual",
+    "dashboard.order.suggested": "Cant. a Pedir",
+    "dashboard.order.signature": "Firma del Responsable:",
 
-    // --- INVENTÁRIO ---
     "inventory.title": "Inventario",
     "inventory.subtitle": "Vista de tarjetas y escaneo de códigos de barras.",
     "inventory.btn.camera": "Escanear Código (Cámara)",
@@ -812,8 +894,18 @@ export const translations = {
     "inventory.msg.added": "¡Producto añadido al inventario!",
     "inventory.msg.updated": "¡Producto actualizado!",
     "inventory.msg.save_err": "Error al guardar producto.",
+    "inventory.cat.all": "Todas las Categorías",
+    "inventory.cat.disposables": "Desechables",
+    "inventory.cat.anesthesia": "Anestesia y Fármacos",
+    "inventory.cat.endo": "Endo y Restauración",
+    "inventory.cat.surgery": "Cirugía e Implantes",
+    "inventory.cat.ortho": "Ortodoncia",
+    "inventory.cat.sterilization": "Esterilización",
+    "inventory.cat.instruments": "Instrumentos",
+    "inventory.modal.category": "Categoría del Producto",
+    "inventory.modal.expiry": "Fecha de Caducidad",
+    "inventory.modal.expiry_ph": "Opcional...",
 
-    // --- FICHAS TÉCNICAS ---
     "tech_sheets.title": "Fichas Técnicas",
     "tech_sheets.btn.new": "Nuevo Procedimiento",
     "tech_sheets.list.price": "Precio Venta:",
@@ -847,7 +939,6 @@ export const translations = {
     "tech_sheets.msg.saved": "¡Ficha actualizada y guardada!",
     "tech_sheets.msg.save_err": "Error al guardar la ficha técnica.",
 
-    // --- CONSULTAS ---
     "consultations.title": "Gestión de Consultas",
     "consultations.form.new": "Nueva Cita",
     "consultations.form.edit": "Editar Cita",
@@ -907,8 +998,11 @@ export const translations = {
     "consultations.msg.checkout_success": "¡Consulta finalizada con éxito!",
     "consultations.msg.checkout_err": "Error al finalizar en el servidor.",
     "consultations.msg.comm_err": "Error de comunicación.",
+    "consultations.view.list": "Lista",
+    "consultations.view.calendar": "Calendario",
+    "consultations.checkout.materials": "Materiales Utilizados (Ajuste si es necesario)",
+    "consultations.checkout.no_materials": "Ningún material previsto para este procedimiento.",
 
-    // --- USERS ---
     "users.title": "Accesos y Equipo",
     "users.subtitle": "Gestiona quién tiene acceso al sistema de la clínica.",
     "users.btn.add": "Añadir Miembro",
@@ -945,7 +1039,6 @@ export const translations = {
     "users.msg.added": "¡Miembro añadido con éxito!",
     "users.msg.add_err": "Error al crear usuario.",
 
-    // --- BILLING (FATURAÇÃO) ---
     "billing.title": "Historial y Facturación",
     "billing.subtitle": "Registro financiero interno de todas las consultas finalizadas.",
     "billing.dashboard.total": "Total Cobrado",
@@ -957,7 +1050,7 @@ export const translations = {
     "billing.filter.all": "Todo el Historial",
     "billing.table.date": "FECHA / HORA",
     "billing.table.patient": "PACIENTE",
-    "billing.table.procedure": "PROCEDIMENTO",
+    "billing.table.procedure": "PROCEDIMIENTO",
     "billing.table.method": "MÉTODO",
     "billing.table.value": "VALOR",
     "billing.table.note": "NOTA",
@@ -973,7 +1066,6 @@ export const translations = {
     "billing.modal.btn_close": "Cerrar",
     "billing.modal.btn_print": "Imprimir Nota",
 
-    // --- REPORTS (RELATÓRIOS) ---
     "reports.title": "Informe Financiero",
     "reports.subtitle": "Análisis de rendimiento y costos.",
     "reports.week_of": "Semana del",
@@ -1010,7 +1102,6 @@ export const translations = {
     "reports.alert.warning": "Advertencia del Sistema",
     "reports.alert.btn_ok": "OK, entendido",
 
-    // --- SETTINGS ---
     "settings.title": "Configuración General",
     "settings.subtitle": "Gestiona tus preferencias, interfaz y seguridad de la cuenta.",
     "settings.tab.profile": "Mi Perfil",
@@ -1072,7 +1163,6 @@ export const translations = {
     "settings.alert.mfa_empty": "Por favor, introduzca el código de Google Authenticator.",
     "settings.alert.server_error": "Error al conectar con el servidor.",
 
-    // --- AUTH (LOGIN) ---
     "auth.login.title": "Bienvenido de nuevo",
     "auth.login.subtitle": "Introduzca sus credenciales para acceder.",
     "auth.login.email": "Correo Electrónico",
@@ -1099,7 +1189,22 @@ export const translations = {
     "auth.reset.new_pass": "Nueva Contraseña",
     "auth.reset.btn": "Cambiar Contraseña",
     "auth.reset.confirm_pass": "Confirmar Contraseña",
-    "auth.reset.mismatch": "Las contraseñas no coinciden."
+    "auth.reset.mismatch": "Las contraseñas no coinciden.",
+
+    // --- PACIENTES (CRM) ---
+    "patients.title": "Pacientes",
+    "patients.subtitle": "Gestión de fichas clínicas e historial.",
+    "patients.search": "Buscar paciente...",
+    "patients.table.name": "Nombre",
+    "patients.table.contact": "Contacto",
+    "patients.table.consultations": "Visitas",
+    "patients.table.billed": "Facturado",
+    "patients.modal.info": "Ficha del Paciente",
+    "patients.modal.notes": "Notas Clínicas",
+    "patients.modal.notes_ph": "Escriba aquí alergias, historial médico o detalles de tratamientos...",
+    "patients.modal.history": "Historial de Consultas",
+    "patients.modal.save_notes": "Guardar Notas",
+    "patients.modal.empty_history": "No hay consultas registradas.",
   }
 };
 

@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, TrendingUp, X, Package } from 'lucide-react';
+import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, TrendingUp, X, Package, Clock, FileDown } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ThemeContext } from '../ThemeContext';
 import { LanguageContext } from '../LanguageContext';
+import jsPDF from 'jspdf';
 
 const Dashboard = () => {
   const { theme } = useContext(ThemeContext);
-  const { t } = useContext(LanguageContext);
+  const { t, language } = useContext(LanguageContext);
 
   const [chartData, setChartData] = useState([]);
-  const [summary, setSummary] = useState({ pacientes_semana: 0, consultas_semana: 0, faturacao_semana: 0, alertas_stock: 0 });
+  const [summary, setSummary] = useState({ pacientes_semana: 0, consultas_semana: 0, faturacao_semana: 0, alertas_stock: 0, alertas_validade: 0 });
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const d = new Date();
     const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -18,6 +19,11 @@ const Dashboard = () => {
 
   const [showStockModal, setShowStockModal] = useState(false);
   const [stockAlertsList, setStockAlertsList] = useState([]);
+  
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [expiryAlertsList, setExpiryAlertsList] = useState([]);
+
+  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
 
   const carregarDados = (startDate) => {
     fetch(`http://localhost:5000/api/stats/patients-weekly?start=${startDate}`)
@@ -45,10 +51,18 @@ const Dashboard = () => {
       const data = await res.json();
       setStockAlertsList(data);
       setShowStockModal(true);
-    } catch (e) { console.error("Erro ao carregar alertas:", e); }
+    } catch (e) { console.error("Erro ao carregar alertas de stock:", e); }
   };
 
-  // FUNÇÃO MÁGICA PARA CALCULAR O TOTAL REAL NO DASHBOARD
+  const openExpiryAlerts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/stats/validade-alerts');
+      const data = await res.json();
+      setExpiryAlertsList(data);
+      setShowExpiryModal(true);
+    } catch (e) { console.error("Erro ao carregar alertas de validade:", e); }
+  };
+
   const calcularTotalUnidades = (nomeProduto, stockAtual) => {
     const match = nomeProduto.match(/\((\d+)\s*([a-zA-Z]+)\)/);
     if (match) {
@@ -60,10 +74,65 @@ const Dashboard = () => {
     return null; 
   };
 
+  const gerarEncomendaPDF = () => {
+    if (stockAlertsList.length === 0) return;
+    const doc = new jsPDF();
+    doc.setTextColor(37, 99, 235); doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text("MECLINIC", 20, 20);
+    doc.setTextColor(0, 0, 0); doc.setFontSize(14); doc.text(t('dashboard.order.title'), 20, 30);
+    doc.setTextColor(100, 116, 139); doc.setFontSize(11); doc.setFont(undefined, 'normal'); doc.text(`${t('dashboard.order.date')} ${new Date().toLocaleDateString(activeLocale)}`, 20, 38);
+    doc.setDrawColor(200, 200, 200); doc.line(20, 42, 190, 42);
+    
+    doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont(undefined, 'bold');
+    doc.text(t('dashboard.order.product').toUpperCase(), 20, 52);
+    doc.text(t('dashboard.order.current').toUpperCase(), 130, 52);
+    doc.text(t('dashboard.order.suggested').toUpperCase(), 160, 52);
+    doc.line(20, 55, 190, 55);
+    
+    doc.setFont(undefined, 'normal');
+    let y = 65;
+    
+    stockAlertsList.forEach((item) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      
+      const current = parseFloat(item.stock_atual);
+      const min = parseFloat(item.stock_minimo);
+      
+      let currentVisual = current;
+      if (item.unidade_medida === 'cx' || item.nome.match(/\((\d+)\s*[a-zA-Z]+\)/)) {
+        currentVisual = Math.ceil(current);
+      } else {
+        currentVisual = current % 1 === 0 ? current : current.toFixed(2);
+      }
+
+      let qtdSugerida = Math.ceil((min * 2) - current);
+      if (qtdSugerida <= 0) qtdSugerida = 1; 
+      
+      let nomeCurto = item.nome;
+      if (nomeCurto.length > 50) nomeCurto = nomeCurto.substring(0, 47) + '...';
+
+      doc.text(nomeCurto, 20, y);
+      doc.text(`${currentVisual} ${item.unidade_medida}`, 130, y);
+      
+      doc.setDrawColor(37, 99, 235); doc.setFillColor(240, 249, 255); doc.rect(158, y - 5, 32, 7, 'FD');
+      doc.setFont(undefined, 'bold'); doc.setTextColor(37, 99, 235); doc.text(`${qtdSugerida} ${item.unidade_medida}`, 160, y);
+      
+      doc.setFont(undefined, 'normal'); doc.setTextColor(0, 0, 0);
+      y += 12;
+    });
+    
+    y += 20;
+    if (y > 270) { doc.addPage(); y = 30; }
+    doc.setDrawColor(0, 0, 0); doc.line(20, y, 90, y);
+    doc.setFontSize(10); doc.text(t('dashboard.order.signature'), 20, y + 6);
+    
+    const dataFicheiro = new Date().toISOString().split('T')[0];
+    doc.save(`Encomenda_MeClinic_${dataFicheiro}.pdf`);
+  };
+
   const StatCard = ({ title, value, icon: Icon, color, sub, onIconClick, clickableIcon }) => (
-    <div style={{ backgroundColor: theme.cardBg, padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', flex: 1, border: `1px solid ${theme.border}` }}>
+    <div style={{ backgroundColor: theme.cardBg, padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <span style={{ fontSize: '14px', fontWeight: '600', color: theme.subText }}>{title}</span>
+        <span style={{ fontSize: '13px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
         <div 
           onClick={clickableIcon ? onIconClick : undefined}
           style={{ 
@@ -71,24 +140,23 @@ const Dashboard = () => {
             cursor: clickableIcon ? 'pointer' : 'default', transition: 'all 0.2s',
             opacity: clickableIcon ? 0.9 : 1
           }}
-          onMouseEnter={(e) => { if(clickableIcon) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.05)'; } }}
+          onMouseEnter={(e) => { if(clickableIcon) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
           onMouseLeave={(e) => { if(clickableIcon) { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'scale(1)'; } }}
-          title={clickableIcon ? t('dashboard.modal.stock_title') : ""}
         >
           <Icon size={20} color={color} />
         </div>
       </div>
-      <div style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text }}>{value}</div>
-      <div style={{ fontSize: '12px', color: theme.subText, marginTop: '5px' }}>{sub}</div>
+      <div style={{ fontSize: '28px', fontWeight: '900', color: theme.text }}>{value}</div>
+      <div style={{ fontSize: '12px', color: theme.subText, marginTop: '5px', fontWeight: 'bold' }}>{sub}</div>
     </div>
   );
 
   return (
-    <div style={{ padding: '10px', transition: 'all 0.3s ease' }}>
+    <div style={{ padding: '20px', transition: 'all 0.3s ease', maxWidth: '1400px', margin: '0 auto' }}>
       
       {showStockModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
-          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '550px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '600px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -96,7 +164,6 @@ const Dashboard = () => {
               </h2>
               <button onClick={() => setShowStockModal(false)} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
-            
             <p style={{ color: theme.subText, marginBottom: '20px', fontSize: '14px' }}>{t('dashboard.modal.stock_desc')}</p>
 
             <div style={{ overflowY: 'auto', flex: 1, borderTop: `1px solid ${theme.border}` }}>
@@ -111,8 +178,16 @@ const Dashboard = () => {
                 <tbody>
                   {stockAlertsList.length > 0 ? stockAlertsList.map(item => {
                     const totalCalc = calcularTotalUnidades(item.nome, item.stock_atual);
-                    const stockVisual = parseFloat(item.stock_atual) % 1 === 0 ? parseInt(item.stock_atual) : parseFloat(item.stock_atual).toFixed(2);
                     const minVisual = parseFloat(item.stock_minimo) % 1 === 0 ? parseInt(item.stock_minimo) : parseFloat(item.stock_minimo).toFixed(2);
+
+                    // APLICAÇÃO DA NOVA REGRA NO DASHBOARD
+                    const stockFloat = parseFloat(item.stock_atual);
+                    let stockVisual;
+                    if (item.unidade_medida === 'cx' || item.nome.match(/\((\d+)\s*[a-zA-Z]+\)/)) {
+                      stockVisual = Math.ceil(stockFloat);
+                    } else {
+                      stockVisual = stockFloat % 1 === 0 ? stockFloat : stockFloat.toFixed(2);
+                    }
 
                     return (
                       <tr key={item.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
@@ -121,23 +196,15 @@ const Dashboard = () => {
                           <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '15px' }}>
                             {stockVisual} <span style={{ fontSize: '12px', fontWeight: 'normal', color: theme.subText }}>{item.unidade_medida}</span>
                           </span>
-                          {/* AQUI APARECE O CÁLCULO (ex: 400 mts no total) */}
-                          {totalCalc && (
-                            <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 'bold', marginTop: '4px' }}>
-                              ({totalCalc})
-                            </div>
-                          )}
+                          {totalCalc && <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 'bold', marginTop: '4px' }}>({totalCalc})</div>}
                         </td>
-                        <td style={{ padding: '15px', textAlign: 'right', color: theme.subText, verticalAlign: 'top', paddingTop: '17px' }}>
-                          {minVisual}
-                        </td>
+                        <td style={{ padding: '15px', textAlign: 'right', color: theme.subText, verticalAlign: 'top', paddingTop: '17px' }}>{minVisual}</td>
                       </tr>
                     );
                   }) : (
                     <tr>
                       <td colSpan="3" style={{ padding: '40px', textAlign: 'center', color: theme.subText }}>
-                        <Package size={30} style={{ opacity: 0.3, marginBottom: '10px' }} />
-                        <br/>{t('dashboard.modal.empty')}
+                        <Package size={30} style={{ opacity: 0.3, marginBottom: '10px' }} /><br/>{t('dashboard.modal.empty')}
                       </td>
                     </tr>
                   )}
@@ -145,9 +212,73 @@ const Dashboard = () => {
               </table>
             </div>
             
-            <button onClick={() => setShowStockModal(false)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '20px' }}>
-              {t('dashboard.modal.close')}
-            </button>
+            <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
+              <button onClick={() => setShowStockModal(false)} style={{ flex: 1, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {t('dashboard.modal.close')}
+              </button>
+              
+              {stockAlertsList.length > 0 && (
+                <button onClick={gerarEncomendaPDF} style={{ flex: 2, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)' }}>
+                  <FileDown size={20} /> {t('dashboard.modal.btn_order') || 'Gerar Encomenda (PDF)'}
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {showExpiryModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '550px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Clock size={24} color="#f59e0b" /> {t('dashboard.modal.expiry_title')}
+              </h2>
+              <button onClick={() => setShowExpiryModal(false)} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+            <p style={{ color: theme.subText, marginBottom: '20px', fontSize: '14px' }}>{t('dashboard.modal.expiry_desc')}</p>
+
+            <div style={{ overflowY: 'auto', flex: 1, borderTop: `1px solid ${theme.border}` }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: theme.pageBg, color: theme.subText, fontSize: '12px' }}>
+                    <th style={{ padding: '12px 15px', borderBottom: `1px solid ${theme.border}` }}>{t('dashboard.modal.table.product')}</th>
+                    <th style={{ padding: '12px 15px', borderBottom: `1px solid ${theme.border}` }}>{t('dashboard.modal.table.category')}</th>
+                    <th style={{ padding: '12px 15px', borderBottom: `1px solid ${theme.border}`, textAlign: 'right' }}>{t('dashboard.modal.table.expiry')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expiryAlertsList.length > 0 ? expiryAlertsList.map(item => {
+                    const dataExp = new Date(item.data_validade);
+                    const hoje = new Date();
+                    const isCaducado = dataExp < hoje;
+                    const corValidade = isCaducado ? '#ef4444' : '#f59e0b'; 
+
+                    return (
+                      <tr key={item.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
+                        <td style={{ padding: '15px', fontWeight: 'bold', color: theme.text }}>{item.nome}</td>
+                        <td style={{ padding: '15px', color: theme.subText, fontSize: '13px' }}>
+                          <span style={{ backgroundColor: theme.pageBg, padding: '4px 8px', borderRadius: '6px' }}>{item.categoria}</span>
+                        </td>
+                        <td style={{ padding: '15px', textAlign: 'right', fontWeight: '900', color: corValidade }}>
+                           {dataExp.toLocaleDateString(activeLocale)}
+                           {isCaducado && <div style={{ fontSize: '10px', textTransform: 'uppercase', marginTop: '2px' }}>Expirado</div>}
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan="3" style={{ padding: '40px', textAlign: 'center', color: theme.subText }}>
+                        <Clock size={30} style={{ opacity: 0.3, marginBottom: '10px' }} /><br/>{t('dashboard.modal.empty')}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button onClick={() => setShowExpiryModal(false)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '20px' }}>{t('dashboard.modal.close')}</button>
           </div>
         </div>
       )}
@@ -165,18 +296,30 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
         <StatCard title={t('dashboard.card.new_patients')} value={summary.pacientes_semana} icon={Users} color="#2563eb" sub={t('dashboard.card.new_patients_sub')} />
         <StatCard title={t('dashboard.card.consultations')} value={summary.consultas_semana} icon={Calendar} color="#7c3aed" sub={t('dashboard.card.consultations_sub')} />
         <StatCard title={t('dashboard.card.billing')} value={`${parseFloat(summary.faturacao_semana || 0).toFixed(2)}€`} icon={Euro} color="#059669" sub={t('dashboard.card.billing_sub')} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         <StatCard 
           title={t('dashboard.card.stock_alerts')} 
-          value={summary.alertas_stock} 
+          value={summary.alertas_stock || 0} 
           icon={AlertTriangle} 
-          color={summary.alertas_stock > 0 ? "#ef4444" : "#059669"} 
+          color={(summary.alertas_stock > 0) ? "#ef4444" : "#059669"} 
           sub={t('dashboard.card.stock_alerts_sub')} 
-          clickableIcon={summary.alertas_stock > 0} 
+          clickableIcon={true} 
           onIconClick={openStockAlerts}
+        />
+        <StatCard 
+          title={t('dashboard.card.expiry_alerts')} 
+          value={summary.alertas_validade || 0} 
+          icon={Clock} 
+          color={(summary.alertas_validade > 0) ? "#f59e0b" : "#059669"} 
+          sub={t('dashboard.card.expiry_alerts_sub')} 
+          clickableIcon={true} 
+          onIconClick={openExpiryAlerts}
         />
       </div>
 

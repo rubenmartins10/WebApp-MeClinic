@@ -6,18 +6,19 @@ import {
 } from 'lucide-react';
 
 import { ThemeContext } from '../ThemeContext'; 
-import { LanguageContext } from '../LanguageContext'; // <-- IMPORTA O CÉREBRO DE IDIOMAS
+import { LanguageContext } from '../LanguageContext';
 
 const Sidebar = ({ onLogout }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const { t } = useContext(LanguageContext); // <-- CHAMA A FUNÇÃO DE TRADUÇÃO
+  const { t } = useContext(LanguageContext);
 
-  // OS NOMES AGORA ESTÃO LIGADOS AO DICIONÁRIO DINÂMICO
+  // LISTA DE NAVEGAÇÃO ATUALIZADA COM "PACIENTES"
   const navItems = [
     { path: '/dashboard', label: t('sidebar.dashboard'), icon: <LayoutDashboard size={20} /> },
     { path: '/inventory', label: t('sidebar.inventory'), icon: <Package size={20} /> },
     { path: '/consultas', label: t('sidebar.consultations'), icon: <Calendar size={20} /> },
+    { path: '/pacientes', label: t('sidebar.patients'), icon: <Users size={20} /> }, // <-- O NOVO BOTÃO AQUI
     { path: '/fichas-tecnicas', label: t('sidebar.technical_sheets'), icon: <FileText size={20} /> },
     { path: '/users', label: t('sidebar.users'), icon: <Users size={20} /> },
     { path: '/faturacao', label: t('sidebar.billing'), icon: <DollarSign size={20} /> },
@@ -34,7 +35,8 @@ const Sidebar = ({ onLogout }) => {
       display: 'flex',
       flexDirection: 'column',
       transition: 'background-color 0.3s ease',
-      borderRight: `1px solid ${theme.border}`
+      borderRight: `1px solid ${theme.border}`,
+      zIndex: 100 // Garante que a barra fica por cima
     }}>
       
       <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -57,7 +59,7 @@ const Sidebar = ({ onLogout }) => {
                   transition: 'all 0.2s'
                 }}
               >
-                <span style={{ marginRight: '15px' }}>{item.icon}</span>
+                <span style={{ marginRight: '15px', display: 'flex', alignItems: 'center' }}>{item.icon}</span>
                 {item.label}
               </Link>
             </li>
