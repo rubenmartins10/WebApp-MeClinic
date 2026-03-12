@@ -27,11 +27,11 @@ const FichasTecnicas = () => {
   const isAdmin = user.role === 'ADMIN';
 
   const carregarDados = () => {
-    fetch('http://localhost:5000/api/modelos-procedimento')
+    fetch('/api/modelos-procedimento')
       .then(res => res.json())
       .then(data => setModelos(data));
       
-    fetch('http://localhost:5000/api/produtos')
+    fetch('/api/produtos')
       .then(res => res.json())
       .then(data => setProdutosInventario(data));
   };
@@ -41,7 +41,7 @@ const FichasTecnicas = () => {
   const carregarItens = (modelo) => {
     setSelecionado(modelo);
     setIsEditing(false); 
-    fetch(`http://localhost:5000/api/modelos-procedimento/${modelo.id}/itens`).then(res => res.json()).then(data => setItens(data));
+    fetch(`/api/modelos-procedimento/${modelo.id}/itens`).then(res => res.json()).then(data => setItens(data));
   };
 
   const mostrarNotificacao = (type, message) => {
@@ -54,7 +54,7 @@ const FichasTecnicas = () => {
     e.preventDefault();
     if (!newProcName.trim()) return;
     try {
-      const response = await fetch('http://localhost:5000/api/modelos-procedimento', {
+      const response = await fetch('/api/modelos-procedimento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: newProcName })
@@ -70,7 +70,7 @@ const FichasTecnicas = () => {
 
   const handleDeleteProcedimento = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/modelos-procedimento/${selecionado.id}`, {
+      const response = await fetch(`/api/modelos-procedimento/${selecionado.id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -121,7 +121,7 @@ const FichasTecnicas = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/modelos-procedimento/${selecionado.id}`, {
+      const response = await fetch(`/api/modelos-procedimento/${selecionado.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itens: editedProdutos, custo_total: editedPrecoTotal, preco_servico: editedPrecoServico })

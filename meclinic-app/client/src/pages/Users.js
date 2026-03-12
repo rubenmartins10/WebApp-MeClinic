@@ -26,7 +26,7 @@ const Users = () => {
 
   const carregarUtilizadores = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/utilizadores');
+      const res = await fetch('/api/utilizadores');
       const data = await res.json();
       
       if (Array.isArray(data)) {
@@ -54,7 +54,7 @@ const Users = () => {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE' });
+      const res = await fetch(`/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE' });
       if (res.ok) {
         showNotif('success', t('users.msg.removed'));
         carregarUtilizadores();
@@ -72,7 +72,7 @@ const Users = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5000/api/utilizadores', {
+      const res = await fetch('/api/utilizadores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(novoUser)

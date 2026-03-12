@@ -26,11 +26,11 @@ const Dashboard = () => {
   const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
 
   const carregarDados = (startDate) => {
-    fetch(`http://localhost:5000/api/stats/patients-weekly?start=${startDate}`)
+    fetch(`/api/stats/patients-weekly?start=${startDate}`)
       .then(res => res.json())
       .then(data => setChartData(data));
 
-    fetch(`http://localhost:5000/api/stats/dashboard-summary?start=${startDate}`)
+    fetch(`/api/stats/dashboard-summary?start=${startDate}`)
       .then(res => res.json())
       .then(data => setSummary(data));
   };
@@ -47,7 +47,7 @@ const Dashboard = () => {
 
   const openStockAlerts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/stats/stock-alerts');
+      const res = await fetch('/api/stats/stock-alerts');
       const data = await res.json();
       setStockAlertsList(data);
       setShowStockModal(true);
@@ -56,7 +56,7 @@ const Dashboard = () => {
 
   const openExpiryAlerts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/stats/validade-alerts');
+      const res = await fetch('/api/stats/validade-alerts');
       const data = await res.json();
       setExpiryAlertsList(data);
       setShowExpiryModal(true);

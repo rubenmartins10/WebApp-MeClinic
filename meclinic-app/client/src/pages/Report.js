@@ -24,7 +24,7 @@ const Report = () => {
   });
 
   const fetchReport = (date) => {
-    fetch(`http://localhost:5000/api/reports/weekly-detail?start=${date}`)
+    fetch(`/api/reports/weekly-detail?start=${date}`)
       .then(res => res.json())
       .then(data => setReportData(data))
       .catch(err => console.error("Erro ao carregar relatórios:", err));
@@ -130,7 +130,7 @@ const Report = () => {
       const doc = gerarPDFDocumento();
       const pdfBase64 = doc.output('datauristring');
 
-      const res = await fetch('http://localhost:5000/api/reports/send-email', {
+      const res = await fetch('/api/reports/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emailDestino, pdfBase64, semana: currentWeekStart })

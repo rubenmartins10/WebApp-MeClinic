@@ -15,7 +15,7 @@ const Faturacao = () => {
   const [notaModal, setNotaModal] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/faturacao')
+    fetch('/api/faturacao')
       .then(res => res.json())
       .then(data => setFaturas(data))
       .catch(err => console.error(err));

@@ -43,7 +43,7 @@ const Settings = () => {
       }
 
       try {
-        const response = await fetch("http://localhost:5000/api/change-password", {
+        const response = await fetch("/api/change-password", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: user.id, currentPassword: segurancaData.passwordAtual, newPassword: segurancaData.novaPassword, mfaToken: segurancaData.mfaToken })
         });
