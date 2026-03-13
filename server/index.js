@@ -27,6 +27,7 @@ async function initDB() {
   try { await pool.query("ALTER TABLE produtos ADD COLUMN categoria VARCHAR(100) DEFAULT 'Descartáveis'"); } catch(e){}
   try { await pool.query("ALTER TABLE produtos ADD COLUMN data_validade DATE"); } catch(e){}
   try { await pool.query("ALTER TABLE pacientes ADD COLUMN notas_clinicas TEXT DEFAULT ''"); } catch(e){}
+  try { await pool.query("ALTER TABLE pacientes ADD COLUMN odontograma_dados TEXT DEFAULT '{}'"); } catch(e){}
 
   // TABELA PARA ARQUIVOS DO CRM (EXAMES E RECEITAS)
   try {
@@ -257,7 +258,6 @@ app.get('/api/consultas', async (req, res) => {
       FROM consultas c 
       JOIN pacientes p ON c.paciente_id = p.id 
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      WHERE c.status = 'AGENDADA' OR c.data_consulta = CURRENT_DATE
       ORDER BY c.data_consulta ASC, c.hora_consulta ASC
     `);
     res.json(result.rows);
@@ -528,7 +528,7 @@ app.put('/api/pacientes/:id/dados', async (req, res) => {
 app.get('/api/pacientes', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.id, p.nome, p.telefone, p.email, p.notas_clinicas, p.created_at, COUNT(c.id)::int as total_consultas, COALESCE(SUM(f.valor_total), 0)::float as total_faturado, MAX(c.data_consulta) as ultima_consulta
+      SELECT p.id, p.nome, p.telefone, p.email, p.notas_clinicas, p.odontograma_dados, p.created_at, COUNT(c.id)::int as total_consultas, COALESCE(SUM(f.valor_total), 0)::float as total_faturado, MAX(c.data_consulta) as ultima_consulta
       FROM pacientes p LEFT JOIN consultas c ON p.id = c.paciente_id LEFT JOIN faturacao f ON c.id = f.consulta_id
       GROUP BY p.id ORDER BY p.nome ASC
     `);
@@ -552,6 +552,14 @@ app.put('/api/pacientes/:id/notas', async (req, res) => {
     const { notas } = req.body;
     await pool.query("UPDATE pacientes SET notas_clinicas = $1 WHERE id = $2", [notas, req.params.id]);
     res.json({ message: "Notas atualizadas!" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/pacientes/:id/odontograma', async (req, res) => {
+  try {
+    const { dados } = req.body;
+    await pool.query("UPDATE pacientes SET odontograma_dados = $1 WHERE id = $2", [JSON.stringify(dados), req.params.id]);
+    res.json({ message: "Odontograma guardado na BD!" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

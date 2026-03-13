@@ -33,10 +33,11 @@ const Auth = ({ onLogin }) => {
     setError('');
     setLoading(true);
 
-    const url = authMode === 'REGISTER' ? '/api/register' : '/api/login';
+    // BURLAR O PROXY E IR DIRETO À PORTA 5000
+    const url = authMode === 'REGISTER' ? 'http://localhost:5000/api/register' : 'http://localhost:5000/api/login';
     
     try {
-      const response = await fetch(authMode === 'REGISTER' ? '/api/register' : '/api/login', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -61,7 +62,7 @@ const Auth = ({ onLogin }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch("/api/forgot-password", {
+      const response = await fetch("http://localhost:5000/api/forgot-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email })
       });
@@ -84,7 +85,7 @@ const Auth = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      const response = await fetch("/api/reset-password", {
+      const response = await fetch("http://localhost:5000/api/reset-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, code: resetCode, newPassword: formData.password })
       });

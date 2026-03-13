@@ -4,7 +4,7 @@
   "description": "Script mestre para rodar Frontend (3001) e Backend (5000)",
   "scripts": {
     "server": "cd server && npx nodemon index.js",
-    "client": "cd meclinic-app/client && set PORT=3001 && npm start",
+    "client": "cd meclinic-app/client && set PORT=3050 && npm start",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "dependencies": {
