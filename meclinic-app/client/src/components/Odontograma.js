@@ -5,10 +5,14 @@ import { AlertCircle, XCircle, Eraser, Save } from 'lucide-react';
 const Tooth = ({ number, data, onSurfaceClick }) => {
   const { theme } = useContext(ThemeContext);
 
+  // MAGIA: AS NOVAS CORES CLÍNICAS
   const getColor = (state) => {
     switch (state) {
-      case 'CARIE': return '#ef4444';
-      case 'RESTAURACAO': return '#3b82f6';
+      case 'CARIE': return '#ef4444';       // Vermelho
+      case 'RESTAURACAO': return '#3b82f6'; // Azul
+      case 'ENDO': return '#f97316';        // Laranja
+      case 'COROA': return '#a855f7';       // Roxo
+      case 'IMPLANTE': return '#10b981';    // Verde
       default: return theme.isDark ? '#334155' : '#ffffff';
     }
   };
@@ -71,10 +75,7 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
         newState = { ...prev, [toothNum]: { ...currentTooth, EXTRACTED: false, [surface]: tool } };
       }
 
-      // Avisa a janela de orçamentos que mudou a cor!
-      if (onChange) {
-        onChange(newState);
-      }
+      if (onChange) onChange(newState);
       return newState;
     });
   };
@@ -88,7 +89,6 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
   return (
     <div style={{ backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}`, marginTop: '10px', display: 'flex', flexDirection: 'column' }}>
 
-      {/* CABEÇALHO COM O BOTÃO GUARDAR BEM VISÍVEL */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
         <div>
           <h3 style={{ margin: '0 0 10px 0', color: theme.text, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
@@ -102,6 +102,15 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
             <button onClick={() => setTool('RESTAURACAO')} style={toolButtonStyle('RESTAURACAO')}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></div> Restauro
             </button>
+            <button onClick={() => setTool('ENDO')} style={toolButtonStyle('ENDO')}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f97316' }}></div> Endo
+            </button>
+            <button onClick={() => setTool('COROA')} style={toolButtonStyle('COROA')}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#a855f7' }}></div> Coroa
+            </button>
+            <button onClick={() => setTool('IMPLANTE')} style={toolButtonStyle('IMPLANTE')}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></div> Implante
+            </button>
             <button onClick={() => setTool('EXTRACAO')} style={toolButtonStyle('EXTRACAO')}>
               <XCircle size={12} color="#64748b" /> Extração
             </button>
@@ -111,7 +120,6 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
           </div>
         </div>
 
-        {/* Só mostra o botão de Guardar local se onSave for passado (na Ficha do Paciente) */}
         {onSave && (
           <button onClick={() => onSave(teethData)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16,185,129,0.2)', fontSize: '14px' }}>
             <Save size={16} /> Guardar
@@ -119,10 +127,8 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
         )}
       </div>
 
-      {/* GRELHA DOS DENTES COMPACTADA PARA CABER NO ECRÃ */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-
+      <div className="custom-scrollbar" style={{ width: '100%', overflowX: 'auto', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', minWidth: '480px' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '0px' }}>
               {upperLeft.map(num => <Tooth key={num} number={num} data={teethData[num]} onSurfaceClick={handleSurfaceClick} />)}
@@ -132,7 +138,6 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
               {upperRight.map(num => <Tooth key={num} number={num} data={teethData[num]} onSurfaceClick={handleSurfaceClick} />)}
             </div>
           </div>
-
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '0px' }}>
               {lowerLeft.map(num => <Tooth key={num} number={num} data={teethData[num]} onSurfaceClick={handleSurfaceClick} />)}
@@ -142,7 +147,6 @@ const Odontograma = ({ onSave, initialData = {}, onChange }) => {
               {lowerRight.map(num => <Tooth key={num} number={num} data={teethData[num]} onSurfaceClick={handleSurfaceClick} />)}
             </div>
           </div>
-
         </div>
       </div>
 

@@ -28,6 +28,7 @@ async function initDB() {
   try { await pool.query("ALTER TABLE produtos ADD COLUMN data_validade DATE"); } catch(e){}
   try { await pool.query("ALTER TABLE pacientes ADD COLUMN notas_clinicas TEXT DEFAULT ''"); } catch(e){}
   try { await pool.query("ALTER TABLE pacientes ADD COLUMN odontograma_dados TEXT DEFAULT '{}'"); } catch(e){}
+  try { await pool.query("ALTER TABLE utilizadores ADD COLUMN assinatura_base64 TEXT"); } catch(e){}
 
   // TABELA PARA ARQUIVOS DO CRM (EXAMES E RECEITAS)
   try {
@@ -205,6 +206,21 @@ app.delete("/api/utilizadores/:id", async (req, res) => {
     await pool.query("DELETE FROM utilizadores WHERE id = $1", [req.params.id]);
     res.json({ message: "Removido!" });
   } catch (err) { res.status(500).json({ error: "Erro." }); }
+});
+
+app.get('/api/utilizadores/:id/assinatura', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT assinatura_base64 FROM utilizadores WHERE id = $1", [req.params.id]);
+    res.json({ assinatura: result.rows[0]?.assinatura_base64 || null });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/utilizadores/:id/assinatura', async (req, res) => {
+  try {
+    const { assinatura } = req.body;
+    await pool.query("UPDATE utilizadores SET assinatura_base64 = $1 WHERE id = $2", [assinatura, req.params.id]);
+    res.json({ message: "Assinatura padrão guardada com sucesso!" });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================

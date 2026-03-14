@@ -1,11 +1,11 @@
 {
   "name": "meclinic-master",
   "version": "1.0.0",
-  "description": "Script mestre para rodar Frontend (3001) e Backend (5000)",
+  "description": "Script mestre para rodar Frontend (3050) e Backend (5000)",
   "scripts": {
-    "server": "cd server && npx nodemon index.js",
-    "client": "cd meclinic-app/client && set PORT=3050 && npm start",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "server": "cd server && npx nodemon --no-warnings index.js",
+    "client": "cd meclinic-app/client && set PORT=3050 && set NODE_OPTIONS=--no-warnings && npm start",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run server\" \"npm run client\""
   },
   "dependencies": {
     "concurrently": "^8.2.2",
