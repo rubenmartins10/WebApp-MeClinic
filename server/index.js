@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
@@ -57,11 +58,19 @@ async function initDB() {
 initDB();
 
 // ==========================================
-// --- CONFIGURAÇÃO DE E-MAIL ---
+// --- CONFIGURAÇÃO DE E-MAIL (À PROVA DE BALA) ---
 // ==========================================
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: 'rubendavidsilvamartins@gmail.com', pass: 'ozrf vmiq mzxt ddii' }
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // TLS
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
 // ==========================================
@@ -142,7 +151,7 @@ app.post('/api/forgot-password', async (req, res) => {
     await pool.query("UPDATE utilizadores SET reset_code = $1, reset_expires = $2 WHERE email = $3", [code, expires, email]);
 
     await transporter.sendMail({
-      from: 'rubendavidsilvamartins@gmail.com',
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Recuperação de Palavra-passe - MeClinic',
       html: `<h3>Olá ${userRes.rows[0].nome},</h3>
@@ -323,7 +332,7 @@ app.delete('/api/consultas/:id', async (req, res) => {
 });
 
 // ==========================================
-// --- FATURAÇÃO, CHECKOUT, E-MAIL OMNICANAL E CRM EXAMES ---
+// --- FATURAÇÃO, CHECKOUT E E-MAIL PACIENTES ---
 // ==========================================
 app.post('/api/faturacao/checkout', async (req, res) => {
   const { 
@@ -382,31 +391,36 @@ app.post('/api/faturacao/checkout', async (req, res) => {
     
     await pool.query("COMMIT");
 
-    // 5. ENVIO DE E-MAIL INTELIGENTE COM MÚLTIPLOS ANEXOS
+    // 5. ENVIO DE E-MAIL INTELIGENTE COM TEXTO PREMIUM
     if (email_destino) {
       try {
         const attachments = [];
-        let bodyText = `Olá ${paciente_nome},\n\nAnexo enviamos os documentos referentes à sua consulta na MeClinic.\n\n`;
+        const dataHoje = new Date().toLocaleDateString('pt-PT');
+        let docTypes = [];
 
         if (pdfBase64) {
           const invoiceBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
           attachments.push({ filename: `Fatura_${paciente_nome.replace(/\s+/g, '_')}.pdf`, content: invoiceBuffer });
-          bodyText += "✓ Fatura / Recibo\n";
+          const isOrcamento = (procedimento_nome || '').toLowerCase().includes('avalia') || (procedimento_nome || '').toLowerCase().includes('consulta');
+          docTypes.push(isOrcamento ? 'Plano de Tratamento e Orçamento' : 'Fatura-Recibo');
         }
         
         if (enviar_receita_email && receita_base64) {
           const rxBuffer = Buffer.from(receita_base64.split("base64,")[1], "base64");
           attachments.push({ filename: receita_nome || `Relatorio_Clinico.pdf`, content: rxBuffer });
-          bodyText += "✓ Relatório Clínico / Receita Médica\n";
+          docTypes.push('Prescrição Médica / Relatório');
         }
 
-        bodyText += "\nAs melhoras e obrigado pela preferência!";
+        const docListStr = docTypes.join(" e ");
+
+        // TEXTO PREMIUM DO PACIENTE
+        const bodyText = `Caro/a ${paciente_nome},\n\nEsperamos que se encontre bem.\n\nEm anexo a este email, enviamos os documentos referentes à sua última consulta na Meclinic (${docListStr}).\n\nSe tiver alguma dificuldade em abrir os anexos ou se precisar de algum esclarecimento adicional, não hesite em contactar-nos.\n\nCom os melhores cumprimentos,\nA equipa Meclinic`;
 
         if (attachments.length > 0) {
           await transporter.sendMail({
-            from: 'rubendavidsilvamartins@gmail.com', 
+            from: process.env.EMAIL_USER, 
             to: email_destino, 
-            subject: `Documentos da Consulta - MeClinic`, 
+            subject: `Os seus documentos Meclinic - ${dataHoje}`, 
             text: bodyText, 
             attachments: attachments
           });
@@ -520,6 +534,35 @@ app.get('/api/reports/weekly-detail', async (req, res) => {
     const notas = await pool.query(`SELECT data_emissao, paciente_nome, procedimento_nome, metodo_pagamento, valor_total FROM faturacao WHERE data_emissao::date BETWEEN $1::date AND $1::date + '6 days'::interval ORDER BY data_emissao DESC`, [start]);
     res.json({ resumo: report.rows[0], detalhe_procedimentos: procedimentos.rows, top_materiais: materiais.rows, notas_faturacao: notas.rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// --- ENVIO DO RELATÓRIO DA ADMINISTRAÇÃO ---
+// ==========================================
+app.post('/api/reports/send-email', async (req, res) => {
+  const { emailDestino, pdfBase64, semana } = req.body;
+  
+  try {
+    // TEXTO PREMIUM DA ADMINISTRAÇÃO (RGPD SAFE)
+    const bodyText = `Caro(s) membro(s) da Administração,\n\nInformo que o Relatório Geral da clínica, referente à semana de ${semana}, já se encontra processado e disponível para a vossa análise.\n\nEste documento compila os dados globais da operação, incluindo:\n• Total de procedimentos e consultas realizadas;\n• Sumário de faturação e custos de materiais;\n• Alertas de stock e validade.\n\nPor se tratar de um documento com dados confidenciais do negócio, o resumo financeiro detalhado e seguro encontra-se apenas no PDF em anexo e na plataforma oficial.\n\nFico à disposição para qualquer esclarecimento adicional ou se precisarem de ajuda a extrair algum dado mais específico.\n\nCom os melhores cumprimentos,\nSistema Automático Meclinic`;
+
+    const reportBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: emailDestino,
+      subject: `[INTERNO] Relatório Geral de Atividade Meclinic – Semana de ${semana}`,
+      text: bodyText,
+      attachments: [
+        { filename: `Relatorio_Meclinic_${semana}.pdf`, content: reportBuffer }
+      ]
+    });
+
+    res.json({ message: 'Relatório enviado com sucesso.' });
+  } catch (err) {
+    console.error("Erro ao enviar relatório:", err);
+    res.status(500).json({ error: "Erro ao enviar e-mail." });
+  }
 });
 
 // ==========================================

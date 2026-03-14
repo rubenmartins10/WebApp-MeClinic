@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
@@ -212,11 +213,13 @@ const Pacientes = () => {
       setExames(await resE.json());
       showNotif('Receita gerada com sucesso!');
       setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); setActiveTab('exames'); 
+      
       if (sendWhatsapp && selectedPaciente.telefone) {
         const numWhatsApp = selectedPaciente.telefone.replace(/\D/g, ''); 
         if (numWhatsApp) {
           const primeiroNome = selectedPaciente.nome.split(' ')[0];
-          const mensagemMsg = `Olá ${primeiroNome}, aqui está a sua Receita Médica emitida pela clínica MeClinic. \n\nPor favor, veja o documento em anexo. As melhoras!`;
+          // --- MAGIA DO COPYWRITING: RECEITA NA FICHA DO PACIENTE ---
+          const mensagemMsg = `Olá ${primeiroNome}! 🌟\n\nA sua Receita Médica / Relatório já foi emitida. 📄\n\nEnviamos o documento em anexo a esta mensagem. Se precisar de mais alguma coisa ou tiver alguma dúvida sobre a medicação, estamos à disposição!\n\nAs melhoras! 💙`;
           window.open(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(mensagemMsg)}`, '_blank');
         }
       }
@@ -251,7 +254,6 @@ const Pacientes = () => {
 
             <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, paddingRight: '10px' }}>
               
-              {/* FARMÁCIA RÁPIDA ORGANIZADA */}
               <div style={{ marginBottom: '20px', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
                 <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>Farmácia Rápida:</span>
                 

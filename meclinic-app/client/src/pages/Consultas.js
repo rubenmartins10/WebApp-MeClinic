@@ -110,6 +110,7 @@ const Consultas = () => {
     } catch (err) { showNotif(t('consultations.msg.delete_err'), 'error'); } finally { setShowDeleteConfirm(null); }
   };
 
+  // --- MAGIA DO COPYWRITING: LEMBRETE DE CONSULTA ---
   const enviarLembreteWhatsapp = (c, e) => {
     e.stopPropagation(); 
     if (!c.paciente_telefone || c.paciente_telefone === t('consultations.list.no_phone')) { showNotif('Sem número válido.', 'error'); return; }
@@ -118,7 +119,10 @@ const Consultas = () => {
     const dataC = new Date(c.data_consulta).toLocaleDateString(activeLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
     const horaC = c.hora_consulta.substring(0, 5);
     
-    const msg = `Olá ${primeiroNome}! ✨\n\nA sua próxima visita à *MeClinic* aproxima-se. Temos a sua consulta reservada para dia *${dataC}* às *${horaC}*.\n\nPara garantirmos que o seu consultório está preparado, consegue confirmar a sua presença respondendo a esta mensagem com um *SIM*?\n\nAté breve! 🦷💙`;
+    const procedimento = c.procedimento_nome || 'Avaliação Geral';
+    const medico = currentUser.nome ? `o/a Dr(a). ${currentUser.nome}` : 'a nossa equipa';
+    
+    const msg = `Olá ${primeiroNome}, daqui é da equipa Meclinic! 🩺\n\nPassamos apenas para relembrar a sua consulta de *${procedimento}* com ${medico}, amanhã, dia *${dataC}* às *${horaC}*.\n\nPara confirmar a sua presença, por favor responda com 'SIM'. Caso precise de reagendar, diga-nos algo por aqui.\n\nAté breve!`;
     
     window.open(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -209,23 +213,19 @@ const Consultas = () => {
     let pdfReceitaBase64 = null;
     let nomeReceita = null;
 
-    // GERAR O PDF DA FATURA / ORÇAMENTO (DESIGN A5 PREMIUM)
     try {
       const doc = new jsPDF({ format: [148, 210] }); 
       
-      // CABEÇALHO PREMIUM
       doc.setFillColor(37, 99, 235); 
       doc.rect(0, 0, 148, 25, 'F'); 
       doc.setTextColor(255, 255, 255); 
       doc.setFontSize(18); doc.setFont(undefined, 'bold'); 
       doc.text("MECLINIC", 74, 16, { align: 'center' });
       
-      // TÍTULO DO DOCUMENTO
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(14); doc.setFont(undefined, 'bold'); 
       doc.text(isAvaliacao ? "PLANO DE TRATAMENTO E ORÇAMENTO" : t('consultations.pdf.title'), 74, 40, { align: 'center' });
       
-      // DADOS DO PACIENTE
       doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(100, 116, 139);
       doc.text(`Data de Emissão: ${new Date().toLocaleString(activeLocale)}`, 15, 55);
       doc.text(`Paciente: ${checkoutModal.paciente_nome}`, 15, 62);
@@ -233,7 +233,6 @@ const Consultas = () => {
       
       doc.setDrawColor(226, 232, 240); doc.line(15, 76, 133, 76); 
 
-      // LISTAGEM DE ITENS
       doc.setTextColor(15, 23, 42);
       let curY = 88;
       
@@ -252,14 +251,12 @@ const Consultas = () => {
         doc.text(`Método de Pagamento:`, 20, curY); doc.text(`${checkoutData.metodo_pagamento}`, 133, curY, {align: 'right'}); curY+=7;
       }
       
-      // CAIXA DO TOTAL
       curY += 5;
       doc.setFillColor(241, 245, 249); doc.rect(15, curY, 118, 15, 'F'); 
       doc.setFontSize(14); doc.setFont(undefined, 'bold'); doc.setTextColor(37, 99, 235);
       doc.text(`TOTAL:`, 20, curY + 10);
       doc.text(`${(isAvaliacao ? orcamentoEstimado.total : parseFloat(checkoutModal.preco_servico || 0)).toFixed(2)} €`, 133, curY + 10, { align: 'right' });
 
-      // RODAPÉ PROFISSIONAL
       doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(148, 163, 184);
       doc.text("MeClinic - Medicina Dentária Avançada | NIF: 500 123 456", 74, 195, { align: 'center' });
       doc.text("Avenida da Liberdade, 123, Lisboa | +351 912 345 678 | www.meclinic.pt", 74, 200, { align: 'center' });
@@ -270,12 +267,11 @@ const Consultas = () => {
       if (sendWhatsapp) doc.save(nomeDoc);
     } catch (e) { console.error("Erro PDF Fatura/Orcamento:", e); }
 
-    // GERAR O PDF DA RECEITA (DESIGN A5 PREMIUM)
     if (hasReceita) {
       try {
         const docRx = new jsPDF({ format: [148, 210] });
         
-        docRx.setFillColor(16, 185, 129); // Verde MeClinic para receitas
+        docRx.setFillColor(16, 185, 129);
         docRx.rect(0, 0, 148, 25, 'F'); 
         docRx.setTextColor(255, 255, 255); 
         docRx.setFontSize(18); docRx.setFont(undefined, 'bold'); 
@@ -316,7 +312,6 @@ const Consultas = () => {
           y += (splitRecs.length * 5) + 15;
         }
 
-        // CARIMBO DE ASSINATURA NA RECEITA
         if(y > 170) { docRx.addPage(); y = 30; }
         if (assinaturaMedica) { docRx.addImage(assinaturaMedica, 'PNG', 44, y, 60, 25); }
         
@@ -367,11 +362,19 @@ const Consultas = () => {
             const primeiroNome = checkoutModal.paciente_nome.split(' ')[0];
             let msgTexto = "";
             
-            // MSG PREMIUM WHATSAPP
+            // --- MAGIA DO COPYWRITING: ENTREGA DE DOCUMENTOS ---
             if (isAvaliacao) {
-              msgTexto = `Olá ${primeiroNome}! ✨\n\nMuito obrigado por nos ter confiado o seu sorriso na avaliação de hoje. \n\nConforme conversámos, partilhamos em anexo o seu *Plano de Tratamento e Orçamento* detalhado.\n\nEstamos prontos para iniciar esta jornada consigo. Quando desejar agendar a próxima sessão, basta responder a esta mensagem. \n\nUm excelente dia! 🦷💙`;
+               if (sendEmail && emailPaciente) {
+                 msgTexto = `Olá ${primeiroNome}! ✨\n\nMuito obrigado por nos ter confiado o seu sorriso na avaliação de hoje.\n\nO seu *Plano de Tratamento e Orçamento* detalhado já foi emitido. 📄 Acabámos de o enviar para o seu email (${emailPaciente}).\n\nEstamos prontos para iniciar esta jornada consigo. Quando desejar agendar a próxima sessão, basta responder a esta mensagem!\n\nUm excelente dia! 🦷💙`;
+               } else {
+                 msgTexto = `Olá ${primeiroNome}! ✨\n\nMuito obrigado por nos ter confiado o seu sorriso na avaliação de hoje.\n\nConforme conversámos, partilhamos em anexo o seu *Plano de Tratamento e Orçamento* detalhado. 📄\n\nEstamos prontos para iniciar esta jornada consigo. Quando desejar agendar a próxima sessão, basta responder a esta mensagem!\n\nUm excelente dia! 🦷💙`;
+               }
             } else {
-              msgTexto = `Olá ${primeiroNome}! 🌟\n\nEsperamos que se sinta muito bem após a sua visita de hoje à MeClinic. \n\nEm anexo, enviamos os documentos referentes à sua consulta (Fatura/Relatório). Qualquer dúvida, a nossa equipa clínica está à sua inteira disposição.\n\nAté à próxima! 💙`;
+               if (sendEmail && emailPaciente) {
+                 msgTexto = `Olá ${primeiroNome}! 🌟\n\nOs documentos solicitados após a sua visita à Meclinic (Fatura/Relatório) já foram emitidos. 📄\n\nAcabámos de os enviar para o seu email (${emailPaciente}). Se precisar de mais alguma coisa, estamos à disposição!\n\nAté à próxima! 💙`;
+               } else {
+                 msgTexto = `Olá ${primeiroNome}! 🌟\n\nOs documentos solicitados após a sua visita à Meclinic (Fatura/Relatório) já foram emitidos. 📄\n\nEnviamos os mesmos em anexo a esta mensagem. Se precisar de mais alguma coisa, estamos à disposição!\n\nAté à próxima! 💙`;
+               }
             }
             window.open(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(msgTexto)}`, '_blank');
           }
