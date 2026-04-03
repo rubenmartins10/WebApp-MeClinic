@@ -15,9 +15,10 @@ const Faturacao = () => {
   const [notaModal, setNotaModal] = useState(null);
 
   useEffect(() => {
-    fetch('/api/faturacao')
+    const token = localStorage.getItem('token');
+    fetch('/api/faturacao', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(data => setFaturas(data))
+      .then(data => setFaturas(Array.isArray(data) ? data : (data.faturas || [])))
       .catch(err => console.error(err));
   }, []);
 

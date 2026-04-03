@@ -5,9 +5,14 @@ function InventoryList() {
 
   // Função para carregar os produtos da Base de Dados
   const carregarProdutos = () => {
-    fetch("/api/produtos")
+    const token = localStorage.getItem('token');
+    fetch("/api/produtos", {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
       .then(res => res.json())
-      .then(data => setProdutos(data))
+      .then(data => setProdutos(Array.isArray(data) ? data : (data.produtos || [])))
       .catch(err => console.error("Erro ao carregar inventário:", err));
   };
 
@@ -27,9 +32,13 @@ function InventoryList() {
     };
 
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch("/api/produtos", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(novoProduto)
       });
 

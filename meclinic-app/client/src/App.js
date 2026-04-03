@@ -80,6 +80,7 @@ function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUser(null);
+    localStorage.removeItem('token');
     localStorage.removeItem('meclinic_user');
   };
 

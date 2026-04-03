@@ -42,9 +42,12 @@ const Pacientes = () => {
 
   const carregarPacientes = async () => {
     try {
-      const res = await fetch('/api/pacientes');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/pacientes', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
-      setPacientes(data);
+      setPacientes(Array.isArray(data) ? data : (data.pacientes || []));
     } catch (err) { console.error(err); }
   };
 
@@ -62,9 +65,10 @@ const Pacientes = () => {
     try { odontoGuardado = typeof paciente.odontograma_dados === 'string' ? JSON.parse(paciente.odontograma_dados) : (paciente.odontograma_dados || {}); } catch(e) {}
     setOdontogramaData(odontoGuardado);
     
+    const token = localStorage.getItem('token');
     Promise.all([
-      fetch(`/api/pacientes/${paciente.id}/historico`).then(r => r.ok ? r.json() : []),
-      fetch(`/api/pacientes/${paciente.id}/exames`).then(r => r.ok ? r.json() : [])
+      fetch(`/api/pacientes/${paciente.id}/historico`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/pacientes/${paciente.id}/exames`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : [])
     ]).then(([histData, examesData]) => {
       setHistorico(Array.isArray(histData) ? histData : []);
       setExames(Array.isArray(examesData) ? examesData : []);
@@ -75,8 +79,9 @@ const Pacientes = () => {
 
   const guardarNotas = async () => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/pacientes/${selectedPaciente.id}/notas`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: notasClinicas })
+        method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: notasClinicas })
       });
       if (res.ok) { showNotif(t('patients.modal.save_notes') + ' OK!'); carregarPacientes(); }
     } catch (err) {}
@@ -84,8 +89,9 @@ const Pacientes = () => {
 
   const salvarOdontograma = async (dadosDentes) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/pacientes/${selectedPaciente.id}/odontograma`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dados: dadosDentes })
+        method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dados: dadosDentes })
       });
       if (res.ok) {
         setOdontogramaData(dadosDentes);

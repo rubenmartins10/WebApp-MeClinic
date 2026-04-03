@@ -28,10 +28,17 @@ const Inventory = () => {
 
   const carregarProdutos = async () => {
     try {
-      const res = await fetch('/api/produtos');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/produtos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
-      setProdutos(Array.isArray(data) ? data : []);
+      // API retorna { produtos: [...], pagination: {...} }
+      setProdutos(Array.isArray(data) ? data : (data.produtos || []));
     } catch (err) {
+      console.error('Erro ao carregar produtos:', err);
       setProdutos([]);
     }
   };
@@ -44,7 +51,11 @@ const Inventory = () => {
   const confirmarEliminacao = async () => {
     if (!showDeleteConfirm) return;
     try {
-      const res = await fetch(`/api/produtos/${showDeleteConfirm}`, { method: 'DELETE' });
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/produtos/${showDeleteConfirm}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         showNotif('success', t('inventory.msg.removed') || 'Produto removido.');
         carregarProdutos();
@@ -71,8 +82,16 @@ const Inventory = () => {
     try {
       const url = produtoToEdit ? `/api/produtos/${produtoToEdit}` : '/api/produtos';
       const method = produtoToEdit ? 'PUT' : 'POST';
+      const token = localStorage.getItem('token');
 
-      const res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const res = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
 
       if (res.ok) {
         showNotif('success', produtoToEdit ? (t('inventory.msg.updated') || 'Atualizado!') : (t('inventory.msg.added') || 'Adicionado!'));

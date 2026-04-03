@@ -26,7 +26,8 @@ const Users = () => {
 
   const carregarUtilizadores = async () => {
     try {
-      const res = await fetch('/api/utilizadores');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/utilizadores', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       
       if (Array.isArray(data)) {
@@ -54,7 +55,8 @@ const Users = () => {
     }
 
     try {
-      const res = await fetch(`/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE' });
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
         showNotif('success', t('users.msg.removed'));
         carregarUtilizadores();
@@ -72,9 +74,10 @@ const Users = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/utilizadores', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(novoUser)
       });
       const data = await res.json();

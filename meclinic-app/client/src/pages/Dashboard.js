@@ -26,11 +26,12 @@ const Dashboard = () => {
   const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
 
   const carregarDados = (startDate) => {
-    fetch(`/api/stats/patients-weekly?start=${startDate}`)
+    const token = localStorage.getItem('token');
+    fetch(`/api/stats/patients-weekly?start=${startDate}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setChartData(data));
 
-    fetch(`/api/stats/dashboard-summary?start=${startDate}`)
+    fetch(`/api/stats/dashboard-summary?start=${startDate}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setSummary(data));
   };
@@ -47,7 +48,8 @@ const Dashboard = () => {
 
   const openStockAlerts = async () => {
     try {
-      const res = await fetch('/api/stats/stock-alerts');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/stats/stock-alerts', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       setStockAlertsList(data);
       setShowStockModal(true);
@@ -56,7 +58,8 @@ const Dashboard = () => {
 
   const openExpiryAlerts = async () => {
     try {
-      const res = await fetch('/api/stats/validade-alerts');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/stats/validade-alerts', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       setExpiryAlertsList(data);
       setShowExpiryModal(true);
@@ -327,7 +330,7 @@ const Dashboard = () => {
         <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px', color: theme.text }}>
           <TrendingUp size={20} color="#2563eb" /> {t('dashboard.chart.title')}
         </h3>
-        <div style={{ height: '350px', width: '100%' }}>
+        <div style={{ height: '350px', width: '100%', minWidth: 0, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <defs>

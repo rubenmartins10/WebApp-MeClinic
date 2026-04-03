@@ -27,21 +27,23 @@ const FichasTecnicas = () => {
   const isAdmin = user.role === 'ADMIN';
 
   const carregarDados = () => {
-    fetch('/api/modelos-procedimento')
+    const token = localStorage.getItem('token');
+    fetch('/api/modelos-procedimento', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(data => setModelos(data));
+      .then(data => setModelos(Array.isArray(data) ? data : (data.modelos || [])));
       
-    fetch('/api/produtos')
+    fetch('/api/produtos', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(data => setProdutosInventario(data));
+      .then(data => setProdutosInventario(Array.isArray(data) ? data : (data.produtos || [])));
   };
 
   useEffect(() => carregarDados(), []);
 
   const carregarItens = (modelo) => {
     setSelecionado(modelo);
-    setIsEditing(false); 
-    fetch(`/api/modelos-procedimento/${modelo.id}/itens`).then(res => res.json()).then(data => setItens(data));
+    setIsEditing(false);
+    const token = localStorage.getItem('token');
+    fetch(`/api/modelos-procedimento/${modelo.id}/itens`, { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(data => setItens(data));
   };
 
   const mostrarNotificacao = (type, message) => {
@@ -54,9 +56,10 @@ const FichasTecnicas = () => {
     e.preventDefault();
     if (!newProcName.trim()) return;
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/modelos-procedimento', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: newProcName })
       });
       if (response.ok) {
@@ -70,8 +73,10 @@ const FichasTecnicas = () => {
 
   const handleDeleteProcedimento = async () => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/modelos-procedimento/${selecionado.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         setShowDeleteConfirm(false); 

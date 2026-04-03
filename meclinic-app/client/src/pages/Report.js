@@ -24,7 +24,8 @@ const Report = () => {
   });
 
   const fetchReport = (date) => {
-    fetch(`/api/reports/weekly-detail?start=${date}`)
+    const token = localStorage.getItem('token');
+    fetch(`/api/reports/weekly-detail?start=${date}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setReportData(data))
       .catch(err => console.error("Erro ao carregar relatórios:", err));

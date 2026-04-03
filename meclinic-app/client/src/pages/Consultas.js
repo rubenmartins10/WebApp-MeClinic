@@ -52,8 +52,13 @@ const Consultas = () => {
   const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
 
   const fetchDados = () => {
-    fetch('/api/consultas').then(res => res.json()).then(data => setConsultas(data));
-    fetch('/api/modelos-procedimento').then(res => res.json()).then(data => setModelos(data));
+    const token = localStorage.getItem('token');
+    fetch('/api/consultas', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setConsultas(Array.isArray(data) ? data : (data.consultas || [])));
+    fetch('/api/modelos-procedimento', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setModelos(Array.isArray(data) ? data : (data.modelos || [])));
   };
 
   useEffect(() => { fetchDados(); }, []);
@@ -76,8 +81,9 @@ const Consultas = () => {
     const telefoneCompleto = `${phonePrefix} ${formData.telefone}`;
 
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json' },
+        method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, telefone: telefoneCompleto, procedimento_id: formData.procedimento_id || null })
       });
       if (res.ok) {
