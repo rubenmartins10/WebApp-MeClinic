@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock, ScanLine } from 'lucide-react';
 import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; 
-import { Html5QrcodeScanner } from 'html5-qrcode'; // <-- O NOSSO NOVO MOTOR DE CÂMARA
+import { LanguageContext } from '../LanguageContext';
+import BarcodeScanner from '../components/BarcodeScanner'; // Scanner otimizado
 
 const Inventory = () => {
   const { theme } = useContext(ThemeContext);
@@ -119,33 +119,7 @@ const Inventory = () => {
     }
   };
 
-  // =========================================================================
-  // O EFEITO MAGICO DA CÂMARA
-  // =========================================================================
-  useEffect(() => {
-    let scanner = null;
-    if (showScanner) {
-      scanner = new Html5QrcodeScanner("reader", { 
-        fps: 10, 
-        qrbox: { width: 250, height: 150 },
-        rememberLastUsedCamera: true
-      }, false);
-
-      scanner.render((decodedText) => {
-        // Quando a câmara lê o código com sucesso!
-        handleBarcodeLookup(decodedText);
-        scanner.clear();
-        setShowScanner(false);
-      }, (errorMessage) => {
-        // Ignorar erros de leitura de background (normal enquanto tenta focar)
-      });
-    }
-
-    return () => {
-      if (scanner) { scanner.clear().catch(e => console.log(e)); }
-    };
-  }, [showScanner]);
-
+  // BarcodeScanner component now handles scanning - old useEffect removed
 
   const produtosFiltrados = produtos.filter(p => {
     const matchPesquisa = p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || (p.codigo_barras && p.codigo_barras.toLowerCase().includes(pesquisa.toLowerCase()));
@@ -201,14 +175,15 @@ const Inventory = () => {
       {/* JANELA DA CÂMARA (SCANNER) */}
       {showScanner && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '500px', backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}><ScanLine size={24} color="#2563eb" /> Scan Código de Barras</h3>
-              <button onClick={() => setShowScanner(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px' }}><X size={24} color="#64748b" /></button>
-            </div>
-            {/* O ALVO ONDE O VIDEO VAI APARECER */}
-            <div id="reader" style={{ width: '100%', backgroundColor: '#f1f5f9', borderRadius: '15px' }}></div>
-            <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', marginTop: '15px' }}>Aponte a câmara para o código de barras da caixa.</p>
+          <div style={{ width: '100%', maxWidth: '650px' }}>
+            <BarcodeScanner 
+              onScanSuccess={(codigo) => {
+                setFormData({ ...formData, codigo_barras: codigo });
+                setShowScanner(false);
+                showNotif('success', t('inventory.msg.barcode_read') || 'Código de barras lido com sucesso!');
+              }}
+              onClose={() => setShowScanner(false)}
+            />
           </div>
         </div>
       )}
