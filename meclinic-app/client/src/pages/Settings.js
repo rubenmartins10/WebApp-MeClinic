@@ -4,8 +4,9 @@ import {
   Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, Zap, AlertCircle, Lock, Download,
   Trash2, Activity, LogIn, Volume2, AlertTriangle, HelpCircle, ExternalLink
 } from 'lucide-react';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
+import jsPDF from 'jspdf';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
 
 const Settings = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -16,6 +17,7 @@ const Settings = () => {
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   const [expandedSections, setExpandedSections] = useState({});
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
   const isAdmin = user.role === 'ADMIN';
@@ -247,17 +249,235 @@ const Settings = () => {
   };
 
   const handleDownloadData = () => {
-    const data = {
-      perfil: perfilData,
-      notificacoes: notificacoesData,
-      clinica: isAdmin ? clinicaData : null,
-      dataExportacao: new Date().toISOString()
-    };
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
-    element.setAttribute('download', `meclinic-dados-${new Date().toISOString().split('T')[0]}.json`);
-    element.click();
-    showNotif('success', 'Dados descarregados com sucesso.');
+    try {
+      // Gerar PDF com dados pessoais
+      const doc = new jsPDF();
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPos = 20;
+      
+      // Cores profissionais
+      const primaryColor = [37, 99, 235]; // Azul
+      const secondaryColor = [107, 114, 128]; // Cinzento
+      const lightGray = [243, 244, 246];
+      
+      // === CABEÇALHO ===
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(...primaryColor);
+      doc.text('MeClinic', pageWidth / 2, yPos, { align: 'center' });
+      
+      yPos += 10;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(...secondaryColor);
+      doc.text('RELATÓRIO DE DADOS PESSOAIS - CONFORMIDADE RGPD', pageWidth / 2, yPos, { align: 'center' });
+      
+      yPos += 8;
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(`Data de Exportação: ${new Date().toLocaleDateString('pt-PT')} | Artigo 20 RGPD`, pageWidth / 2, yPos, { align: 'center' });
+      
+      // Linha divisória
+      yPos += 12;
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.5);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      
+      yPos += 15;
+      
+      // === SEÇÃO 1: INFORMAÇÕES DE PERFIL ===
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(...primaryColor);
+      doc.text('INFORMAÇÕES DE PERFIL', 20, yPos);
+      
+      yPos += 10;
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.1);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      
+      yPos += 8;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(50);
+      
+      const profileData = [
+        ['Nome:', perfilData.nome],
+        ['Email:', perfilData.email],
+        ['Cargo:', perfilData.cargo],
+        ['Idioma:', perfilData.idioma],
+        ['Último Acesso:', perfilData.dataAcesso]
+      ];
+      
+      profileData.forEach(([label, value]) => {
+        if (yPos > pageHeight - 40) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...secondaryColor);
+        doc.text(label, 20, yPos);
+        
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(50);
+        doc.text(String(value || '-'), 60, yPos);
+        
+        yPos += 7;
+      });
+      
+      yPos += 12;
+      
+      // === SEÇÃO 2: PREFERÊNCIAS DE NOTIFICAÇÕES ===
+      if (yPos > pageHeight - 50) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(...primaryColor);
+      doc.text('PREFERÊNCIAS DE NOTIFICAÇÕES', 20, yPos);
+      
+      yPos += 10;
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.1);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      
+      yPos += 8;
+      doc.setFontSize(10);
+      
+      const notifData = [
+        ['Alertas de Stock:', notificacoesData.stock ? 'Ativado' : 'Desativado'],
+        ['Relatórios Semanais:', notificacoesData.relatorios ? 'Ativado' : 'Desativado'],
+        ['Notificações de Consultas:', notificacoesData.consultas ? 'Ativado' : 'Desativado'],
+        ['E-mail:', notificacoesData.email ? 'Ativado' : 'Desativado'],
+        ['SMS:', notificacoesData.sms ? 'Ativado' : 'Desativado'],
+        ['Frequência:', notificacoesData.frequencia]
+      ];
+      
+      notifData.forEach(([label, value]) => {
+        if (yPos > pageHeight - 40) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(...secondaryColor);
+        doc.text(label, 20, yPos);
+        
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(50);
+        const statusColor = value === 'Ativado' ? [16, 185, 129] : value === 'Desativado' ? [239, 68, 68] : [107, 114, 128];
+        doc.setTextColor(...statusColor);
+        doc.text(String(value || '-'), 60, yPos);
+        
+        yPos += 7;
+      });
+      
+      // === SEÇÃO 3: INFORMAÇÕES DA CLÍNICA (ADMIN ONLY) ===
+      if (isAdmin) {
+        yPos += 12;
+        
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(...primaryColor);
+        doc.text('INFORMAÇÕES DA CLÍNICA', 20, yPos);
+        
+        yPos += 10;
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.1);
+        doc.line(20, yPos, pageWidth - 20, yPos);
+        
+        yPos += 8;
+        doc.setFontSize(10);
+        
+        const clinicData = [
+          ['Nome:', clinicaData.nome],
+          ['NIF:', clinicaData.nif],
+          ['Telefone:', clinicaData.telefone],
+          ['Email:', clinicaData.email],
+          ['Timezone:', clinicaData.timezone]
+        ];
+        
+        clinicData.forEach(([label, value]) => {
+          if (yPos > pageHeight - 40) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          doc.setFont('Helvetica', 'bold');
+          doc.setTextColor(...secondaryColor);
+          doc.text(label, 20, yPos);
+          
+          doc.setFont('Helvetica', 'normal');
+          doc.setTextColor(50);
+          doc.text(String(value || '-'), 60, yPos);
+          
+          yPos += 7;
+        });
+      }
+      
+      // === RODAPÉ ===
+      const footerY = pageHeight - 20;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.line(20, footerY - 5, pageWidth - 20, footerY - 5);
+      doc.text('Este documento contém informações confidenciais protegidas pelo Regulamento Geral de Proteção de Dados (RGPD).', 
+        pageWidth / 2, footerY - 2, { align: 'center' });
+      doc.text(`MeClinic™ - Sistema de Gestão Clínica | Exportado em ${new Date().toLocaleString('pt-PT')}`, 
+        pageWidth / 2, footerY + 2, { align: 'center' });
+      
+      // Download
+      const filename = `MeClinic-Dados-Pessoais-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      showNotif('success', 'Dados descarregados com sucesso em PDF.');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      // Fallback para JSON
+      const data = {
+        perfil: perfilData,
+        notificacoes: notificacoesData,
+        clinica: isAdmin ? clinicaData : null,
+        dataExportacao: new Date().toISOString()
+      };
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
+      element.setAttribute('download', `meclinic-dados-${new Date().toISOString().split('T')[0]}.json`);
+      element.click();
+      showNotif('success', 'Dados descarregados em formato JSON.');
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    setShowDeleteConfirm(false);
+    const confirmDelete = window.confirm(
+      'ATENÇÃO: Esta ação é irreversível e eliminará permanentemente a sua conta e todos os seus dados.\n\nEscreva "CONFIRMAR_ELIMINACAO" para proceder.'
+    );
+    
+    if (confirmDelete) {
+      const userInput = prompt('Confirme digitando: CONFIRMAR_ELIMINACAO');
+      if (userInput === 'CONFIRMAR_ELIMINACAO') {
+        // Aqui fazer uma chamada ao API para eliminar a conta
+        showNotif('warning', 'Conta em processo de eliminação...');
+        // TODO: Implementar chamada ao backend
+        setTimeout(() => {
+          localStorage.removeItem('meclinic_user');
+          localStorage.removeItem('meclinic_token');
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        showNotif('error', 'Confirmação incorreta. Eliminação cancelada.');
+      }
+    }
   };
 
   const toggleSection = (section) => {
@@ -1121,6 +1341,7 @@ const Settings = () => {
                     A eliminação da tua conta é permanente e removerá todos os teus dados do sistema.
                   </p>
                   <button
+                    onClick={() => setShowDeleteConfirm(true)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1135,6 +1356,8 @@ const Settings = () => {
                       fontWeight: 'bold',
                       transition: 'all 0.2s'
                     }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
                   >
                     <Trash2 size={14} /> Eliminar Conta Permanentemente
                   </button>
@@ -1462,6 +1685,167 @@ const Settings = () => {
           </form>
         </div>
       </div>
+
+      {/* Modal de Confirmação de Eliminação de Conta */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.3s'
+        }}>
+          <div style={{
+            backgroundColor: theme.pageBg,
+            borderRadius: '12px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            padding: '40px',
+            maxWidth: '450px',
+            width: '90%',
+            textAlign: 'center',
+            border: `1px solid ${theme.border}`,
+            animation: 'slideUp 0.3s'
+          }}>
+            {/* Ícone de Aviso */}
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '0 auto 24px auto'
+            }}>
+              <AlertTriangle size={40} color="#ef4444" />
+            </div>
+
+            {/* Título */}
+            <h2 style={{
+              margin: '0 0 12px 0',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: theme.isDark ? '#ffffff' : theme.text
+            }}>
+              Eliminar Conta Permanentemente?
+            </h2>
+
+            {/* Descrição */}
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '14px',
+              color: theme.subText,
+              lineHeight: '1.6'
+            }}>
+              Esta ação é <strong>irreversível</strong>. Todos os seus dados, incluindo:
+            </p>
+
+            <ul style={{
+              listStyle: 'none',
+              padding: '0',
+              margin: '0 0 24px 0',
+              fontSize: '13px',
+              textAlign: 'left',
+              color: theme.subText
+            }}>
+              <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#ef4444' }}>✕</span> Perfil e informações pessoais
+              </li>
+              <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#ef4444' }}>✕</span> Histórico de sessões
+              </li>
+              <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#ef4444' }}>✕</span> Preferências de notificações
+              </li>
+              <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#ef4444' }}>✕</span> Todos os registos associados
+              </li>
+            </ul>
+
+            {/* Aviso RGPD */}
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '8px',
+              padding: '12px',
+              margin: '0 0 24px 0',
+              fontSize: '12px',
+              color: theme.subText
+            }}>
+              ℹ️ Após a confirmação, você será desconectado automaticamente e receberá um email de confirmação.
+            </div>
+
+            {/* Botões */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'center'
+            }}>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: '12px 24px',
+                  backgroundColor: theme.isDark ? '#374151' : '#e5e7eb',
+                  color: theme.isDark ? '#ffffff' : theme.text,
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = theme.isDark ? '#4b5563' : '#d1d5db'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = theme.isDark ? '#374151' : '#e5e7eb'}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                style={{
+                  flex: 1,
+                  padding: '12px 24px',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
+              >
+                Eliminar Permanentemente
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { 
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to { 
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 };

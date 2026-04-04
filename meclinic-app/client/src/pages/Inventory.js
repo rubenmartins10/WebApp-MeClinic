@@ -1,9 +1,9 @@
 /* eslint-disable */
 import React, { useState, useEffect, useContext } from 'react';
 import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock, ScanLine } from 'lucide-react';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
-import BarcodeScanner from '../components/BarcodeScanner'; // Scanner otimizado
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
+import BarcodeScanner from '../components/common/BarcodeScanner'; // Scanner otimizado
 
 const Inventory = () => {
   const { theme } = useContext(ThemeContext);

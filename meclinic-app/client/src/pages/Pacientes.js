@@ -1,11 +1,11 @@
 /* eslint-disable */
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
 import jsPDF from 'jspdf'; 
-import Odontograma from '../components/Odontograma';
-import Assinatura from '../components/Assinatura';
+import Odontograma from '../components/specialized/Odontograma';
+import Assinatura from '../components/specialized/Assinatura';
 
 const Pacientes = () => {
   const { theme } = useContext(ThemeContext);

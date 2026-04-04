@@ -9,11 +9,11 @@ const path = require('path');
  * Gera relatórios em PDF e envia por email aos administradores
  */
 
-// Configurar transporter de email
+// Configurar transporter de email - Mailtrap
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
+  port: process.env.SMTP_PORT || 2525,
+  secure: process.env.SMTP_SECURE === 'true' || false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS

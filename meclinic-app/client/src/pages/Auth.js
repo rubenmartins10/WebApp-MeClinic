@@ -1,9 +1,9 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
 import { Sun, Moon, Mail, Lock, User, Shield, ArrowRight, Activity, ArrowLeft, Key, CheckCircle, XCircle } from 'lucide-react';
-import logo from '../logo.png';
+import logo from '../assets/logo.png';
 
 const Auth = ({ onLogin }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);

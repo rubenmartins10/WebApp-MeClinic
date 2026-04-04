@@ -1,0 +1,44 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "🏥 MeClinic"
+    },
+    {
+      "path": "server",
+      "name": "🔧 Backend Server"
+    },
+    {
+      "path": "meclinic-app/client",
+      "name": "💻 Frontend Client"
+    },
+    {
+      "path": "Database",
+      "name": "🗄️ Database Scripts"
+    },
+    {
+      "path": "DOCUMENTACAO",
+      "name": "📋 Documentação"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[javascript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "problems.exclude": {
+      "**/node_modules/**": true,
+      "**/*.min.js": true
+    },
+    "search.exclude": {
+      "node_modules": true,
+      "dist": true,
+      ".next": true
+    }
+  }
+}

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { FileText, ClipboardList, Download, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
 
 const FichasTecnicas = () => {
   const { theme } = useContext(ThemeContext);

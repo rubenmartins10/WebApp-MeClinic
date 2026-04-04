@@ -130,12 +130,12 @@ async function initDB() {
 initDB();
 
 // ==========================================
-// --- CONFIGURAÇÃO DE E-MAIL ---
+// --- CONFIGURAÇÃO DE E-MAIL - Mailtrap ---
 // ==========================================
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
+  port: process.env.SMTP_PORT || 2525,
+  secure: process.env.SMTP_SECURE === 'true' || false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS

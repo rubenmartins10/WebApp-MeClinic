@@ -3,11 +3,11 @@ const router = express.Router();
 const pool = require('../db');
 const nodemailer = require('nodemailer');
 
-// Email transporter setup
+// Email transporter setup - usando Mailtrap
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
+  port: process.env.SMTP_PORT || 2525,
+  secure: process.env.SMTP_SECURE === 'true' || false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -68,18 +68,20 @@ router.get('/weekly-detail', async (req, res) => {
 
 // Envio de Relatório por Email
 router.post('/send-email', async (req, res) => {
-  const { emailDestino, pdfBase64, semana } = req.body;
+  const { emailDestino, pdfBase64, semana, subject, message } = req.body;
   
   try {
-    const bodyText = `Caro(s) membro(s) da Administração,\n\nInformo que o Relatório Geral da clínica, referente à semana de ${semana}, já se encontra processado e disponível para a vossa análise.\n\nEste documento compila os dados globais da operação, incluindo:\n• Total de procedimentos e consultas realizadas;\n• Sumário de faturação e custos de materiais;\n• Alertas de stock e validade.\n\nPor se tratar de um documento com dados confidenciais do negócio, o resumo financeiro detalhado e seguro encontra-se apenas no PDF em anexo e na plataforma oficial.\n\nFico à disposição para qualquer esclarecimento adicional ou se precisarem de ajuda a extrair algum dado mais específico.\n\nCom os melhores cumprimentos,\nSistema Automático Meclinic`;
+    // Usar subject e message customizados se fornecidos, caso contrário usar os padrões
+    const emailSubject = subject || `[INTERNO] Relatório Geral de Atividade Meclinic – Semana de ${semana}`;
+    const emailBody = message || `Caro(s) membro(s) da Administração,\n\nInformo que o Relatório Geral da clínica, referente à semana de ${semana}, já se encontra processado e disponível para a vossa análise.\n\nEste documento compila os dados globais da operação, incluindo:\n• Total de procedimentos e consultas realizadas;\n• Sumário de faturação e custos de materiais;\n• Alertas de stock e validade.\n\nPor se tratar de um documento com dados confidenciais do negócio, o resumo financeiro detalhado e seguro encontra-se apenas no PDF em anexo e na plataforma oficial.\n\nFico à disposição para qualquer esclarecimento adicional ou se precisarem de ajuda a extrair algum dado mais específico.\n\nCom os melhores cumprimentos,\nSistema Automático Meclinic`;
 
     const reportBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: emailDestino,
-      subject: `[INTERNO] Relatório Geral de Atividade Meclinic – Semana de ${semana}`,
-      text: bodyText,
+      subject: emailSubject,
+      text: emailBody,
       attachments: [
         { filename: `Relatorio_Meclinic_${semana}.pdf`, content: reportBuffer }
       ]

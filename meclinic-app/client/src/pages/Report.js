@@ -2,9 +2,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, DollarSign, Users, ChevronLeft, ChevronRight, Printer, Mail, CheckCircle, XCircle, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Importar Idiomas
-import logo from '../logo.png'; 
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar Idiomas
+import logo from '../assets/logo.png'; 
 
 const Report = () => {
   const { theme } = useContext(ThemeContext);
@@ -124,7 +124,7 @@ const Report = () => {
       showNotif('error', t('reports.msg.email_err'));
       return;
     }
-    const emailDestino = user.email;
+    
     setIsSending(true);
 
     try {
@@ -134,15 +134,22 @@ const Report = () => {
       const res = await fetch('/api/reports/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailDestino, pdfBase64, semana: currentWeekStart })
+        body: JSON.stringify({ 
+          emailDestino: user.email, 
+          pdfBase64, 
+          semana: currentWeekStart,
+          subject: t('reports.email.modal.default_subject'),
+          message: t('reports.email.modal.default_message')
+        })
       });
 
       if (res.ok) {
-        showNotif('success', `${t('reports.msg.success')} (${emailDestino})!`);
+        showNotif('success', `${t('reports.msg.success')} (${user.email})!`);
       } else {
         showNotif('error', t('reports.msg.send_err'));
       }
     } catch (err) {
+      console.error('Erro ao enviar:', err);
       showNotif('error', t('reports.msg.server_err'));
     } finally {
       setIsSending(false);

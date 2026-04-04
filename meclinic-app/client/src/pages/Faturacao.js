@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { DollarSign, Filter, CheckCircle, Receipt, X, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Importar Idiomas
-import logo from '../logo.png'; 
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar Idiomas
+import logo from '../assets/logo.png'; 
 
 const Faturacao = () => {
   const { theme } = useContext(ThemeContext);

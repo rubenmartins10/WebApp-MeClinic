@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-import { ThemeProvider, ThemeContext } from './ThemeContext'; 
-import { LanguageProvider, LanguageContext } from './LanguageContext'; 
+import { ThemeProvider, ThemeContext } from './contexts/ThemeContext'; 
+import { LanguageProvider, LanguageContext } from './contexts/LanguageContext'; 
 
 // Mudamos o nome do ícone para "UsersIcon" para não chocar com a página "Users"
 import { Users as UsersIcon } from 'lucide-react';
 
-import Sidebar from './components/Sidebar';
+import Sidebar from './components/common/Sidebar';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory'; // Certifica-te que o nome do ficheiro é este

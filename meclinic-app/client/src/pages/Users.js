@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Shield, User, Trash2, Mail, Plus, Search, CheckCircle, XCircle, AlertTriangle, X, QrCode } from 'lucide-react';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext'; // <-- Importar o motor de idiomas
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar o motor de idiomas
 
 const Users = () => {
   const { theme } = useContext(ThemeContext);

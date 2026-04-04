@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, TrendingUp, X, Package, Clock, FileDown } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { ThemeContext } from '../ThemeContext';
-import { LanguageContext } from '../LanguageContext';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { LanguageContext } from '../contexts/LanguageContext';
 import jsPDF from 'jspdf';
 
 const Dashboard = () => {
