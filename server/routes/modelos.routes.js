@@ -56,10 +56,9 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/itens', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, modelo_procedimento_id, nome_item, quantidade, preco_unitario, 
-             (quantidade * preco_unitario) as preco_total_item
+      SELECT id, modelo_id, nome_item, quantidade, preco_unitario, preco_total_item
       FROM modelo_procedimento_itens
-      WHERE modelo_procedimento_id = $1
+      WHERE modelo_id = $1
       ORDER BY nome_item ASC
     `, [req.params.id]);
     
@@ -97,19 +96,39 @@ router.post('/', async (req, res) => {
  * Atualizar modelo
  */
 router.put('/:id', async (req, res) => {
-  const { nome, custo_total_estimado, preco_servico } = req.body;
+  const { nome, itens, custo_total, custo_total_estimado, preco_servico } = req.body;
   
   try {
+    // Atualizar dados do modelo
     const result = await pool.query(
       `UPDATE modelos_procedimento 
-       SET nome = $1, custo_total_estimado = $2, preco_servico = $3
-       WHERE id = $4
+       SET nome = COALESCE($1, nome), 
+           custo_total_estimado = COALESCE($2, $3, custo_total_estimado),
+           preco_servico = COALESCE($4, preco_servico)
+       WHERE id = $5
        RETURNING *`,
-      [nome, custo_total_estimado || 0, preco_servico || 0, req.params.id]
+      [nome || null, custo_total || custo_total_estimado || null, custo_total || custo_total_estimado || null, preco_servico || null, req.params.id]
     );
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Modelo não encontrado' });
+    }
+
+    // Se houver itens, atualizar também
+    if (Array.isArray(itens) && itens.length > 0) {
+      // Remover itens antigos
+      await pool.query('DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1', [req.params.id]);
+      
+      // Inserir novos itens
+      for (const item of itens) {
+        if (item.nome_item && item.nome_item.trim() !== '') {
+          await pool.query(
+            `INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario)
+             VALUES ($1, $2, $3, $4)`,
+            [req.params.id, item.nome_item, parseFloat(item.quantidade) || 0, parseFloat(item.preco_unitario) || 0]
+          );
+        }
+      }
     }
     
     res.json(result.rows[0]);
@@ -126,7 +145,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     // Primeiro, remover itens associados
-    await pool.query('DELETE FROM modelo_procedimento_itens WHERE modelo_procedimento_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM modelo_procedimento_itens WHERE modelo_id = $1', [req.params.id]);
     
     // Depois remover o modelo
     const result = await pool.query(

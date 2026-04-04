@@ -143,7 +143,7 @@ class Paciente {
    */
   static async addExame(pacienteId, nome, base64) {
     const result = await pool.query(
-      `INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64, data_exame)
+      `INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64, data_exame)
        VALUES ($1, $2, $3, NOW())
        RETURNING id, nome_exame, data_exame`,
       [pacienteId, nome, base64]
@@ -157,7 +157,7 @@ class Paciente {
    */
   static async getExames(id) {
     const result = await pool.query(
-      `SELECT id, nome_exame, data_exame, arquivo_base64
+      `SELECT id, nome_exame, data_exame, ficheiro_base64
        FROM exames_paciente
        WHERE paciente_id = $1
        ORDER BY data_exame DESC`,

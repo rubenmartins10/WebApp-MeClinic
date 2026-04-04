@@ -415,7 +415,7 @@ const Pacientes = () => {
               <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9' }}>
                 <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.cardBg }}>
                   <button onClick={() => setActiveTab('historico')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'historico' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'historico' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><Calendar size={18} /> Histórico</button>
-                  <button onClick={() => setActiveTab('exames')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'exames' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'exames' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><File size={18} /> Exames & Arquivos</button>
+                  <button onClick={() => setActiveTab('exames')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'exames' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'exames' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><File size={18} /> Exames & Ficheiros</button>
                   <button onClick={() => setActiveTab('odontograma')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'odontograma' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'odontograma' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><Smile size={18} /> Odontograma</button>
                 </div>
 
@@ -454,7 +454,7 @@ const Pacientes = () => {
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <a href={exame.arquivo_base64} download={exame.nome_exame} style={{ padding: '8px 12px', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', fontWeight: 'bold', fontSize: '12px' }}><Download size={16} /></a>
+                            <a href={exame.ficheiro_base64} download={exame.nome_exame} style={{ padding: '8px 12px', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', fontWeight: 'bold', fontSize: '12px' }}><Download size={16} /></a>
                             {isAdmin && (<button onClick={() => apagarExame(exame.id)} style={{ padding: '8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16} /></button>)}
                           </div>
                         </div>

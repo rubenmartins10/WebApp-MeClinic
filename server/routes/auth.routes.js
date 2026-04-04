@@ -210,4 +210,70 @@ router.post('/create-test-user', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/activity
+ * Retorna sessões activas e histórico de login do utilizador autenticado
+ */
+router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    // Buscar sessões activas (últimas 24 horas)
+    const activeSessions = await pool.query(
+      `SELECT 
+        id,
+        user_id,
+        u.nome as user_name,
+        u.role,
+        device_info,
+        location,
+        created_at as login_time,
+        created_at as last_activity,
+        session_id
+      FROM activity_log al
+      JOIN utilizadores u ON al.user_id = u.id
+      WHERE action_type = 'LOGIN' 
+        AND status = 'success'
+        AND created_at > NOW() - INTERVAL '24 hours'
+      ORDER BY created_at DESC
+      LIMIT 10`,
+      []
+    );
+
+    // Buscar histórico de login do utilizador (últimos 30 dias)
+    const loginHistory = await pool.query(
+      `SELECT 
+        id,
+        user_id,
+        u.nome as user_name,
+        u.role,
+        device_info,
+        location,
+        status,
+        created_at as data
+      FROM activity_log
+      JOIN utilizadores u ON activity_log.user_id = u.id
+      WHERE user_id = $1 
+        AND action_type = 'LOGIN'
+        AND created_at > NOW() - INTERVAL '30 days'
+      ORDER BY created_at DESC
+      LIMIT 20`,
+      [userId]
+    );
+
+    res.json({
+      activeSessions: activeSessions.rows,
+      loginHistory: loginHistory.rows,
+      currentUser: {
+        id: req.user.id,
+        nome: req.user.nome,
+        role: req.user.role
+      }
+    });
+  } catch (err) {
+    console.error('Erro ao buscar activity:', err);
+    res.status(500).json({ error: 'Erro ao buscar histórico de atividade' });
+  }
+}));
+
 module.exports = router;

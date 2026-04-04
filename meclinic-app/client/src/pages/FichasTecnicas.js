@@ -43,7 +43,9 @@ const FichasTecnicas = () => {
     setSelecionado(modelo);
     setIsEditing(false);
     const token = localStorage.getItem('token');
-    fetch(`/api/modelos-procedimento/${modelo.id}/itens`, { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(data => setItens(data));
+    fetch(`/api/modelos-procedimento/${modelo.id}/itens`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setItens(Array.isArray(data) ? data : (data.itens || [])));
   };
 
   const mostrarNotificacao = (type, message) => {
@@ -144,7 +146,8 @@ const FichasTecnicas = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
     doc.text(`${t('tech_sheets.title')}: ${selecionado.nome}`, 14, 20);
-    autoTable(doc, { head: [[t('tech_sheets.table.material'), t('tech_sheets.table.qty'), t('tech_sheets.table.subtotal')]], body: itens.map(i => [i.nome_item, i.quantidade, `${parseFloat(i.preco_total_item).toFixed(2)}€`]), startY: 30 });
+    const itensArray = Array.isArray(itens) ? itens : [];
+    autoTable(doc, { head: [[t('tech_sheets.table.material'), t('tech_sheets.table.qty'), t('tech_sheets.table.subtotal')]], body: itensArray.map(i => [i.nome_item, i.quantidade, `${parseFloat(i.preco_total_item).toFixed(2)}€`]), startY: 30 });
     doc.save(`Ficha_${selecionado.nome}.pdf`);
   };
 

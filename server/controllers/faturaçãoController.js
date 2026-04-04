@@ -270,14 +270,14 @@ class FaturaçãoController {
 
           if (exame_base64 && exame_nome) {
             await pool.query(
-              'INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64) VALUES ($1, $2, $3)',
+              'INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64) VALUES ($1, $2, $3)',
               [pId, exame_nome, exame_base64]
             );
           }
 
           if (receita_base64 && receita_nome) {
             await pool.query(
-              'INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64) VALUES ($1, $2, $3)',
+              'INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64) VALUES ($1, $2, $3)',
               [pId, receita_nome, receita_base64]
             );
           }

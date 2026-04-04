@@ -75,23 +75,44 @@ const Consultas = () => {
     const partesNome = formData.nome.trim().split(' ');
     if (partesNome.length < 2) { showNotif('Insira o Primeiro e Último nome.', 'error'); return; }
     if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif('O telemóvel é obrigatório.', 'error'); return; }
+    if (!formData.data) { showNotif('Selecione uma data.', 'error'); return; }
+    if (!formData.hora || formData.hora.length < 5) { showNotif('Selecione uma hora válida.', 'error'); return; }
 
     const url = isEditing ? `/api/consultas/${editId}` : '/api/consultas';
     const method = isEditing ? 'PUT' : 'POST';
     const telefoneCompleto = `${phonePrefix} ${formData.telefone}`;
 
     try {
+      setIsProcessing(true);
       const token = localStorage.getItem('token');
       const res = await fetch(url, {
-        method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, telefone: telefoneCompleto, procedimento_id: formData.procedimento_id || null })
+        method, 
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ...formData, 
+          telefone: telefoneCompleto, 
+          procedimento_id: formData.procedimento_id || null 
+        })
       });
+      
+      const data = await res.json();
+      
       if (res.ok) {
         showNotif(isEditing ? t('consultations.msg.updated') : t('consultations.msg.scheduled'));
         setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
-        setPhonePrefix('+351'); setIsEditing(false); setEditId(null); fetchDados();
+        setPhonePrefix('+351'); 
+        setIsEditing(false); 
+        setEditId(null); 
+        fetchDados();
+      } else {
+        showNotif(data.error || t('consultations.msg.save_err'), 'error');
       }
-    } catch (err) { showNotif(t('consultations.msg.save_err'), 'error'); }
+    } catch (err) { 
+      console.error('Erro ao submeter formulário:', err);
+      showNotif(t('consultations.msg.save_err'), 'error'); 
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleEdit = (c) => {
@@ -666,13 +687,47 @@ const Consultas = () => {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.time')}</label>
-                <input type="time" name="hora" value={formData.hora} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <select 
+                      name="hora_hh" 
+                      value={formData.hora.split(':')[0] || '09'}
+                      onChange={(e) => {
+                        const hh = e.target.value;
+                        const mm = formData.hora.split(':')[1] || '00';
+                        setFormData({ ...formData, hora: `${hh}:${mm}` });
+                      }}
+                      style={{ ...inputStyle, paddingLeft: '12px', marginBottom: 0 }}
+                    >
+                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                        <option key={h} value={h}>{h}h</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <select 
+                      name="hora_mm" 
+                      value={formData.hora.split(':')[1] || '00'}
+                      onChange={(e) => {
+                        const hh = formData.hora.split(':')[0] || '09';
+                        const mm = e.target.value;
+                        setFormData({ ...formData, hora: `${hh}:${mm}` });
+                      }}
+                      style={{ ...inputStyle, paddingLeft: '12px', marginBottom: 0 }}
+                    >
+                      {[0, 15, 30, 45].map(m => {
+                        const mm = String(m).padStart(2, '0');
+                        return <option key={mm} value={mm}>{mm}m</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.notes')}</label>
             <textarea name="motivo" value={formData.motivo} onChange={handleChange} placeholder={t('consultations.form.notes_ph')} className="custom-scrollbar" style={{ ...inputStyle, paddingLeft: '12px', height: '100px', resize: 'none' }}></textarea>
-            <button type="submit" style={{ width: '100%', padding: '14px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'background-color 0.2s' }}>
-              <FileText size={20} /> {isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm')}
+            <button type="submit" disabled={isProcessing} style={{ width: '100%', padding: '14px', backgroundColor: isProcessing ? '#9ca3af' : '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'background-color 0.2s', opacity: isProcessing ? 0.7 : 1 }}>
+              <FileText size={20} /> {isProcessing ? 'A guardar...' : (isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm'))}
             </button>
             {isEditing && (
               <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''}); setPhonePrefix('+351'); }} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: theme.subText, border: 'none', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}>{t('consultations.form.btn_cancel')}</button>

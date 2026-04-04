@@ -1,3 +1,19 @@
 {
-    "claudeCodeChat.permissions.yoloMode": true
+    "claudeCodeChat.permissions.yoloMode": true,
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescriptreact]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+    "typescript.checkJs": false,
+    "typescript.skipLibCheck": true,
+    "problems.exclude": {
+        "**/node_modules/**": true,
+        "**/*.min.js": true
+    },
+    "typescript.disableAutomaticTypeAcquisition": false
 }

@@ -47,34 +47,32 @@ app.use(compression({
 // CORS configurado com whitelist de origens seguras
 const allowedOrigins = [
   "http://localhost:3050",
+  "http://localhost:3051",
   "http://localhost:3000",
   process.env.FRONTEND_URL || "http://localhost:3050"
 ];
 
+// CORS configurado - mais permissivo em desenvolvimento
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS policy: origin não permitida"));
-    }
-  },
+  origin: true, // Aceita qualquer origin
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // ==========================================
 // --- RATE LIMITING ---
 // ==========================================
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: "Muitos requests. Tente novamente em 15 minutos." },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-app.use(generalLimiter);
+// Desabilitado em desenvolvimento para evitar problemas com X-Forwarded-For
+// const generalLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 100,
+//   message: { error: "Muitos requests. Tente novamente em 15 minutos." },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
+// app.use(generalLimiter);
 
 // ==========================================
 // --- HTTPS REDIRECT (Production) ---
@@ -114,7 +112,7 @@ async function initDB() {
         paciente_id INT,
         nome_exame VARCHAR(255),
         data_exame DATE DEFAULT CURRENT_DATE,
-        arquivo_base64 TEXT
+        ficheiro_base64 TEXT
       )
     `);
   } catch(e) { console.error("Erro ao criar tabela exames_paciente:", e); }

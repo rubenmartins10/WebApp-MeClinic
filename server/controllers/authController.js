@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const QRCode = require('qrcode');
 const User = require('../models/User');
 const { AppError } = require('../errorHandler');
+const pool = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta';
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
@@ -87,6 +88,9 @@ class AuthController {
         { expiresIn: JWT_EXPIRY }
       );
 
+      // Registar atividade de login (async, sem await para não bloquear resposta)
+      this.logLoginActivity(user.id, req).catch(err => console.error('Log de login falhou:', err));
+
       res.json({
         message: 'Login realizado com sucesso!',
         user: {
@@ -121,6 +125,38 @@ class AuthController {
 
     } catch (err) {
       next(err);
+    }
+  }
+
+  /**
+   * Registar atividade de login
+   */
+  static async logLoginActivity(userId, req) {
+    try {
+      const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown';
+      const userAgent = req.headers['user-agent'] || 'Unknown';
+      
+      // Tentar extrair informações do dispositivo do user-agent
+      let deviceInfo = 'Browser Desconhecido';
+      if (userAgent.includes('Chrome')) deviceInfo = 'Chrome';
+      if (userAgent.includes('Firefox')) deviceInfo = 'Firefox';
+      if (userAgent.includes('Safari')) deviceInfo = 'Safari';
+      if (userAgent.includes('Edge')) deviceInfo = 'Edge';
+      if (userAgent.includes('Windows')) deviceInfo += ' - Windows';
+      if (userAgent.includes('Mac')) deviceInfo += ' - macOS';
+      if (userAgent.includes('Android')) deviceInfo = 'Android App';
+      if (userAgent.includes('iPhone')) deviceInfo = 'iPhone Safari';
+      
+      const sessionId = require('crypto').randomBytes(16).toString('hex');
+
+      await pool.query(
+        `INSERT INTO activity_log (user_id, action_type, description, device_info, ip_address, user_agent, status, session_id, location)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [userId, 'LOGIN', 'Login bem-sucedido', deviceInfo, ipAddress, userAgent, 'success', sessionId, 'Portugal']
+      );
+    } catch (err) {
+      // Falhar silenciosamente para não interromper o login
+      console.error('Erro ao registar atividade de login:', err);
     }
   }
 
