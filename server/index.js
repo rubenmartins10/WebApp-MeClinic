@@ -265,4 +265,38 @@ if (httpsOptions && process.env.NODE_ENV !== 'development') {
   });
 }
 
+// ==========================================
+// --- AGENDAMENTO DE RELATÓRIOS SEMANAIS ---
+// ==========================================
+// Importar controller de relatórios
+const { sendWeeklyReportEmail } = require('./controllers/reportsController');
+
+console.log('\n📅 Configurando agendamento automático de relatórios...');
+
+// Agendar envio de relatório toda sexta-feira às 16:00 (4:00 PM)
+// Padrão cron: min hora dia_mês mês dia_semana
+// (0 16 * * 5) = 16:00, qualquer dia do mês, qualquer mês, sexta-feira (5)
+const reportSchedule = cron.schedule('0 16 * * 5', async () => {
+  console.log('\n📊 [SCHEDULED] Iniciando envio automático de relatório semanal...');
+  const result = await sendWeeklyReportEmail();
+  if (result.success) {
+    console.log(`✅ [SCHEDULED] ${result.message}`);
+  } else {
+    console.error(`❌ [SCHEDULED] Erro: ${result.message || result.error}`);
+  }
+}, {
+  scheduled: false // Vamos iniciar manualmente após logs
+});
+
+// Iniciar o agendamento
+reportSchedule.start();
+console.log('✅ Agendamento ativo: Relatórios enviados toda sexta-feira às 16:00 (hora do servidor)');
+
+// Opcional: Enviar teste na primeira hora após startup (para desenvolvimento)
+// Descomente para fazer testes em desenvolvimento
+// setTimeout(() => {
+//   console.log('\n🧪 [DEV] Enviando relatório de teste...');
+//   sendWeeklyReportEmail();
+// }, 5000); // 5 segundos após startup
+
 module.exports = app;

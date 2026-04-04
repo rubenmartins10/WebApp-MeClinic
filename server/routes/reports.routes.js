@@ -92,4 +92,26 @@ router.post('/send-email', async (req, res) => {
   }
 });
 
+// ========================================
+// NOVO: Envio Automático de Relatório Semanal
+// ========================================
+const { sendWeeklyReportEmail } = require('../controllers/reportsController');
+
+/**
+ * Endpoint para enviar relatório semanal manualmente
+ * Útil para testes
+ * POST /api/reports/send-weekly-manual
+ */
+router.post('/send-weekly-manual', async (req, res) => {
+  try {
+    const result = await sendWeeklyReportEmail();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;
