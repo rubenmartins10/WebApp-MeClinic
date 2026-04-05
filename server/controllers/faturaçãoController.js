@@ -4,6 +4,8 @@ const Paciente = require('../models/Paciente');
 const Produto = require('../models/Produto');
 const { AppError } = require('../errorHandler');
 const pool = require('../db');
+const { sendEmail, dataUriToBuffer } = require('../services/emailService');
+const logger = require('../utils/logger');
 
 /**
  * FaturaçãoController - Lógica de faturação e pagamentos
@@ -199,6 +201,7 @@ class FaturaçãoController {
    * OPERAÇÃO COMPLEXA COM TRANSAÇÃO
    */
   static async checkout(req, res, next) {
+    const client = await pool.connect();
     try {
       const {
         consulta_id,
@@ -216,17 +219,17 @@ class FaturaçãoController {
         receita_base64
       } = req.body;
 
-      await pool.query('BEGIN');
+      await client.query('BEGIN');
 
       try {
         // 1. Marca consulta como realizada
-        await pool.query(
+        await client.query(
           'UPDATE consultas SET status = $1 WHERE id = $2',
           ['realizada', consulta_id]
         );
 
         // 2. Regista fatura
-        const faturaResult = await pool.query(
+        const faturaResult = await client.query(
           `INSERT INTO faturacao 
            (consulta_id, paciente_nome, procedimento_nome, valor_total, metodo_pagamento, data_emissao)
            VALUES ($1, $2, $3, $4, $5, NOW())
@@ -240,18 +243,18 @@ class FaturaçãoController {
           ]
         );
 
-        // 3. Abate materiais do stock
+        // 3. Abate materiais do stock com lock pessimista para evitar race conditions
         if (materiais_gastos && Array.isArray(materiais_gastos) && materiais_gastos.length > 0) {
           for (const item of materiais_gastos) {
             if (parseFloat(item.quantidade) > 0) {
-              const prodRes = await pool.query(
-                'SELECT id FROM produtos WHERE nome = $1',
+              const prodRes = await client.query(
+                'SELECT id FROM produtos WHERE nome = $1 FOR UPDATE',
                 [item.nome_item]
               );
               if (prodRes.rows.length > 0) {
                 const deduction = parseFloat(item.quantidade);
-                await pool.query(
-                  'UPDATE produtos SET stock_atual = stock_atual - $1 WHERE id = $2',
+                await client.query(
+                  'UPDATE produtos SET stock_atual = GREATEST(0, stock_atual - $1) WHERE id = $2',
                   [deduction, prodRes.rows[0].id]
                 );
               }
@@ -260,7 +263,7 @@ class FaturaçãoController {
         }
 
         // 4. Guarda exames e receitas
-        const getPaciente = await pool.query(
+        const getPaciente = await client.query(
           'SELECT paciente_id FROM consultas WHERE id = $1',
           [consulta_id]
         );
@@ -269,32 +272,85 @@ class FaturaçãoController {
           const pId = getPaciente.rows[0].paciente_id;
 
           if (exame_base64 && exame_nome) {
-            await pool.query(
-              'INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64) VALUES ($1, $2, $3)',
+            await client.query(
+              'INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64) VALUES ($1, $2, $3)',
               [pId, exame_nome, exame_base64]
             );
           }
 
           if (receita_base64 && receita_nome) {
-            await pool.query(
-              'INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64) VALUES ($1, $2, $3)',
+            await client.query(
+              'INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64) VALUES ($1, $2, $3)',
               [pId, receita_nome, receita_base64]
             );
           }
         }
 
-        await pool.query('COMMIT');
+        await client.query('COMMIT');
+
+        // 5. Envia email com PDF em anexo (fora da transação — falha não reverte a fatura)
+        if (email_destino && pdfBase64) {
+          try {
+            const isOrcamento = (metodo_pagamento === 'Orçamento a Aprovar');
+            const attachments = [];
+
+            if (pdfBase64) {
+              attachments.push({
+                filename: isOrcamento
+                  ? `Orcamento_${paciente_nome.replace(/\s+/g, '_')}.pdf`
+                  : `Fatura_${paciente_nome.replace(/\s+/g, '_')}.pdf`,
+                content: dataUriToBuffer(pdfBase64),
+              });
+            }
+
+            if (receita_base64 && receita_nome) {
+              attachments.push({
+                filename: receita_nome,
+                content: dataUriToBuffer(receita_base64),
+              });
+            }
+
+            const subject = isOrcamento
+              ? `MeClinic \u2014 Plano de Tratamento e Orçamento`
+              : `MeClinic \u2014 Fatura/Recibo da sua Consulta`;
+
+            const html = `
+              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                <div style="background:#2563eb;padding:24px;border-radius:8px 8px 0 0">
+                  <h1 style="color:white;margin:0;font-size:22px">MeClinic</h1>
+                </div>
+                <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px">
+                  <p>Exmo(a) <strong>${paciente_nome}</strong>,</p>
+                  ${
+                    isOrcamento
+                      ? `<p>Em anexo encontra o seu <strong>Plano de Tratamento e Orçamento</strong> detalhado, elaborado após a sua avaliação na MeClinic.</p>
+                         <p>Para agendar o início do tratamento, responda a este email ou contacte-nos.</p>`
+                      : `<p>Em anexo encontra a <strong>fatura/recibo</strong> referente à sua consulta de <em>${procedimento_nome || 'Consulta'}</em>.</p>
+                         <p>Obrigado por nos ter escolhido. Estamos sempre disponíveis para qualquer esclarecimento.</p>`
+                  }
+                  <p style="margin-top:32px;color:#64748b;font-size:12px">MeClinic &mdash; Medicina Dentária Avançada</p>
+                </div>
+              </div>`;
+
+            await sendEmail(email_destino, subject, html, attachments);
+          } catch (emailErr) {
+            // Email falhou mas a fatura já foi guardada — apenas log, não é erro fatal
+            logger.error('Falha ao enviar email após checkout:', { message: emailErr.message });
+          }
+        }
 
         res.status(201).json({
           message: 'Check-out concluído com sucesso!',
           fatura: faturaResult.rows[0]
         });
       } catch (err) {
-        await pool.query('ROLLBACK');
+        await client.query('ROLLBACK');
         throw err;
       }
     } catch (err) {
       next(err);
+    } finally {
+      client.release();
     }
   }
 

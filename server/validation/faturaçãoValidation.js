@@ -27,23 +27,23 @@ const createFaturaSchema = Joi.object({
 const checkoutSchema = Joi.object({
   consulta_id: Joi.number().integer().positive().required(),
   paciente_nome: Joi.string().min(3).max(200).required(),
-  procedimento_nome: Joi.string().max(200).optional(),
-  valor_total: Joi.number().positive().required(),
-  metodo_pagamento: Joi.string().max(50).optional(),
-  email_destino: Joi.string().email().optional(),
+  procedimento_nome: Joi.string().max(200).optional().allow('', null),
+  valor_total: Joi.number().min(0).required(),
+  metodo_pagamento: Joi.string().max(50).optional().allow('', null),
+  email_destino: Joi.string().email().optional().allow('', null),
   enviar_receita_email: Joi.boolean().optional(),
-  pdfBase64: Joi.string().optional(),
+  pdfBase64: Joi.string().optional().allow(null),
   materiais_gastos: Joi.array().items(
-    Joi.object({
+    Joi.object().unknown(true).keys({
       nome_item: Joi.string().required(),
-      quantidade: Joi.number().positive().required()
+      quantidade: Joi.number().min(0).required()
     })
-  ).optional(),
-  exame_nome: Joi.string().optional(),
-  exame_base64: Joi.string().optional(),
-  receita_nome: Joi.string().optional(),
-  receita_base64: Joi.string().optional()
-}).strict();
+  ).optional().allow(null),
+  exame_nome: Joi.string().optional().allow('', null),
+  exame_base64: Joi.string().optional().allow(null),
+  receita_nome: Joi.string().optional().allow('', null),
+  receita_base64: Joi.string().optional().allow(null)
+});
 
 // Schema para atualizar fatura
 const updateFaturaSchema = Joi.object({

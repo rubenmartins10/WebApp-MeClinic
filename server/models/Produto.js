@@ -93,6 +93,19 @@ class Produto {
   }
 
   /**
+   * Procurar produto por código de barras exato
+   */
+  static async findByBarcode(codigo_barras) {
+    const query = `SELECT * FROM produtos WHERE codigo_barras = $1 LIMIT 1`;
+    try {
+      const result = await pool.query(query, [codigo_barras]);
+      return result.rows[0] || null;
+    } catch (err) {
+      throw new Error(`Erro ao procurar produto por código de barras: ${err.message}`);
+    }
+  }
+
+  /**
    * Procurar produtos por nome ou código de barras
    */
   static async findByName(nome) {

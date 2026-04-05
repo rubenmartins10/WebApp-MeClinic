@@ -19,10 +19,10 @@ router.use(authMiddleware);
 router.get('/', ProdutosController.getAll);
 
 /**
- * GET /api/produtos/:id
- * Obter detalhes de um produto
+ * GET /api/produtos/barcode/:codigo
+ * Procurar produto por código de barras (local + Open Food Facts)
  */
-router.get('/:id', ProdutosController.getById);
+router.get('/barcode/:codigo', ProdutosController.lookupBarcode);
 
 /**
  * GET /api/produtos/categorias/list
@@ -47,6 +47,12 @@ router.get('/stock/alerts', ProdutosController.getStockAlerts);
  * Procurar produto por nome ou código de barras
  */
 router.get('/search/:termo', ProdutosController.search);
+
+/**
+ * GET /api/produtos/:id
+ * Obter detalhes de um produto
+ */
+router.get('/:id', ProdutosController.getById);
 
 /**
  * POST /api/produtos

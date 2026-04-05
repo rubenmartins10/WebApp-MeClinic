@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import apiService from '../../services/api';
 
 function InventoryList() {
   const [produtos, setProdutos] = useState([]);
 
   // Função para carregar os produtos da Base de Dados
   const carregarProdutos = () => {
-    const token = localStorage.getItem('token');
-    fetch("/api/produtos", {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-      .then(res => res.json())
+    apiService.get("/api/produtos")
       .then(data => setProdutos(Array.isArray(data) ? data : (data.produtos || [])))
       .catch(err => console.error("Erro ao carregar inventário:", err));
   };
@@ -32,20 +27,9 @@ function InventoryList() {
     };
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("/api/produtos", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(novoProduto)
-      });
-
-      if (response.ok) {
-        carregarProdutos(); // Atualiza a lista no ecrã
-        alert("Produto gravado no PostgreSQL!");
-      }
+      await apiService.post("/api/produtos", novoProduto);
+      carregarProdutos();
+      alert("Produto gravado no PostgreSQL!");
     } catch (err) {
       console.error("Erro ao adicionar:", err);
     }

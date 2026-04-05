@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const nodemailer = require('nodemailer');
+const { authMiddleware } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 // Email transporter setup - usando Mailtrap
 const transporter = nodemailer.createTransport({
@@ -17,6 +19,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+router.use(authMiddleware);
+
 // Relatório Semanal Detalhado
 router.get('/weekly-detail', async (req, res) => {
   const { start } = req.query;
@@ -26,9 +30,15 @@ router.get('/weekly-detail', async (req, res) => {
         COUNT(c.id)::int as total_consultas, 
         COALESCE(SUM(m.preco_servico), 0)::float as faturacao_total, 
         COALESCE(SUM(m.custo_total_estimado), 0)::float as custos_materiais_total, 
-        (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado 
+        (COALESCE(SUM(m.preco_servico), 0) - COALESCE(SUM(m.custo_total_estimado), 0))::float as lucro_estimado,
+        COUNT(DISTINCT c.paciente_id)::int as total_pacientes,
+        COUNT(DISTINCT CASE WHEN p.created_at::date BETWEEN $1::date AND $1::date + '6 days'::interval THEN p.id END)::int as pacientes_novos,
+        COUNT(DISTINCT CASE WHEN c.status = 'confirmada' THEN c.id END)::int as consultas_confirmadas,
+        COUNT(DISTINCT CASE WHEN c.status = 'concluida'  THEN c.id END)::int as consultas_concluidas,
+        COUNT(DISTINCT CASE WHEN c.status = 'cancelada'  THEN c.id END)::int as consultas_canceladas
       FROM consultas c 
-      JOIN modelos_procedimento m ON c.procedimento_id = m.id 
+      JOIN modelos_procedimento m ON c.procedimento_id = m.id
+      JOIN pacientes p ON c.paciente_id = p.id
       WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
     `, [start]);
     

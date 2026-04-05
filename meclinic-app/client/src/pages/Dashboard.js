@@ -3,6 +3,8 @@ import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, Trendi
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import { getActiveLocale } from '../utils/locale';
+import apiService from '../services/api';
 import jsPDF from 'jspdf';
 
 const Dashboard = () => {
@@ -23,16 +25,13 @@ const Dashboard = () => {
   const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [expiryAlertsList, setExpiryAlertsList] = useState([]);
 
-  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
+  const activeLocale = getActiveLocale(language);
 
   const carregarDados = (startDate) => {
-    const token = localStorage.getItem('token');
-    fetch(`/api/stats/patients-weekly?start=${startDate}`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+    apiService.get(`/api/stats/patients-weekly?start=${startDate}`)
       .then(data => setChartData(data));
 
-    fetch(`/api/stats/dashboard-summary?start=${startDate}`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+    apiService.get(`/api/stats/dashboard-summary?start=${startDate}`)
       .then(data => setSummary(data));
   };
 
@@ -48,9 +47,7 @@ const Dashboard = () => {
 
   const openStockAlerts = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/stats/stock-alerts', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
+      const data = await apiService.get('/api/stats/stock-alerts');
       setStockAlertsList(data);
       setShowStockModal(true);
     } catch (e) { console.error("Erro ao carregar alertas de stock:", e); }
@@ -58,9 +55,7 @@ const Dashboard = () => {
 
   const openExpiryAlerts = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/stats/validade-alerts', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
+      const data = await apiService.get('/api/stats/validade-alerts');
       setExpiryAlertsList(data);
       setShowExpiryModal(true);
     } catch (e) { console.error("Erro ao carregar alertas de validade:", e); }

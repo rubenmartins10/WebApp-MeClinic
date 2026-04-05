@@ -1,15 +1,17 @@
-/* eslint-disable */
-import React, { useState, useEffect, useContext } from 'react';
-import { Search, Camera, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock, ScanLine } from 'lucide-react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { Search, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock, ScanLine, Loader } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import BarcodeScanner from '../components/common/BarcodeScanner'; // Scanner otimizado
+import { getActiveLocale } from '../utils/locale';
+import apiService from '../services/api';
 
 const Inventory = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
   
   const [produtos, setProdutos] = useState([]);
+  const [paginacao, setPaginacao] = useState({ page: 1, pages: 1, total: 0 });
   const [pesquisa, setPesquisa] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todas'); 
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
@@ -20,28 +22,26 @@ const Inventory = () => {
 
   // ESTADO DA NOSSA CÂMARA
   const [showScanner, setShowScanner] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const lookupTimerRef = useRef(null);
 
   const initialForm = { nome: '', codigo_barras: '', stock_atual: '', stock_minimo: '', unidade_medida: 'un', categoria: 'Descartáveis', imagem_url: '', data_validade: '' };
   const [formData, setFormData] = useState(initialForm);
 
-  useEffect(() => { carregarProdutos(); }, []);
-
-  const carregarProdutos = async () => {
+  const carregarProdutos = useCallback(async (page = 1) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/produtos', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      // API retorna { produtos: [...], pagination: {...} }
+      const params = new URLSearchParams({ page, limit: 20 });
+      if (pesquisa) params.append('search', pesquisa);
+      if (categoriaAtiva !== 'Todas') params.append('categoria', categoriaAtiva);
+      const data = await apiService.get(`/api/produtos?${params}`);
       setProdutos(Array.isArray(data) ? data : (data.produtos || []));
-    } catch (err) {
-      console.error('Erro ao carregar produtos:', err);
+      if (data.pagination) setPaginacao(data.pagination);
+    } catch {
       setProdutos([]);
     }
-  };
+  }, [pesquisa, categoriaAtiva]);
+
+  useEffect(() => { carregarProdutos(1); }, [carregarProdutos]);
 
   const showNotif = (type, message) => {
     setNotification({ show: true, type, message });
@@ -51,19 +51,11 @@ const Inventory = () => {
   const confirmarEliminacao = async () => {
     if (!showDeleteConfirm) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/produtos/${showDeleteConfirm}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showNotif('success', t('inventory.msg.removed') || 'Produto removido.');
-        carregarProdutos();
-      } else {
-        showNotif('error', t('inventory.msg.remove_err') || 'Erro.');
-      }
+      await apiService.delete(`/api/produtos/${showDeleteConfirm}`);
+      showNotif('success', t('inventory.msg.removed') || 'Produto removido.');
+      carregarProdutos(paginacao.page || 1);
     } catch (err) {
-      showNotif('error', t('inventory.msg.server_err') || 'Erro no servidor.');
+      showNotif('error', t('inventory.msg.remove_err') || 'Erro.');
     } finally {
       setShowDeleteConfirm(null);
     }
@@ -81,26 +73,16 @@ const Inventory = () => {
     e.preventDefault();
     try {
       const url = produtoToEdit ? `/api/produtos/${produtoToEdit}` : '/api/produtos';
-      const method = produtoToEdit ? 'PUT' : 'POST';
-      const token = localStorage.getItem('token');
-
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (res.ok) {
-        showNotif('success', produtoToEdit ? (t('inventory.msg.updated') || 'Atualizado!') : (t('inventory.msg.added') || 'Adicionado!'));
-        setShowModal(false); setProdutoToEdit(null); setFormData(initialForm); carregarProdutos();
+      if (produtoToEdit) {
+        await apiService.put(url, formData);
       } else {
-        showNotif('error', t('inventory.msg.save_err') || 'Erro ao guardar.');
+        await apiService.post(url, formData);
       }
+
+      showNotif('success', produtoToEdit ? (t('inventory.msg.updated') || 'Atualizado!') : (t('inventory.msg.added') || 'Adicionado!'));
+      setShowModal(false); setProdutoToEdit(null); setFormData(initialForm); carregarProdutos(paginacao.page || 1);
     } catch (err) {
-      showNotif('error', t('inventory.msg.server_err') || 'Erro no servidor.');
+      showNotif('error', t('inventory.msg.save_err') || 'Erro ao guardar.');
     }
   };
 
@@ -108,24 +90,72 @@ const Inventory = () => {
   const handleBarcodeLookup = (codigo) => {
     setFormData(prev => ({ ...prev, codigo_barras: codigo }));
     
-    if (codigo.length >= 6 && !produtoToEdit) {
-      const produtoConhecido = produtos.find(p => p.codigo_barras === codigo);
-      if (produtoConhecido) {
-        setFormData(prev => ({
-          ...prev, nome: produtoConhecido.nome, categoria: produtoConhecido.categoria || 'Descartáveis', unidade_medida: produtoConhecido.unidade_medida || 'un', stock_minimo: produtoConhecido.stock_minimo, imagem_url: produtoConhecido.imagem_url || ''
-        }));
-        showNotif('success', 'Produto reconhecido e preenchido automaticamente!');
+    // Cancelar lookup anterior
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+
+    if (codigo.length >= 8 && !produtoToEdit) {
+      lookupTimerRef.current = setTimeout(async () => {
+        setBarcodeLoading(true);
+        try {
+          const data = await apiService.get(`/api/produtos/barcode/${encodeURIComponent(codigo)}`);
+          if (data.found && data.product) {
+            setFormData(prev => ({
+              ...prev,
+              nome: data.product.nome || prev.nome,
+              categoria: data.product.categoria || prev.categoria,
+              unidade_medida: data.product.unidade_medida || prev.unidade_medida,
+              stock_minimo: data.product.stock_minimo || prev.stock_minimo,
+              imagem_url: data.product.imagem_url || prev.imagem_url
+            }));
+            const sourceLabel = data.source === 'local' 
+              ? (t('inventory.msg.barcode_local') || 'Produto reconhecido na base de dados!') 
+              : (t('inventory.msg.barcode_online') || 'Produto identificado online!');
+            showNotif('success', sourceLabel);
+          }
+        } catch {
+          // Silencioso - não é erro crítico
+        } finally {
+          setBarcodeLoading(false);
+        }
+      }, 400);
+    }
+  };
+
+  // Lookup direto para scan da câmara (sem debounce)
+  const handleScannedBarcode = async (codigo) => {
+    setFormData(prev => ({ ...prev, codigo_barras: codigo }));
+    setShowScanner(false);
+    showNotif('success', t('inventory.msg.barcode_read') || 'Código de barras lido com sucesso!');
+
+    if (!produtoToEdit) {
+      setBarcodeLoading(true);
+      try {
+        const data = await apiService.get(`/api/produtos/barcode/${encodeURIComponent(codigo)}`);
+        if (data.found && data.product) {
+          setFormData(prev => ({
+            ...prev,
+            nome: data.product.nome || prev.nome,
+            categoria: data.product.categoria || prev.categoria,
+            unidade_medida: data.product.unidade_medida || prev.unidade_medida,
+            stock_minimo: data.product.stock_minimo || prev.stock_minimo,
+            imagem_url: data.product.imagem_url || prev.imagem_url
+          }));
+          const sourceLabel = data.source === 'local' 
+            ? (t('inventory.msg.barcode_local') || 'Produto reconhecido na base de dados!') 
+            : (t('inventory.msg.barcode_online') || 'Produto identificado online!');
+          showNotif('success', sourceLabel);
+        }
+      } catch {
+        // Silencioso
+      } finally {
+        setBarcodeLoading(false);
       }
     }
   };
 
   // BarcodeScanner component now handles scanning - old useEffect removed
 
-  const produtosFiltrados = produtos.filter(p => {
-    const matchPesquisa = p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || (p.codigo_barras && p.codigo_barras.toLowerCase().includes(pesquisa.toLowerCase()));
-    const matchCategoria = categoriaAtiva === 'Todas' || p.categoria === categoriaAtiva;
-    return matchPesquisa && matchCategoria;
-  });
+  const produtosFiltrados = produtos;
 
   const calcularTotalUnidades = (nomeProduto, stockAtual, stockMinimo) => {
     const match = nomeProduto.match(/\((\d+)\s*([a-zA-Z]+)\)/);
@@ -146,12 +176,12 @@ const Inventory = () => {
   };
 
   const CategoryBtn = ({ label, id }) => (
-    <button onClick={() => setCategoriaAtiva(id)} style={{ flexShrink: 0, padding: '10px 20px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: categoriaAtiva === id ? '#2563eb' : theme.cardBg, color: categoriaAtiva === id ? 'white' : theme.text, border: categoriaAtiva === id ? '1px solid #2563eb' : `1px solid ${theme.border}`, transition: 'all 0.2s', boxShadow: categoriaAtiva === id ? '0 4px 6px -1px rgba(37, 99, 235, 0.3)' : 'none' }}>
+    <button onClick={() => setCategoriaAtiva(id)} style={{ flexShrink: 0, padding: '10px 20px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: categoriaAtiva === id ? '#2563eb' : theme.cardBg, color: categoriaAtiva === id ? 'white' : theme.text, border: categoriaAtiva === id ? '1px solid #2563eb' : `1px solid ${theme.border}`, transition: 'all 0.2s', boxShadow: categoriaAtiva === id ? '0 4px 6px -1px rgba(37, 99, 235, 0.3)' : 'none' }}>
       {label}
     </button>
   );
 
-  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
+  const activeLocale = getActiveLocale(language);
 
   return (
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -163,6 +193,7 @@ const Inventory = () => {
           .scroll-categorias::-webkit-scrollbar-thumb { background-color: ${theme.border}; border-radius: 10px; }
           .scroll-categorias::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
           .form-input:focus { border-color: #2563eb !important; }
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
           
           /* Estilizar a caixa feia padrão da biblioteca do Scanner */
           #reader { border: none !important; border-radius: 15px !important; overflow: hidden; }
@@ -178,9 +209,7 @@ const Inventory = () => {
           <div style={{ width: '100%', maxWidth: '650px' }}>
             <BarcodeScanner 
               onScanSuccess={(codigo) => {
-                setFormData({ ...formData, codigo_barras: codigo });
-                setShowScanner(false);
-                showNotif('success', t('inventory.msg.barcode_read') || 'Código de barras lido com sucesso!');
+                handleScannedBarcode(codigo);
               }}
               onClose={() => setShowScanner(false)}
             />
@@ -224,7 +253,7 @@ const Inventory = () => {
               
               <div>
                 <label style={{...labelStyle, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '5px'}}>
-                   <Search size={14}/> {t('inventory.modal.barcode') || 'Código de Barras'}
+                  <Search size={14}/> {t('inventory.modal.barcode') || 'Código de Barras'}
                 </label>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <input 
@@ -232,6 +261,11 @@ const Inventory = () => {
                     value={formData.codigo_barras} 
                     onChange={e => handleBarcodeLookup(e.target.value)} 
                   />
+                  {barcodeLoading && (
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px' }}>
+                      <Loader size={22} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} />
+                    </div>
+                  )}
                   {/* O NOSSO NOVO BOTÃO DE LIGAR A CÂMARA */}
                   <button 
                     type="button" 
@@ -288,6 +322,16 @@ const Inventory = () => {
               <div>
                 <label style={labelStyle}>{t('inventory.modal.img_url') || 'URL Imagem'}</label>
                 <input className="form-input" type="text" placeholder="https://link-da-imagem.com" style={inputStyle} value={formData.imagem_url} onChange={e => setFormData({...formData, imagem_url: e.target.value})} />
+                {formData.imagem_url && (
+                  <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, backgroundColor: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '160px' }}>
+                    <img 
+                      src={formData.imagem_url} 
+                      alt={t('inventory.modal.preview') || 'Pré-visualização'} 
+                      style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'contain' }}
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
@@ -411,6 +455,93 @@ const Inventory = () => {
           </div>
         )}
       </div>
+      {paginacao.pages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '32px' }}>
+          <button
+            disabled={paginacao.page <= 1}
+            onClick={() => carregarProdutos(paginacao.page - 1)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '10px 20px', borderRadius: '10px',
+              border: `1px solid ${theme.border}`,
+              background: paginacao.page <= 1 ? 'transparent' : theme.cardBg,
+              color: paginacao.page <= 1 ? theme.subText : theme.text,
+              cursor: paginacao.page <= 1 ? 'not-allowed' : 'pointer',
+              opacity: paginacao.page <= 1 ? 0.4 : 1,
+              fontWeight: '600', fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            {t('common.prev')}
+          </button>
+
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            backgroundColor: theme.cardBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '10px',
+            padding: '10px 16px',
+          }}>
+            {(() => {
+              const total = paginacao.pages;
+              const cur = paginacao.page;
+              let pages = [];
+              if (total <= 7) {
+                pages = Array.from({ length: total }, (_, i) => i + 1);
+              } else {
+                pages = [1];
+                if (cur > 3) pages.push('...');
+                for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i);
+                if (cur < total - 2) pages.push('...');
+                pages.push(total);
+              }
+              return pages.map((p, i) => p === '...' ? (
+                <span key={`dots-${i}`} style={{ color: theme.subText, padding: '0 4px', fontSize: '14px' }}>…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => carregarProdutos(p)}
+                  style={{
+                    width: '34px', height: '34px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: p === cur ? '#2563eb' : 'transparent',
+                    color: p === cur ? '#fff' : theme.subText,
+                    fontWeight: p === cur ? '700' : '500',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >{p}</button>
+              ));
+            })()}
+          </div>
+
+          <div style={{ fontSize: '13px', color: theme.subText, minWidth: '100px', textAlign: 'center' }}>
+            {paginacao.total} {t('inventory.products')}
+          </div>
+
+          <button
+            disabled={paginacao.page >= paginacao.pages}
+            onClick={() => carregarProdutos(paginacao.page + 1)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '10px 20px', borderRadius: '10px',
+              border: `1px solid ${theme.border}`,
+              background: paginacao.page >= paginacao.pages ? 'transparent' : '#2563eb',
+              color: paginacao.page >= paginacao.pages ? theme.subText : '#fff',
+              cursor: paginacao.page >= paginacao.pages ? 'not-allowed' : 'pointer',
+              opacity: paginacao.page >= paginacao.pages ? 0.4 : 1,
+              fontWeight: '600', fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+          >
+            {t('common.next')}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

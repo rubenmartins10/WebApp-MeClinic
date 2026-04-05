@@ -36,7 +36,7 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
       const ctx = canvas.getContext('2d');
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
-      ctx.strokeStyle = theme.isDark ? '#e2e8f0' : '#0f172a';
+      ctx.strokeStyle = '#0f172a';
     }
   }, [mode, theme]);
 

@@ -16,31 +16,46 @@ const commonPatterns = {
 
 // Schema para criar consulta
 const createConsultaSchema = Joi.object({
-  paciente_id: Joi.number().integer().positive().required().messages({
-    'number.positive': 'ID do paciente inválido',
-    'any.required': 'ID do paciente é obrigatório'
+  nome: Joi.string().min(2).max(200).required().messages({
+    'string.min': 'Nome deve ter pelo menos 2 caracteres',
+    'any.required': 'Nome do paciente é obrigatório'
   }),
-  data_consulta: commonPatterns.data.required(),
-  hora_consulta: commonPatterns.hora.required(),
-  motivo: Joi.string().min(3).max(500).required().messages({
-    'string.min': 'Motivo deve ter pelo menos 3 caracteres',
-    'string.max': 'Motivo não pode exceder 500 caracteres',
-    'any.required': 'Motivo é obrigatório'
+  email: Joi.string().email().optional().allow('', null),
+  telefone: Joi.string().min(5).max(30).required().messages({
+    'any.required': 'Telefone é obrigatório'
   }),
-  procedimento_id: Joi.number().integer().positive().optional(),
-  diagnostico: Joi.string().max(1000).optional(),
-  tratamento: Joi.string().max(1000).optional()
-}).strict();
+  data: Joi.date().iso().required().messages({
+    'date.iso': 'Data deve estar em formato ISO (YYYY-MM-DD)',
+    'any.required': 'Data é obrigatória'
+  }),
+  hora: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).required().messages({
+    'string.pattern.base': 'Hora deve estar em formato HH:mm',
+    'any.required': 'Hora é obrigatória'
+  }),
+  motivo: Joi.string().min(0).max(500).optional().allow('', null),
+  procedimento_id: Joi.alternatives().try(
+    Joi.number().integer().positive(),
+    Joi.string().allow('', null),
+    Joi.valid(null)
+  ).optional()
+});
 
 // Schema para atualizar consulta
 const updateConsultaSchema = Joi.object({
-  data_consulta: commonPatterns.data.optional(),
-  hora_consulta: commonPatterns.hora.optional(),
-  motivo: Joi.string().min(3).max(500).optional(),
-  procedimento_id: Joi.number().integer().positive().optional(),
-  diagnostico: Joi.string().max(1000).optional(),
-  tratamento: Joi.string().max(1000).optional()
-}).strict();
+  nome: Joi.string().min(2).max(200).optional(),
+  email: Joi.string().email().optional().allow('', null),
+  telefone: Joi.string().min(5).max(30).optional(),
+  data: Joi.date().iso().optional(),
+  hora: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional().messages({
+    'string.pattern.base': 'Hora deve estar em formato HH:mm'
+  }),
+  motivo: Joi.string().min(0).max(500).optional().allow('', null),
+  procedimento_id: Joi.alternatives().try(
+    Joi.number().integer().positive(),
+    Joi.string().allow('', null),
+    Joi.valid(null)
+  ).optional()
+});
 
 // Middleware de validação
 const validateRequest = (operation) => {

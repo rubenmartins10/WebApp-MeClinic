@@ -10,13 +10,19 @@
 🟢 O QUE TEMOS (Implementado)
 ───────────────────────────────
 ✅ Helmet.js (8 proteções HTTP)
-✅ CORS whitelist (apenas localhost)
-✅ Rate limiting (100 req/15min)
+✅ CORS — whitelist aplicada corretamente (corrigido 04/04/2026)
+✅ Rate limiting — 200 req/15min geral + 20 req/15min em /api/auth (corrigido 04/04/2026)
 ✅ Validação Joi (14 schemas)
 ✅ Password hashing (bcryptjs)
-✅ JWT authentication
+✅ JWT authentication — sem fallback inseguro (corrigido 04/04/2026)
 ✅ Prepared statements (SQL injection safe)
 ✅ Error handling centralizado
+✅ DB_PASSWORD e JWT_SECRET — obrigatórios no arranque (corrigido 04/04/2026)
+✅ Race condition no stock — resolvida com SELECT ... FOR UPDATE (corrigido 04/04/2026)
+✅ TLS rejectUnauthorized — true em produção (corrigido 04/04/2026)
+✅ Body parser — limite reduzido para 10mb (corrigido 04/04/2026)
+✅ URLs hardcoded no frontend — removidas (corrigido 04/04/2026)
+✅ console.log de requests — removido de produção (corrigido 04/04/2026)
 
 🔴 O QUE FALTA (CRÍTICO)
 ────────────────────────
@@ -28,10 +34,11 @@
 ❌ BACKUP ENCRIPTADO
 ❌ DATA RETENTION POLICY
 ❌ DOCUMENTAÇÃO LEGAL (Privacy Policy, ToS)
+❌ AUTH BEARER em Faturacao.js, Users.js, FichasTecnicas.js, Dashboard.js, Report.js
 
-⚠️ RISCO GERAL: 🔴 CRÍTICO
+⚠️ RISCO GERAL: 🟡 MÉDIO (melhorado de 🔴 CRÍTICO em 04/04/2026)
 ─────────────
-SEM ISTO, APLICAÇÃO **NÃO PODE** ir para PRODUÇÃO com dados de saúde
+Vulnerabilidades críticas de arranque resolvidas. Encriptação em repouso e HTTPS continuam por fazer antes de produção.
 ```
 
 ---

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Shield, User, Trash2, Mail, Plus, Search, CheckCircle, XCircle, AlertTriangle, X, QrCode } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar o motor de idiomas
+import apiService from '../services/api';
 
 const Users = () => {
   const { theme } = useContext(ThemeContext);
@@ -17,7 +18,7 @@ const Users = () => {
   const [qrCodeCriado, setQrCodeCriado] = useState(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentUser = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isCurrentUserAdmin = currentUser.role === 'ADMIN';
 
   useEffect(() => {
@@ -26,17 +27,10 @@ const Users = () => {
 
   const carregarUtilizadores = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/utilizadores', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
-      
-      if (Array.isArray(data)) {
-        setUtilizadores(data);
-      } else {
-        setUtilizadores([]);
-      }
-    } catch (err) {
-      setUtilizadores([]); 
+      const data = await apiService.get('/api/utilizadores');
+      setUtilizadores(Array.isArray(data) ? data : []);
+    } catch {
+      setUtilizadores([]);
     }
   };
 
@@ -55,16 +49,11 @@ const Users = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/utilizadores/${showDeleteConfirm}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        showNotif('success', t('users.msg.removed'));
-        carregarUtilizadores();
-      } else {
-        showNotif('error', t('users.msg.remove_err'));
-      }
+      await apiService.delete(`/api/utilizadores/${showDeleteConfirm}`);
+      showNotif('success', t('users.msg.removed'));
+      carregarUtilizadores();
     } catch (err) {
-      showNotif('error', t('inventory.msg.server_err'));
+      showNotif('error', t('users.msg.remove_err'));
     } finally {
       setShowDeleteConfirm(null);
     }
@@ -74,24 +63,13 @@ const Users = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/utilizadores', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(novoUser)
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
-        setQrCodeCriado(data.qrCodeUrl); 
-        carregarUtilizadores();
-        setNovoUser({ nome: '', email: '', password: '', role: 'ASSISTENTE' }); 
-        showNotif('success', t('users.msg.added'));
-      } else {
-        showNotif('error', data.error || t('users.msg.add_err'));
-      }
+      const data = await apiService.post('/api/utilizadores', novoUser);
+      setQrCodeCriado(data.qrCodeUrl); 
+      carregarUtilizadores();
+      setNovoUser({ nome: '', email: '', password: '', role: 'ASSISTENTE' }); 
+      showNotif('success', t('users.msg.added'));
     } catch (err) {
-      showNotif('error', t('inventory.msg.server_err'));
+      showNotif('error', err.message || t('users.msg.add_err'));
     } finally {
       setIsSubmitting(false);
     }

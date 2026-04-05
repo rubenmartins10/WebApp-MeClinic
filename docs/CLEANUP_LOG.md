@@ -1,6 +1,66 @@
-# 📋 Estrutura Final do Projeto - Limpeza Profissional Completa
+# 📋 Log de Alterações ao Projeto
 
-## ✅ Limpeza Executada
+---
+
+## � Correções de Qualidade & Segurança — Sprint Seguinte
+
+### Problemas corrigidos (auditoria — 2.ª ronda)
+
+#### Novos utilitários (`meclinic-app/client/src/utils/`)
+
+| Ficheiro | Descrição |
+|---|---|
+| `utils/locale.js` | **NOVO** — Função `getActiveLocale(language)` centraliza o mapeamento de idioma → BCP-47 locale. Elimina duplicação em 6 componentes |
+| `utils/treatmentPrices.js` | **NOVO** — Constantes `PRECO_CARIE/EXTRACAO/ENDO/COROA/IMPLANTE` extraídas de `Consultas.js` para ficheiro partilhado |
+
+#### Backend (`server/`)
+
+| Ficheiro | Alteração |
+|---|---|
+| `controllers/produtosController.js` | Parâmetros de paginação `page` e `limit` passam a ser sanitizados: `page ≥ 1`, `1 ≤ limit ≤ 100` (evita consultas sem limite ao BD) |
+
+#### Frontend (`meclinic-app/client/src/`)
+
+| Ficheiro | Alteração |
+|---|---|
+| `App.js` | Removido `/* eslint-disable */`; `JSON.parse(storedUser)` no `useEffect` envolto em `try/catch` — sessão corrompida no localStorage já não derruba a app |
+| `pages/Settings.js` | `JSON.parse` do utilizador e das definições da clínica envolvidos em `try/catch`; chave de token incorreta `meclinic_token` corrigida para `token` |
+| `pages/Pacientes.js` | Removido `/* eslint-disable */`; `JSON.parse` do utilizador com `try/catch`; 6 chamadas `fetch` sem `Authorization` corrigidas (POST/GET exames, DELETE exame, DELETE paciente, PUT dados); validação de tipo e tamanho de ficheiro adicionada ao upload de exames (só PDF/JPG/PNG/GIF, máx 10 MB); locale agora vem de `utils/locale.js` |
+| `pages/Consultas.js` | Removido `/* eslint-disable */`; `JSON.parse` do utilizador com `try/catch`; constantes `PRECO_*` movidas para `utils/treatmentPrices.js`; locale agora vem de `utils/locale.js` |
+| `pages/Dashboard.js` | Locale agora vem de `utils/locale.js` (elimina 1 duplicação) |
+| `pages/Faturacao.js` | Locale agora vem de `utils/locale.js`; `.catch(err => console.error(err))` removido do fetch inicial |
+| `pages/Report.js` | `JSON.parse` do utilizador com `try/catch`; locale agora vem de `utils/locale.js` |
+| `pages/Inventory.js` | Removido `/* eslint-disable */`; locale agora vem de `utils/locale.js`; paginação activada — a componente agora passa `?page=X&limit=20&search=...&categoria=...` à API e mostra controlos Anterior/Próxima quando há mais de uma página |
+
+
+
+### Problemas corrigidos (auditoria completa)
+
+#### Backend (`server/`)
+
+| Ficheiro | Alteração |
+|---|---|
+| `server/db.js` | Removida password `'3rubendavid'` hardcoded. Adicionada validação de arranque: o servidor termina com erro fatal se `DB_PASSWORD` ou `JWT_SECRET` não estiverem no `.env` |
+| `server/middleware/auth.js` | Removido fallback inseguro `'sua-chave-secreta'` do JWT |
+| `server/controllers/authController.js` | Removido fallback inseguro do JWT; expiração de token alterada de `7d` para `8h` |
+| `server/index.js` | CORS corrigido para usar a whitelist `allowedOrigins` (antes aceitava qualquer origem) |
+| `server/index.js` | Rate limiting reativado: 200 req/15min geral; 20 req/15min em `/api/auth` (brute-force) |
+| `server/index.js` | TLS `rejectUnauthorized` passa a ser `true` em produção (antes era sempre `false`) |
+| `server/index.js` | Body parser reduzido de `50mb` para `10mb` |
+| `server/controllers/faturaçãoController.js` | Race condition no abate de stock resolvida: usa `pool.connect()` com client dedicado + `SELECT ... FOR UPDATE` + `GREATEST(0, ...)` para evitar stock negativo |
+
+#### Frontend (`meclinic-app/client/src/`)
+
+| Ficheiro | Alteração |
+|---|---|
+| `pages/Auth.js` | Removidos 3 URLs hardcoded `http://localhost:5000/...` — substituídos por paths relativos `/api/auth/...` |
+| `utils/fetchWithToken.js` | Removido `console.log` que expunha todos os requests HTTP na consola de produção |
+| `pages/Consultas.js` | `DELETE /api/consultas/:id` passou a enviar o header `Authorization` que faltava |
+| `pages/Consultas.js` | Erro ao carregar materiais do procedimento no checkout deixou de ser engolido silenciosamente |
+
+---
+
+## ✅ Limpeza Executada (Histórico Anterior)
 
 **20 ficheiros removidos/reorganizados:**
 

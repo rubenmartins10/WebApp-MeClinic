@@ -2,6 +2,8 @@
 // --- ERROR HANDLING MIDDLEWARE ---
 // ==========================================
 
+const logger = require('./utils/logger');
+
 /**
  * Classe de erro customizada para a aplicação
  */
@@ -26,7 +28,7 @@ const errorHandler = (err, req, res, next) => {
 
   // Log detalhado em desenvolvimento
   if (process.env.NODE_ENV !== 'production') {
-    console.error('🔴 ERRO:', {
+    logger.error('ERRO:', {
       timestamp: new Date().toISOString(),
       method: req.method,
       url: req.originalUrl,
@@ -90,7 +92,7 @@ const validationErrorHandler = (error, req, res, next) => {
 const securityLogger = (err, req, res, next) => {
   // Rate limit violations, SQL injection attempts, etc
   if (err.statusCode === 429 || err.message?.includes('SQL') || err.message?.includes('injection')) {
-    console.warn('⚠️  ALERTA DE SEGURANÇA:', {
+    logger.warn('ALERTA DE SEGURANÇA:', {
       timestamp: new Date().toISOString(),
       ip: req.ip,
       method: req.method,

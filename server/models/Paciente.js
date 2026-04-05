@@ -126,11 +126,9 @@ class Paciente {
     const result = await pool.query(`
       SELECT 
         c.id, c.data_consulta, c.hora_consulta, c.status, c.diagnostico,
-        m.nome as procedimento_nome,
-        u.nome as dentista_nome
+        m.nome as procedimento_nome
       FROM consultas c
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      LEFT JOIN utilizadores u ON c.dentista_id = u.id
       WHERE c.paciente_id = $1
       ORDER BY c.data_consulta DESC, c.hora_consulta DESC
     `, [id]);
@@ -143,7 +141,7 @@ class Paciente {
    */
   static async addExame(pacienteId, nome, base64) {
     const result = await pool.query(
-      `INSERT INTO exames_paciente (paciente_id, nome_exame, ficheiro_base64, data_exame)
+      `INSERT INTO exames_paciente (paciente_id, nome_exame, arquivo_base64, data_exame)
        VALUES ($1, $2, $3, NOW())
        RETURNING id, nome_exame, data_exame`,
       [pacienteId, nome, base64]
@@ -157,7 +155,7 @@ class Paciente {
    */
   static async getExames(id) {
     const result = await pool.query(
-      `SELECT id, nome_exame, data_exame, ficheiro_base64
+      `SELECT id, nome_exame, data_exame, arquivo_base64
        FROM exames_paciente
        WHERE paciente_id = $1
        ORDER BY data_exame DESC`,

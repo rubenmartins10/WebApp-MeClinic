@@ -7,6 +7,7 @@ import {
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import apiService from '../services/api';
 
 const Settings = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -19,7 +20,7 @@ const Settings = () => {
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = user.role === 'ADMIN';
 
   // Estado do perfil
@@ -59,7 +60,8 @@ const Settings = () => {
   // Estado da clínica
   const [clinicaData, setClinicaData] = useState(() => {
     const saved = localStorage.getItem('meclinic_settings');
-    return saved ? JSON.parse(saved) : {
+    try { if (saved) return JSON.parse(saved); } catch {}
+    return {
       nome: 'MeClinic',
       nif: '501234567',
       telefone: '+351 912 345 678',
@@ -78,16 +80,8 @@ const Settings = () => {
   useEffect(() => {
     const fetchActivityData = async () => {
       try {
-        const response = await fetch('/api/auth/activity', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('meclinic_token') || ''}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          
+        const data = await apiService.get('/api/auth/activity');
+        
           // Formatar sessões activas
           const formattedSessions = (data.activeSessions || []).map((session, index) => ({
             id: session.id || index,
@@ -115,21 +109,6 @@ const Settings = () => {
 
           setSessionsAtivas(formattedSessions);
           setLoginHistory(formattedHistory);
-        } else {
-          console.warn('Erro ao buscar atividade, usando dados padrão');
-          // Fallback: usar apenas a sessão actual
-          setSessionsAtivas([{
-            id: 1,
-            user: user.nome || 'Utilizador Actual',
-            role: user.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
-            device: 'Browser Actual',
-            location: 'Localização Atual',
-            lastActivity: new Date(),
-            loginTime: new Date(),
-            status: 'active',
-            current: true
-          }]);
-        }
       } catch (err) {
         console.error('Erro ao buscar dados de atividade:', err);
         // Fallback silencioso
@@ -246,6 +225,35 @@ const Settings = () => {
     if (window.confirm('Desconectar todos os dispositivos? Terá de fazer login novamente neste dispositivo.')) {
       showNotif('success', 'Todos os dispositivos foram desconectados.');
     }
+  };
+
+  const handleChannelToggle = async (channelKey) => {
+    if (channelKey === 'push') {
+      const enabling = !notificacoesData.push;
+      if (enabling) {
+        if (!('Notification' in window)) {
+          showNotif('error', 'O seu browser não suporta notificações. Tente Chrome, Firefox ou Safari.');
+          return;
+        }
+        if (Notification.permission === 'denied') {
+          showNotif('error', 'Notificações bloqueadas. Ative-as nas definições do browser e recarregue a página.');
+          return;
+        }
+        if (Notification.permission === 'default') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            showNotif('error', 'Permissão de notificações recusada.');
+            return;
+          }
+        }
+        // Permission granted — show confirmation notification
+        new Notification('MeClinic — Notificações Ativas', {
+          body: 'Receberá alertas de stock baixo, lembretes de consultas e relatórios semanais.',
+          icon: '/logo192.png'
+        });
+      }
+    }
+    setNotificacoesData(prev => ({ ...prev, [channelKey]: !prev[channelKey] }));
   };
 
   const handleDownloadData = () => {
@@ -471,7 +479,7 @@ const Settings = () => {
         // TODO: Implementar chamada ao backend
         setTimeout(() => {
           localStorage.removeItem('meclinic_user');
-          localStorage.removeItem('meclinic_token');
+          localStorage.removeItem('token');
           window.location.href = '/login';
         }, 2000);
       } else {
@@ -1105,11 +1113,11 @@ const Settings = () => {
                   {[
                     { key: 'email', label: 'Email', icon: Mail },
                     { key: 'sms', label: 'SMS', icon: Smartphone },
-                    { key: 'push', label: 'Push/App', icon: Bell }
+                    { key: 'push', label: 'App', icon: Bell }
                   ].map(channel => (
                     <div
                       key={channel.key}
-                      onClick={() => setNotificacoesData({ ...notificacoesData, [channel.key]: !notificacoesData[channel.key] })}
+                      onClick={() => handleChannelToggle(channel.key)}
                       style={{
                         padding: '15px',
                         borderRadius: '12px',

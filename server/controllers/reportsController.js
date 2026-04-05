@@ -3,6 +3,7 @@ const PDFDocument = require('pdfkit');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 /**
  * Controller de Relatórios
@@ -278,7 +279,7 @@ async function getAdministrators() {
     );
     return result.rows;
   } catch (error) {
-    console.error('Erro ao buscar administradores:', error);
+    logger.error('Erro ao buscar administradores:', { message: error.message });
     return [];
   }
 }
@@ -288,20 +289,20 @@ async function getAdministrators() {
  */
 async function sendWeeklyReportEmail() {
   try {
-    console.log('[REPORT] Iniciando geração de relatório semanal...');
+    logger.info('[REPORT] Iniciando geração de relatório semanal...');
 
     // Gerar PDF
     const pdfBuffer = await generateWeeklyReportPDF();
-    console.log('[REPORT] PDF gerado com sucesso');
+    logger.info('[REPORT] PDF gerado com sucesso');
 
     // Obter lista de administradores
     const admins = await getAdministrators();
     if (admins.length === 0) {
-      console.log('[REPORT] ⚠️  Nenhum administrador encontrado para enviar relatório');
+      logger.warn('[REPORT] Nenhum administrador encontrado para enviar relatório');
       return { success: false, message: 'Nenhum administrador encontrado' };
     }
 
-    console.log(`[REPORT] Enviando relatório para ${admins.length} administrador(es)...`);
+    logger.info(`[REPORT] Enviando relatório para ${admins.length} administrador(es)...`);
 
     // Enviar email para cada administrador
     const emailPromises = admins.map(admin => {
@@ -346,7 +347,7 @@ async function sendWeeklyReportEmail() {
 
     await Promise.all(emailPromises);
 
-    console.log(`[REPORT] ✅ Relatório enviado com sucesso para ${admins.length} administrador(es)`);
+    logger.info(`[REPORT] Relatório enviado com sucesso para ${admins.length} administrador(es)`);
     return {
       success: true,
       message: `Relatório enviado para ${admins.length} administrador(es)`,
@@ -354,7 +355,7 @@ async function sendWeeklyReportEmail() {
     };
 
   } catch (error) {
-    console.error('[REPORT] ❌ Erro ao enviar relatório:', error.message);
+    logger.error('[REPORT] Erro ao enviar relatório:', { message: error.message });
     return { success: false, error: error.message };
   }
 }

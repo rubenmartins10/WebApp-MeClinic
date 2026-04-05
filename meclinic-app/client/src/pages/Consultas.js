@@ -1,4 +1,3 @@
-/* eslint-disable */
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle, Globe, Grid, List as ListIcon, ChevronLeft, ChevronRight, Plus, Minus, Package, X, UploadCloud, File, Pill, MessageCircle, Smile, Save } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -6,11 +5,17 @@ import { LanguageContext } from '../contexts/LanguageContext';
 import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
 import Assinatura from '../components/specialized/Assinatura';
+import { getActiveLocale } from '../utils/locale';
+import { PRECO_CARIE, PRECO_EXTRACAO, PRECO_ENDO, PRECO_COROA, PRECO_IMPLANTE } from '../utils/treatmentPrices';
+import apiService from '../services/api';
+
+const ALLOWED_EXAM_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif'];
+const MAX_EXAM_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const Consultas = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
-  const currentUser = JSON.parse(localStorage.getItem('meclinic_user')) || {};
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
 
   const [consultas, setConsultas] = useState([]);
   const [modelos, setModelos] = useState([]);
@@ -49,15 +54,12 @@ const Consultas = () => {
   const [filtro, setFiltro] = useState('dia');
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
+  const activeLocale = getActiveLocale(language);
 
   const fetchDados = () => {
-    const token = localStorage.getItem('token');
-    fetch('/api/consultas', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+    apiService.get('/api/consultas?limit=500')
       .then(data => setConsultas(Array.isArray(data) ? data : (data.consultas || [])));
-    fetch('/api/modelos-procedimento', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+    apiService.get('/api/modelos-procedimento')
       .then(data => setModelos(Array.isArray(data) ? data : (data.modelos || [])));
   };
 
@@ -84,32 +86,29 @@ const Consultas = () => {
 
     try {
       setIsProcessing(true);
-      const token = localStorage.getItem('token');
-      const res = await fetch(url, {
-        method, 
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ...formData, 
-          telefone: telefoneCompleto, 
-          procedimento_id: formData.procedimento_id || null 
-        })
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        showNotif(isEditing ? t('consultations.msg.updated') : t('consultations.msg.scheduled'));
-        setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
-        setPhonePrefix('+351'); 
-        setIsEditing(false); 
-        setEditId(null); 
-        fetchDados();
+      const payload = { ...formData, telefone: telefoneCompleto, procedimento_id: formData.procedimento_id || null };
+      if (isEditing) {
+        await apiService.put(url, payload);
       } else {
-        showNotif(data.error || t('consultations.msg.save_err'), 'error');
+        await apiService.post(url, payload);
       }
+
+      showNotif(isEditing ? t('consultations.msg.updated') : t('consultations.msg.scheduled'));
+      // Auto-switch filter so the new/edited consultation is visible
+      if (formData.data) {
+        const hojeStr = new Date().toLocaleDateString('sv-SE');
+        const diffDias = (new Date(formData.data) - new Date(hojeStr)) / (1000 * 60 * 60 * 24);
+        if (formData.data === hojeStr) setFiltro('dia');
+        else if (diffDias >= 0 && diffDias <= 7) setFiltro('semana');
+        else setFiltro('mes');
+      }
+      setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
+      setPhonePrefix('+351'); 
+      setIsEditing(false); 
+      setEditId(null); 
+      fetchDados();
     } catch (err) { 
-      console.error('Erro ao submeter formulário:', err);
-      showNotif(t('consultations.msg.save_err'), 'error'); 
+      showNotif(err.message || t('consultations.msg.save_err'), 'error'); 
     } finally {
       setIsProcessing(false);
     }
@@ -117,14 +116,14 @@ const Consultas = () => {
 
   const handleEdit = (c) => {
     setIsEditing(true); setEditId(c.id);
-    let dataFormatada = ''; if (c.data_consulta) dataFormatada = new Date(c.data_consulta).toISOString().split('T')[0];
+    let dataFormatada = ''; if (c.data_consulta) dataFormatada = String(c.data_consulta).substring(0, 10);
     let horaFormatada = ''; if (c.hora_consulta) horaFormatada = c.hora_consulta.substring(0, 5);
-    let numLimpo = c.paciente_telefone || ''; let prefixo = '+351';
+    let numLimpo = c.telefone || ''; let prefixo = '+351';
     if (numLimpo.includes(' ')) { const partes = numLimpo.split(' '); prefixo = partes[0]; numLimpo = partes.slice(1).join(' '); } 
     else if (numLimpo === t('consultations.list.no_phone')) { numLimpo = ''; }
 
     setPhonePrefix(prefixo);
-    setFormData({ nome: c.paciente_nome || '', email: c.paciente_email || '', telefone: numLimpo, data: dataFormatada, hora: horaFormatada, motivo: c.motivo || '', procedimento_id: c.procedimento_id || '' });
+    setFormData({ nome: c.paciente_nome || '', email: c.email || '', telefone: numLimpo, data: dataFormatada, hora: horaFormatada, motivo: c.motivo || '', procedimento_id: c.procedimento_id || '' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -132,7 +131,7 @@ const Consultas = () => {
   const confirmarApagar = async () => {
     if (!showDeleteConfirm) return;
     try {
-      await fetch(`/api/consultas/${showDeleteConfirm}`, { method: 'DELETE' });
+      await apiService.delete(`/api/consultas/${showDeleteConfirm}`);
       showNotif(t('consultations.msg.deleted')); fetchDados();
     } catch (err) { showNotif(t('consultations.msg.delete_err'), 'error'); } finally { setShowDeleteConfirm(null); }
   };
@@ -140,16 +139,15 @@ const Consultas = () => {
   // --- MAGIA DO COPYWRITING: LEMBRETE DE CONSULTA ---
   const enviarLembreteWhatsapp = (c, e) => {
     e.stopPropagation(); 
-    if (!c.paciente_telefone || c.paciente_telefone === t('consultations.list.no_phone')) { showNotif('Sem número válido.', 'error'); return; }
-    const numWhatsApp = c.paciente_telefone.replace(/\D/g, '');
+    if (!c.telefone || c.telefone === t('consultations.list.no_phone')) { showNotif('Sem número válido.', 'error'); return; }
+    const numWhatsApp = c.telefone.replace(/\D/g, '');
     const primeiroNome = c.paciente_nome.split(' ')[0];
     const dataC = new Date(c.data_consulta).toLocaleDateString(activeLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
     const horaC = c.hora_consulta.substring(0, 5);
     
     const procedimento = c.procedimento_nome || 'Avaliação Geral';
-    const medico = currentUser.nome ? `o/a Dr(a). ${currentUser.nome}` : 'a nossa equipa';
-    
-    const msg = `Olá ${primeiroNome}, daqui é da equipa Meclinic! 🩺\n\nPassamos apenas para relembrar a sua consulta de *${procedimento}* com ${medico}, amanhã, dia *${dataC}* às *${horaC}*.\n\nPara confirmar a sua presença, por favor responda com 'SIM'. Caso precise de reagendar, diga-nos algo por aqui.\n\nAté breve!`;
+
+    const msg = `Ola ${primeiroNome},\n\nLembramos que tem uma consulta de ${procedimento} marcada para o dia ${dataC} as ${horaC}.\n\nPara confirmar a sua presenca, responda com SIM. Para reagendar, contacte-nos.\n\nMeClinic`;
     
     window.open(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -171,21 +169,21 @@ const Consultas = () => {
     setAssinaturaMedica(null);
     
     setSendWhatsapp(true);
-    if (c.paciente_email) { setSendEmail(true); setEmailPaciente(c.paciente_email); } else { setSendEmail(false); setEmailPaciente(''); }
+    if (c.email) { setSendEmail(true); setEmailPaciente(c.email); } else { setSendEmail(false); setEmailPaciente(''); }
 
     if (!eAvaliacao && c.procedimento_id) {
       try {
-        const res = await fetch(`/api/modelos-procedimento/${c.procedimento_id}/itens`);
-        setCheckoutMateriais(await res.json());
-      } catch (err) {}
+        const materiais = await apiService.get(`/api/modelos-procedimento/${c.procedimento_id}/itens`);
+        setCheckoutMateriais(Array.isArray(materiais) ? materiais : []);
+      } catch (err) {
+        showNotif('Erro ao carregar materiais do procedimento.', 'error');
+      }
     }
   };
 
   const handleMudancaOdontograma = (novosDadosDentes) => {
     setOdontogramaAvaliacao(novosDadosDentes);
     let caries = 0, extracoes = 0, endo = 0, coroas = 0, implantes = 0;
-    const PRECO_CARIE = 50; const PRECO_EXTRACAO = 40; const PRECO_ENDO = 150; const PRECO_COROA = 400; const PRECO_IMPLANTE = 600;
-
     Object.values(novosDadosDentes).forEach(dente => {
       if (dente.EXTRACTED) {
         extracoes++;
@@ -209,6 +207,16 @@ const Consultas = () => {
 
   const handleCheckoutFileUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
+    if (!ALLOWED_EXAM_TYPES.includes(file.type)) {
+      showNotif('Tipo de ficheiro não permitido. Use PDF, JPG, PNG ou GIF.', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_EXAM_SIZE) {
+      showNotif('Ficheiro demasiado grande. Tamanho máximo: 10 MB.', 'error');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader(); reader.onloadend = () => { setCheckoutExame({ name: file.name, base64: reader.result }); };
     reader.readAsDataURL(file);
   };
@@ -356,13 +364,10 @@ const Consultas = () => {
 
     try {
       if (isAvaliacao && Object.keys(odontogramaAvaliacao).length > 0) {
-        const pIdRes = await fetch(`/api/pacientes`);
-        const todosPacientes = await pIdRes.json();
-        const pacienteExato = todosPacientes.find(p => p.nome === checkoutModal.paciente_nome);
+        const todosPacientes = await apiService.get(`/api/pacientes`);
+        const pacienteExato = (Array.isArray(todosPacientes) ? todosPacientes : (todosPacientes.pacientes || [])).find(p => p.nome === checkoutModal.paciente_nome);
         if(pacienteExato) {
-          await fetch(`/api/pacientes/${pacienteExato.id}/odontograma`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dados: odontogramaAvaliacao })
-          });
+          await apiService.put(`/api/pacientes/${pacienteExato.id}/odontograma`, { dados: odontogramaAvaliacao });
         }
       }
 
@@ -376,15 +381,11 @@ const Consultas = () => {
         receita_nome: nomeReceita, receita_base64: pdfReceitaBase64
       };
 
-      const res = await fetch('/api/faturacao/checkout', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
+      const data = await apiService.post('/api/faturacao/checkout', payload);
+      if (data) {
         showNotif(isAvaliacao ? 'Avaliação Guardada e Orçamento Gerado!' : 'Consulta Finalizada e Documentos Guardados!');
-        if (sendWhatsapp && checkoutModal.paciente_telefone) {
-          const numWhatsApp = checkoutModal.paciente_telefone.replace(/\D/g, ''); 
+        if (sendWhatsapp && checkoutModal.telefone) {
+          const numWhatsApp = checkoutModal.telefone.replace(/\D/g, ''); 
           if (numWhatsApp) {
             const primeiroNome = checkoutModal.paciente_nome.split(' ')[0];
             let msgTexto = "";
@@ -407,8 +408,20 @@ const Consultas = () => {
           }
         }
         setCheckoutModal(null); fetchDados();
-      } else { showNotif(data.error || 'Erro ao finalizar', 'error'); }
-    } catch (err) { showNotif('Erro de comunicação', 'error'); } finally { setIsProcessing(false); }
+
+        // Enviar email automaticamente via cliente de email
+        if (sendEmail && emailPaciente && pdfFaturaBase64) {
+          const assunto = isAvaliacao
+            ? `MeClinic - Plano de Tratamento e Orçamento - ${checkoutModal.paciente_nome}`
+            : `MeClinic - Fatura/Recibo - ${checkoutModal.paciente_nome}`;
+          const corpo = isAvaliacao
+            ? `Exmo(a) ${checkoutModal.paciente_nome},\n\nEm anexo encontra o seu Plano de Tratamento e Orçamento emitido pela MeClinic.\n\nObrigado pela sua confiança.\n\nMeClinic`
+            : `Exmo(a) ${checkoutModal.paciente_nome},\n\nEm anexo encontra a fatura referente à consulta de ${checkoutModal.procedimento_nome || 'Consulta'} realizada hoje.\n\nObrigado pela sua confiança.\n\nMeClinic`;
+          const mailtoLink = `mailto:${emailPaciente}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+          const a = document.createElement('a'); a.href = mailtoLink; a.click();
+        }
+      }
+    } catch (err) { showNotif(err.message || 'Erro de comunicação', 'error'); } finally { setIsProcessing(false); }
   };
 
   const getProcedimentoColor = (nome) => {
@@ -458,17 +471,14 @@ const Consultas = () => {
     return [...blanks, ...days];
   };
 
-  const dataAtual = new Date(); const hojeStr = dataAtual.getFullYear() + '-' + String(dataAtual.getMonth() + 1).padStart(2, '0') + '-' + String(dataAtual.getDate()).padStart(2, '0'); const hojeObj = new Date(hojeStr + 'T00:00:00'); 
+  const dataAtual = new Date(); const hojeStr = dataAtual.getFullYear() + '-' + String(dataAtual.getMonth() + 1).padStart(2, '0') + '-' + String(dataAtual.getDate()).padStart(2, '0');
   const consultasFiltradas = consultas.filter(c => {
     if (!c.data_consulta) return false;
-    const cDateStr = c.data_consulta.split('T')[0]; 
-    const dataConsultaObj = new Date(cDateStr + 'T00:00:00'); 
-    const diffTime = dataConsultaObj.getTime() - hojeObj.getTime(); 
-    const diffDias = Math.round(diffTime / (1000 * 3600 * 24));
-    
-    if (filtro === 'dia') return diffDias === 0; 
-    if (filtro === 'semana') return diffDias >= 0 && diffDias <= 7; 
-    if (filtro === 'mes') return dataConsultaObj.getMonth() === dataAtual.getMonth() && dataConsultaObj.getFullYear() === dataAtual.getFullYear(); 
+    const cDateStr = String(c.data_consulta).substring(0, 10);
+    if (filtro === 'dia') return cDateStr === hojeStr;
+    const diffDias = Math.round((new Date(cDateStr + 'T00:00:00') - new Date(hojeStr + 'T00:00:00')) / 86400000);
+    if (filtro === 'semana') return diffDias >= 0 && diffDias <= 7;
+    if (filtro === 'mes') return cDateStr.substring(0, 7) === hojeStr.substring(0, 7);
     return true;
   });
 
@@ -652,85 +662,117 @@ const Consultas = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '30px', alignItems: 'start' }}>
-        <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '16px', border: `1px solid ${theme.border}` }}>
-          <h3 style={{ margin: '0 0 25px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><User size={20} color="#2563eb" /> {isEditing ? t('consultations.form.edit') : t('consultations.form.new')}</h3>
-          <form onSubmit={handleSubmit}>
-            <div style={{ position: 'relative' }}>
-              <User size={18} style={iconStyle} />
-              <input type="text" name="nome" value={formData.nome} onChange={handleChange} placeholder="Primeiro e Último Nome *" style={inputStyle} required />
+        <div style={{ backgroundColor: theme.cardBg, borderRadius: '20px', border: `1px solid ${theme.border}`, overflow: 'hidden', boxShadow: theme.isDark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.08)' }}>
+          {/* Form header */}
+          <div style={{ background: isEditing ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', padding: '22px 28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <User size={20} color="white" />
             </div>
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} style={iconStyle} />
-              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder={t('consultations.form.email_ph')} style={inputStyle} />
+            <div>
+              <div style={{ fontSize: '17px', fontWeight: '700', color: 'white', letterSpacing: '-0.3px' }}>{isEditing ? t('consultations.form.edit') : t('consultations.form.new')}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>Campos com * são obrigatórios</div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-              <div style={{ position: 'relative', width: '130px' }}>
-                <Globe size={16} style={{ position: 'absolute', left: '12px', top: '15px', color: '#64748b', zIndex: 1 }} />
-                <select value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)} style={{ width: '100%', padding: '14px 10px 14px 38px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontWeight: 'bold', outline: 'none', cursor: 'pointer', appearance: 'none', position: 'relative' }}>
-                  <option value="+351">PT +351</option><option value="+34">ES +34</option><option value="+33">FR +33</option><option value="+44">UK +44</option><option value="+49">DE +49</option><option value="+41">CH +41</option><option value="+1">US +1</option><option value="+55">BR +55</option>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
+            {/* Nome */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <User size={12} /> Nome Completo <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input type="text" name="nome" value={formData.nome} onChange={handleChange} placeholder="Primeiro e Último Nome"
+                style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} required />
+            </div>
+
+            {/* Email */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <Mail size={12} /> Email
+              </label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="email@exemplo.com"
+                style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} />
+            </div>
+
+            {/* Telefone */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <Phone size={12} /> Telemóvel <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)}
+                  style={{ width: '110px', flexShrink: 0, padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
+                  <option value="+351">🇵🇹 +351</option><option value="+34">🇪🇸 +34</option><option value="+33">🇫🇷 +33</option><option value="+44">🇬🇧 +44</option><option value="+49">🇩🇪 +49</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+55">🇧🇷 +55</option>
                 </select>
-              </div>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Phone size={18} style={iconStyle} />
-                <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} placeholder="Telemóvel *" style={{ ...inputStyle, marginBottom: 0 }} required />
+                <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} placeholder="9XX XXX XXX"
+                  style={{ flex: 1, padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} required />
               </div>
             </div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.procedure')}</label>
-            <select name="procedimento_id" value={formData.procedimento_id} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required>
-              <option value="">{t('consultations.form.procedure_ph')}</option>
-              {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-            </select>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+
+            {/* Procedimento */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <FileText size={12} /> Procedimento Clínico <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select name="procedimento_id" value={formData.procedimento_id} onChange={handleChange} required
+                style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: formData.procedimento_id ? theme.text : '#94a3b8', fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border}>
+                <option value="">{t('consultations.form.procedure_ph')}</option>
+                {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+            </div>
+
+            {/* Data e Hora */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.date')}</label>
-                <input type="date" name="data" value={formData.data} onChange={handleChange} style={{ ...inputStyle, paddingLeft: '12px' }} required />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  <CalendarIcon size={12} /> Data <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input type="date" name="data" value={formData.data} onChange={handleChange} required
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.time')}</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <div>
-                    <select 
-                      name="hora_hh" 
-                      value={formData.hora.split(':')[0] || '09'}
-                      onChange={(e) => {
-                        const hh = e.target.value;
-                        const mm = formData.hora.split(':')[1] || '00';
-                        setFormData({ ...formData, hora: `${hh}:${mm}` });
-                      }}
-                      style={{ ...inputStyle, paddingLeft: '12px', marginBottom: 0 }}
-                    >
-                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-                        <option key={h} value={h}>{h}h</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <select 
-                      name="hora_mm" 
-                      value={formData.hora.split(':')[1] || '00'}
-                      onChange={(e) => {
-                        const hh = formData.hora.split(':')[0] || '09';
-                        const mm = e.target.value;
-                        setFormData({ ...formData, hora: `${hh}:${mm}` });
-                      }}
-                      style={{ ...inputStyle, paddingLeft: '12px', marginBottom: 0 }}
-                    >
-                      {[0, 15, 30, 45].map(m => {
-                        const mm = String(m).padStart(2, '0');
-                        return <option key={mm} value={mm}>{mm}m</option>;
-                      })}
-                    </select>
-                  </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  <Clock size={12} /> Hora <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <select name="hora_hh" value={formData.hora.split(':')[0] || '09'}
+                    onChange={(e) => { const hh = e.target.value; const mm = formData.hora.split(':')[1] || '00'; setFormData({ ...formData, hora: `${hh}:${mm}` }); }}
+                    style={{ padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', textAlign: 'center' }}>
+                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}h</option>)}
+                  </select>
+                  <select name="hora_mm" value={formData.hora.split(':')[1] || '00'}
+                    onChange={(e) => { const hh = formData.hora.split(':')[0] || '09'; const mm = e.target.value; setFormData({ ...formData, hora: `${hh}:${mm}` }); }}
+                    style={{ padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', textAlign: 'center' }}>
+                    {[0, 15, 30, 45].map(m => { const mm = String(m).padStart(2, '0'); return <option key={mm} value={mm}>{mm}m</option>; })}
+                  </select>
                 </div>
               </div>
             </div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: theme.subText, textTransform: 'uppercase' }}>{t('consultations.form.notes')}</label>
-            <textarea name="motivo" value={formData.motivo} onChange={handleChange} placeholder={t('consultations.form.notes_ph')} className="custom-scrollbar" style={{ ...inputStyle, paddingLeft: '12px', height: '100px', resize: 'none' }}></textarea>
-            <button type="submit" disabled={isProcessing} style={{ width: '100%', padding: '14px', backgroundColor: isProcessing ? '#9ca3af' : '#3b82f6', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'background-color 0.2s', opacity: isProcessing ? 0.7 : 1 }}>
-              <FileText size={20} /> {isProcessing ? 'A guardar...' : (isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm'))}
+
+            {/* Notas */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <FileText size={12} /> Notas Adicionais
+              </label>
+              <textarea name="motivo" value={formData.motivo} onChange={handleChange} placeholder={t('consultations.form.notes_ph')} className="custom-scrollbar"
+                style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', height: '80px', resize: 'none', transition: 'border-color 0.2s' }}
+                onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} />
+            </div>
+
+            {/* Submit */}
+            <button type="submit" disabled={isProcessing}
+              style={{ width: '100%', padding: '14px', background: isProcessing ? '#9ca3af' : (isEditing ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'), color: 'white', borderRadius: '12px', border: 'none', fontWeight: '700', fontSize: '15px', fontFamily: 'Inter, system-ui, sans-serif', letterSpacing: '-0.2px', cursor: isProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: isProcessing ? 'none' : '0 4px 15px rgba(37,99,235,0.35)', transition: 'all 0.2s', opacity: isProcessing ? 0.7 : 1 }}>
+              <FileText size={18} /> {isProcessing ? 'A guardar...' : (isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm'))}
             </button>
             {isEditing && (
-              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: ''}); setPhonePrefix('+351'); }} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: theme.subText, border: 'none', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}>{t('consultations.form.btn_cancel')}</button>
+              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' }); setPhonePrefix('+351'); }}
+                style={{ width: '100%', padding: '11px', backgroundColor: 'transparent', color: theme.subText, border: `1.5px solid ${theme.border}`, borderRadius: '12px', cursor: 'pointer', marginTop: '10px', fontWeight: '600', fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', transition: 'all 0.2s' }}>
+                {t('consultations.form.btn_cancel')}
+              </button>
             )}
           </form>
         </div>
@@ -768,9 +810,10 @@ const Consultas = () => {
                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText }}><Clock size={14} /> {c.hora_consulta.substring(0, 5)}</span>
                             <span style={{ backgroundColor: pColor.bg, color: pColor.text, padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold', textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.procedimento_nome || t('consultations.list.no_procedure')}</span>
                           </div>
+                          {c.email && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '12px', marginTop: '3px' }}><Mail size={13} /> {c.email}</div>}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '13px', marginTop: '5px' }}>
-                            <Phone size={14} /> {c.paciente_telefone || t('consultations.list.no_phone')}
-                            {!isFinalizada && c.paciente_telefone && c.paciente_telefone !== t('consultations.list.no_phone') && (
+                            <Phone size={14} /> {c.telefone || t('consultations.list.no_phone')}
+                            {!isFinalizada && c.telefone && c.telefone !== t('consultations.list.no_phone') && (
                               <button onClick={(e) => enviarLembreteWhatsapp(c, e)} title="Enviar Lembrete" style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '2px', marginLeft: '5px', display: 'flex', alignItems: 'center', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}><MessageCircle size={16} /></button>
                             )}
                           </div>

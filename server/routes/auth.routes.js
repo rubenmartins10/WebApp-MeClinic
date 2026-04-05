@@ -7,6 +7,17 @@ const { authMiddleware } = require('../middleware/auth');
 const pool = require('../db');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
+const logger = require('../utils/logger');
+const rateLimit = require('express-rate-limit');
+
+// Rate limit específico para login/register (mais restritivo)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,
+  message: { error: 'Demasiadas tentativas. Aguarde 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // Email transporter setup - Suporta múltiplos modos
 let transporter;
@@ -61,6 +72,7 @@ if (process.env.EMAIL_MODE === 'console') {
  */
 router.post(
   '/register',
+  loginLimiter,
   validateRequest(registerSchema),
   asyncHandler(AuthController.register)
 );
@@ -71,9 +83,16 @@ router.post(
  */
 router.post(
   '/login',
+  loginLimiter,
   validateRequest(loginSchema),
   asyncHandler(AuthController.login)
 );
+
+/**
+ * POST /api/auth/refresh
+ * Renovar access token com refresh token
+ */
+router.post('/refresh', asyncHandler(AuthController.refresh));
 
 /**
  * GET /api/auth/profile
@@ -144,7 +163,7 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("Erro ao solicitar recuperação:", err);
+    logger.error('Erro ao solicitar recuperação:', { message: err.message });
     res.status(500).json({ error: "Erro no servidor." });
   }
 });
@@ -170,43 +189,8 @@ router.post('/reset-password', async (req, res) => {
 
     res.json({ message: "Palavra-passe alterada com sucesso! Já pode fazer login." });
   } catch (err) {
-    console.error("Erro ao resetar palavra-passe:", err);
+    logger.error('Erro ao resetar palavra-passe:', { message: err.message });
     res.status(500).json({ error: "Erro no servidor." });
-  }
-});
-
-/**
- * DEBUG ENDPOINT: POST /api/auth/create-test-user
- * Criar utilizador de teste para demonstração (REMOVER EM PRODUÇÃO)
- */
-router.post('/create-test-user', async (req, res) => {
-  try {
-    // Verificar se o utilizador já existe
-    const existingUser = await pool.query("SELECT id FROM utilizadores WHERE email = $1", ['teste@meclinic.pt']);
-    if (existingUser.rows.length > 0) {
-      return res.json({ message: "Utilizador de teste já existe", email: "teste@meclinic.pt", password: "Teste123!" });
-    }
-
-    // Criar novo utilizador de teste
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash("Teste123!", salt);
-    
-    const newUser = await pool.query(
-      "INSERT INTO utilizadores (nome, email, password_hash, mfa_enabled, mfa_secret, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nome, email",
-      ["Utilizador Teste", "teste@meclinic.pt", password_hash, false, 'test_secret', 'ASSISTENTE']
-    );
-
-    res.json({
-      message: "✅ Utilizador de teste criado com sucesso!",
-      user: newUser.rows[0],
-      credentials: {
-        email: "teste@meclinic.pt",
-        password: "Teste123!"
-      }
-    });
-  } catch (err) {
-    console.error("Erro ao criar utilizador de teste:", err);
-    res.status(500).json({ error: err.message });
   }
 });
 
@@ -271,7 +255,7 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Erro ao buscar activity:', err);
+    logger.error('Erro ao buscar activity:', { message: err.message });
     res.status(500).json({ error: 'Erro ao buscar histórico de atividade' });
   }
 }));

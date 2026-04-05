@@ -16,6 +16,9 @@
     "typescript.workspaceSymbols.scope": "allOpenProjects",
     "typescript.disableAutomaticTypeAcquisition": true,
     "typescript.tsc.autoDetect": "off",
+    "typescript.tsserver.watchOptions": {
+        "excludeDirectories": ["**/node_modules"]
+    },
     "@babel/core": false,
     "problems.exclude": {
         "**/node_modules/**": true,
@@ -35,14 +38,14 @@
     "typescript.experimental.enableProjectDiagnostics": false,
     "typescript.reportStyleChecksAsWarnings": false,
     "search.exclude": {
-        "node_modules": true,
+        "**/node_modules": true,
         "dist": true,
         "build": true,
         ".next": true,
         "*.log": true
     },
     "files.exclude": {
-        "node_modules": true,
+        "**/node_modules": true,
         ".DS_Store": true,
         "dist": true,
         "build": true

@@ -22,18 +22,19 @@
 ## 🔐 Fase 2: Segurança CRITICAL
 
 ### Authentication
-- [ ] `JWT_SECRET` alterado (64 caracteres aleatórios)
+- [x] `JWT_SECRET` sem fallback inseguro — servidor recusa arrancar sem ele ✅ *(corrigido 04/04/2026)*
+- [x] `JWT_EXPIRES_IN` padrão reduzido para `8h` ✅ *(corrigido 04/04/2026)*
+- [ ] `JWT_SECRET` gerado com entropia adequada (mín. 64 chars)
   ```bash
   # Gerar chave segura:
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
-- [ ] JWT_EXPIRES_IN definido (ex: 7d)
-- [ ] Tokens verific­ados em requests
+- [x] Tokens verificados em requests ✅
 
-### Frontend Auth Headers ⚠️ IMPORTANTE
-- [ ] Inventory.js tem token Bearer ✅ (já feito)
-- [ ] Pacientes.js tem token Bearer ⏳
-- [ ] Consultas.js tem token Bearer ⏳
+### Frontend Auth Headers
+- [x] Inventory.js tem token Bearer ✅
+- [x] Pacientes.js tem token Bearer ✅
+- [x] Consultas.js tem token Bearer ✅ *(DELETE corrigido 04/04/2026)*
 - [ ] Faturacao.js tem token Bearer ⏳
 - [ ] Users.js tem token Bearer ⏳
 - [ ] FichasTecnicas.js tem token Bearer ⏳
@@ -41,15 +42,17 @@
 - [ ] Report.js tem token Bearer ⏳
 
 ### Helmet & CORS
-- [ ] Helmet.js ativo (headers de segurança)
-- [ ] CORS whitelist configurada (apenas domínio produção)
-- [ ] Rate limiting ativo (100 req/15min)
-- [ ] Input validation com Joi ativo
+- [x] Helmet.js ativo (headers de segurança) ✅
+- [x] CORS whitelist corrigida — `origin: true` removido ✅ *(corrigido 04/04/2026)*
+- [x] Rate limiting ativo: 200 req/15min geral, 20 req/15min em `/api/auth` ✅ *(corrigido 04/04/2026)*
+- [x] Input validation com Joi ativo ✅
 
 ### Database
-- [ ] Credenciais PostgreSQL alteradas (password forte)
+- [x] `DB_PASSWORD` hardcoded removido — servidor termina sem ele ✅ *(corrigido 04/04/2026)*
+- [ ] Password da BD PostgreSQL alterada em produção
 - [ ] Backups configurados
-- [ ] Prepared statements em todas queries (proteção SQL injection)
+- [x] Prepared statements em todas queries (proteção SQL injection) ✅
+- [x] Race condition no stock resolvida com `SELECT ... FOR UPDATE` ✅ *(corrigido 04/04/2026)*
 
 ---
 
@@ -83,9 +86,20 @@ Alternativa: Let's Encrypt (gratuito, automático com Certbot)
 - [ ] Tokens sendo enviados automaticamente
 
 ### Environment Frontend
-- [ ] `proxy` em package.json aponta ao backend
-- [ ] API_URL definido se necessário
-- [ ] Sem hardcodes de URLs
+- [x] `proxy` em package.json aponta ao backend ✅
+- [x] Sem hardcodes de URLs — `http://localhost:5000` removido de `Auth.js` ✅ *(corrigido 04/04/2026)*
+- [x] `console.log` de requests HTTP removido de `fetchWithToken.js` ✅ *(corrigido 04/04/2026)*
+
+### Quality & Robustness (Sprint Seguinte)
+- [x] `/* eslint-disable */` removido de `App.js`, `Consultas.js`, `Inventory.js`, `Pacientes.js` ✅
+- [x] `JSON.parse` do localStorage envolto em `try/catch` em todos os componentes ✅
+- [x] Tokens de autenticação ausentes corrigidos em `Pacientes.js` (6 chamadas fetch) ✅
+- [x] Upload de ficheiros com validação de tipo (PDF/JPG/PNG/GIF) e tamanho (máx 10 MB) ✅
+- [x] Paginação activada em `Inventory.js` com filtros server-side ✅
+- [x] Parâmetros de paginação sanitizados no `produtosController.js` ✅
+- [x] Preços de tratamento movidos para `utils/treatmentPrices.js` ✅
+- [x] Locale centralizado em `utils/locale.js` (6 componentes actualizados) ✅
+- [x] Chave localStorage incorreta `meclinic_token` → `token` corrigida em `Settings.js` ✅
 
 ---
 
@@ -169,11 +183,11 @@ Alternativa: Let's Encrypt (gratuito, automático com Certbot)
 - [ ] NODE_ENV=production
 
 ### Pre-Deploy Checklist
-- [ ] Código commitado e limpo (sem logs debug)
-- [ ] `.env` NÃO commitado (add a .gitignore)
+- [x] Código limpo — `console.log` de debug removidos ✅ *(corrigido 04/04/2026)*
+- [ ] `.env` NÃO commitado (verificar .gitignore)
 - [ ] Build size verificado
-- [ ] Dependencies auditadas (npm audit)
-- [ ] Não deprecated packages
+- [ ] Dependencies auditadas (`npm audit`)
+- [ ] Packages sem vulnerabilidades conhecidas
 
 ---
 

@@ -3,9 +3,13 @@ const QRCode = require('qrcode');
 const User = require('../models/User');
 const { AppError } = require('../errorHandler');
 const pool = require('../db');
+const logger = require('../utils/logger');
+const tokenStore = require('../utils/tokenStore');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta';
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
+const JWT_SECRET = process.env.JWT_SECRET;
+const ACCESS_TOKEN_EXPIRY = '1h';
+const REFRESH_TOKEN_EXPIRY = process.env.JWT_EXPIRY || '7d';
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias em ms
 
 /**
  * AuthController - Lógica de autenticação
@@ -31,7 +35,7 @@ class AuthController {
 
       // Gerar token JWT
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, {
-        expiresIn: JWT_EXPIRY
+        expiresIn: ACCESS_TOKEN_EXPIRY
       });
 
       res.status(201).json({
@@ -81,15 +85,22 @@ class AuthController {
         }
       }
 
-      // Gerar token JWT
+      // Gerar access token (1h) + refresh token (7d)
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRY }
+        { expiresIn: ACCESS_TOKEN_EXPIRY }
       );
 
+      const refreshToken = jwt.sign(
+        { id: user.id, type: 'refresh' },
+        JWT_SECRET,
+        { expiresIn: REFRESH_TOKEN_EXPIRY }
+      );
+      tokenStore.set(refreshToken, user.id, REFRESH_TOKEN_TTL_MS);
+
       // Registar atividade de login (async, sem await para não bloquear resposta)
-      this.logLoginActivity(user.id, req).catch(err => console.error('Log de login falhou:', err));
+      this.logLoginActivity(user.id, req).catch(err => logger.error('Log de login falhou:', { message: err.message }));
 
       res.json({
         message: 'Login realizado com sucesso!',
@@ -99,7 +110,8 @@ class AuthController {
           email: user.email,
           role: user.role
         },
-        token
+        token,
+        refreshToken
       });
 
     } catch (err) {
@@ -156,21 +168,56 @@ class AuthController {
       );
     } catch (err) {
       // Falhar silenciosamente para não interromper o login
-      console.error('Erro ao registar atividade de login:', err);
+      logger.error('Erro ao registar atividade de login:', { message: err.message });
     }
   }
 
   /**
-   * Logout (client-side, mas deixamos a rota por simetria)
+   * Renovar access token com refresh token válido
+   */
+  static async refresh(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) throw new AppError('Refresh token não fornecido', 401);
+
+      // Validar no store (revogável)
+      const stored = tokenStore.get(refreshToken);
+      if (!stored) throw new AppError('Refresh token inválido ou expirado', 401, { reason: 'invalid_refresh' });
+
+      // Validar assinatura JWT
+      let decoded;
+      try {
+        decoded = jwt.verify(refreshToken, JWT_SECRET);
+      } catch {
+        tokenStore.revoke(refreshToken);
+        throw new AppError('Refresh token inválido', 401, { reason: 'invalid_refresh' });
+      }
+
+      if (decoded.type !== 'refresh') throw new AppError('Token inválido', 401);
+
+      const user = await User.findById(decoded.id);
+      if (!user) throw new AppError('Utilizador não encontrado', 404);
+
+      const newToken = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: ACCESS_TOKEN_EXPIRY }
+      );
+
+      res.json({ token: newToken });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Logout (revoga refresh token)
    */
   static async logout(req, res, next) {
     try {
-      // Em uma app com sessões, aqui removería do servidor
-      // Como usamos JWT, a remoção é client-side (delete token)
-      res.json({
-        message: 'Logout realizado com sucesso!',
-        note: 'Token JWT removido do cliente'
-      });
+      const { refreshToken } = req.body;
+      if (refreshToken) tokenStore.revoke(refreshToken);
+      res.json({ message: 'Logout realizado com sucesso!' });
     } catch (err) {
       next(err);
     }

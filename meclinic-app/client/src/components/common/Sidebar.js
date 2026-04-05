@@ -8,22 +8,22 @@ import {
 import { ThemeContext } from '../../contexts/ThemeContext'; 
 import { LanguageContext } from '../../contexts/LanguageContext';
 
-const Sidebar = ({ onLogout }) => {
+const Sidebar = ({ onLogout, user }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { t } = useContext(LanguageContext);
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
 
-  // LISTA DE NAVEGAÇÃO ATUALIZADA COM "PACIENTES"
   const navItems = [
     { path: '/dashboard', label: t('sidebar.dashboard'), icon: <LayoutDashboard size={20} /> },
     { path: '/inventory', label: t('sidebar.inventory'), icon: <Package size={20} /> },
     { path: '/consultas', label: t('sidebar.consultations'), icon: <Calendar size={20} /> },
-    { path: '/pacientes', label: t('sidebar.patients'), icon: <Users size={20} /> }, // <-- O NOVO BOTÃO AQUI
+    { path: '/pacientes', label: t('sidebar.patients'), icon: <Users size={20} /> },
     { path: '/fichas-tecnicas', label: t('sidebar.technical_sheets'), icon: <FileText size={20} /> },
-    { path: '/users', label: t('sidebar.users'), icon: <Users size={20} /> },
+    { path: '/users', label: t('sidebar.users'), icon: <Users size={20} />, adminOnly: true },
     { path: '/faturacao', label: t('sidebar.billing'), icon: <DollarSign size={20} /> },
     { path: '/reports', label: t('sidebar.reports'), icon: <BarChart3 size={20} /> },
-  ];
+  ].filter(item => !item.adminOnly || isAdmin);
 
   return (
     <div style={{ 

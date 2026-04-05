@@ -33,8 +33,8 @@ const Auth = ({ onLogin }) => {
     setError('');
     setLoading(true);
 
-    // BURLAR O PROXY E IR DIRETO À PORTA 5000
-    const url = authMode === 'REGISTER' ? 'http://localhost:5000/api/auth/register' : 'http://localhost:5000/api/auth/login';
+    // Usar path relativo para funcionar em qualquer ambiente
+    const url = authMode === 'REGISTER' ? '/api/auth/register' : '/api/auth/login';
     
     try {
       const response = await fetch(url, {
@@ -51,6 +51,7 @@ const Auth = ({ onLogin }) => {
         setFormData({ ...formData, password: '', mfaToken: '' });
       } else {
         localStorage.setItem('token', data.token);
+        if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
         localStorage.setItem('meclinic_user', JSON.stringify(data.user));
         if (onLogin) onLogin(data.user);
         navigate('/dashboard');
@@ -63,7 +64,7 @@ const Auth = ({ onLogin }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/forgot-password", {
+      const response = await fetch("/api/auth/forgot-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email })
       });
@@ -86,7 +87,7 @@ const Auth = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/reset-password", {
+      const response = await fetch("/api/auth/reset-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, code: resetCode, newPassword: formData.password })
       });

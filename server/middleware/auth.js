@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { AppError } = require('../errorHandler');
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 /**
  * Middleware de autenticação JWT
  * Verifica se o token é válido e extrai os dados do utilizador
@@ -13,7 +15,7 @@ const authMiddleware = async (req, res, next) => {
       throw new AppError('Token não fornecido', 401, { reason: 'missing_token' });
     }
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sua-chave-secreta');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
     

@@ -9,13 +9,13 @@ class Consulta {
    * Criar nova consulta
    */
   static async create(data) {
-    const { paciente_id, data_consulta, hora_consulta, motivo, procedimento_id, diagnostico, tratamento, preco } = data;
+    const { paciente_id, data_consulta, hora_consulta, motivo, procedimento_id } = data;
     
     const result = await pool.query(
-      `INSERT INTO consultas (paciente_id, data_consulta, hora_consulta, motivo, procedimento_id, diagnostico, tratamento, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'agendada', NOW())
+      `INSERT INTO consultas (paciente_id, data_consulta, hora_consulta, motivo, procedimento_id, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'agendada', NOW())
        RETURNING *`,
-      [paciente_id, data_consulta, hora_consulta, motivo || null, procedimento_id || null, diagnostico || null, tratamento || null]
+      [paciente_id, data_consulta, hora_consulta, motivo || null, procedimento_id || null]
     );
     
     return result.rows[0];
@@ -44,7 +44,7 @@ class Consulta {
     let query = `
       SELECT c.id, p.nome as paciente_nome, p.telefone, p.email,
              c.data_consulta, c.hora_consulta, c.motivo, c.status, c.procedimento_id,
-             m.nome as procedimento_nome, m.custo_total_estimado as preco_estimado
+             m.nome as procedimento_nome, m.custo_total_estimado as custo_materiais, m.preco_servico
       FROM consultas c
       JOIN pacientes p ON c.paciente_id = p.id
       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
@@ -113,22 +113,19 @@ class Consulta {
    * Atualizar consulta
    */
   static async update(id, data) {
-    const { paciente_id, data_consulta, hora_consulta, motivo, procedimento_id, diagnostico, tratamento, status } = data;
+    const { data_consulta, hora_consulta, motivo, procedimento_id, status } = data;
     
     const result = await pool.query(
       `UPDATE consultas
-       SET paciente_id = COALESCE($1, paciente_id),
-           data_consulta = COALESCE($2, data_consulta),
-           hora_consulta = COALESCE($3, hora_consulta),
-           motivo = COALESCE($4, motivo),
-           procedimento_id = COALESCE($5, procedimento_id),
-           diagnostico = COALESCE($6, diagnostico),
-           tratamento = COALESCE($7, tratamento),
-           status = COALESCE($8, status),
+       SET data_consulta = COALESCE($1, data_consulta),
+           hora_consulta = COALESCE($2, hora_consulta),
+           motivo = COALESCE($3, motivo),
+           procedimento_id = COALESCE($4, procedimento_id),
+           status = COALESCE($5, status),
            updated_at = NOW()
-       WHERE id = $9
+       WHERE id = $6
        RETURNING *`,
-      [paciente_id, data_consulta, hora_consulta, motivo, procedimento_id, diagnostico, tratamento, status, id]
+      [data_consulta || null, hora_consulta || null, motivo || null, procedimento_id || null, status || null, id]
     );
     
     return result.rows[0];

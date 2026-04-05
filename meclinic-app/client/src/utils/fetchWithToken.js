@@ -13,8 +13,6 @@ export const fetchWithToken = (url, options = {}) => {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
 
-  console.log(`[FETCH] ${options.method || 'GET'} ${url}`, { hasToken: !!token });
-
   return originalFetch(url, options)
     .then(res => {
       if (res.status === 401) {

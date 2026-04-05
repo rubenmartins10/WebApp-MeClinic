@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 // Middleware de autenticação - todas as rotas requerem login
 router.use(authMiddleware);
@@ -22,7 +23,7 @@ router.get('/', async (req, res) => {
       modelos: result.rows || []
     });
   } catch (error) {
-    console.error('Erro ao listar modelos:', error);
+    logger.error('Erro ao listar modelos:', { message: error.message });
     res.status(500).json({ error: 'Erro ao listar modelos de procedimento' });
   }
 });
@@ -44,7 +45,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erro:', error);
+    logger.error('Erro ao obter modelo:', { message: error.message });
     res.status(500).json({ error: 'Erro ao obter modelo' });
   }
 });
@@ -64,7 +65,7 @@ router.get('/:id/itens', async (req, res) => {
     
     res.json(result.rows || []);
   } catch (error) {
-    console.error('Erro:', error);
+    logger.error('Erro ao listar itens do modelo:', { message: error.message });
     res.status(500).json({ error: 'Erro ao listar itens' });
   }
 });

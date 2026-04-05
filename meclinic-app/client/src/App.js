@@ -1,4 +1,3 @@
-/* eslint-disable */
 import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -23,6 +22,7 @@ import Pacientes from './pages/Pacientes'; // <-- A NOVA PÁGINA AQUI    
 const MainLayout = ({ user, onLogout }) => {
   const { theme } = useContext(ThemeContext);
   const { t } = useContext(LanguageContext);
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
 
   return (
     <div style={{ 
@@ -32,7 +32,7 @@ const MainLayout = ({ user, onLogout }) => {
       minHeight: '100vh',
       transition: 'all 0.3s ease'
     }}>
-      <Sidebar onLogout={onLogout} />
+      <Sidebar onLogout={onLogout} user={user} />
       
       <main style={{ flexGrow: 1, padding: '20px', marginLeft: '250px' }}>
         {user && (
@@ -46,7 +46,7 @@ const MainLayout = ({ user, onLogout }) => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/consultas" element={<Consultas />} />
-          <Route path="/users" element={<UsersPage />} />
+          <Route path="/users" element={isAdmin ? <UsersPage /> : <Navigate to="/dashboard" replace />} />
           <Route path="/fichas-tecnicas" element={<FichasTecnicas />} />
           <Route path="/reports" element={<Report />} />
           <Route path="/faturacao" element={<Faturacao />} />
@@ -66,8 +66,12 @@ function App() {
   useEffect(() => {
     const storedUser = localStorage.getItem('meclinic_user');
     if (storedUser) {
-      setIsAuthenticated(true);
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+      } catch {
+        localStorage.removeItem('meclinic_user');
+      }
     }
   }, []);
 

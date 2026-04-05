@@ -1,21 +1,29 @@
-/* eslint-disable */
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
+import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File as FileIcon, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
-import jsPDF from 'jspdf'; 
+import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
 import Assinatura from '../components/specialized/Assinatura';
+import { getActiveLocale } from '../utils/locale';
+import apiService from '../services/api';
+
+const ALLOWED_EXAM_TYPES = ['application/pdf', 'image/png'];
+const MAX_EXAM_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const Pacientes = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
 
-  const currentUser = JSON.parse(localStorage.getItem('meclinic_user')) || {};
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN';
 
   const [pacientes, setPacientes] = useState([]);
   const [pesquisa, setPesquisa] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 20;
   
   const [selectedPaciente, setSelectedPaciente] = useState(null);
   const [historico, setHistorico] = useState([]);
@@ -32,23 +40,25 @@ const Pacientes = () => {
   // ESTADOS DA RECEITA MÉDICA E ASSINATURA
   const [showRxModal, setShowRxModal] = useState(false);
   const [rxMeds, setRxMeds] = useState([{ nome: '', posologia: '' }]);
-  const [sendWhatsapp, setSendWhatsapp] = useState(true); 
+  const [sendWhatsapp, setSendWhatsapp] = useState(true);
+  const [sendEmail, setSendEmail] = useState(false);
   const [assinaturaMedica, setAssinaturaMedica] = useState(null);
 
   const fileInputRef = useRef(null);
-  const activeLocale = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-PT';
+  const activeLocale = getActiveLocale(language);
 
-  useEffect(() => { carregarPacientes(); }, []);
+  useEffect(() => { carregarPacientes(1, true); }, []);
 
-  const carregarPacientes = async () => {
+  const carregarPacientes = async (p = 1, reset = false) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/pacientes', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setPacientes(Array.isArray(data) ? data : (data.pacientes || []));
-    } catch (err) { console.error(err); }
+      if (p > 1) setLoadingMore(true);
+      const data = await apiService.get(`/api/pacientes?page=${p}&limit=${PAGE_SIZE}`);
+      const lista = Array.isArray(data) ? data : (data.pacientes || []);
+      const pagination = data.pagination || {};
+      setPacientes(prev => reset ? lista : [...prev, ...lista]);
+      setPage(p);
+      setHasMore(pagination.pages ? p < pagination.pages : lista.length === PAGE_SIZE);
+    } catch (err) { /* silencioso */ } finally { setLoadingMore(false); }
   };
 
   const showNotif = (msg, type = 'success') => {
@@ -65,13 +75,12 @@ const Pacientes = () => {
     try { odontoGuardado = typeof paciente.odontograma_dados === 'string' ? JSON.parse(paciente.odontograma_dados) : (paciente.odontograma_dados || {}); } catch(e) {}
     setOdontogramaData(odontoGuardado);
     
-    const token = localStorage.getItem('token');
     Promise.all([
-      fetch(`/api/pacientes/${paciente.id}/historico`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : []),
-      fetch(`/api/pacientes/${paciente.id}/exames`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : [])
+      apiService.get(`/api/pacientes/${paciente.id}/historico`).catch(() => []),
+      apiService.get(`/api/pacientes/${paciente.id}/exames`).catch(() => [])
     ]).then(([histData, examesData]) => {
-      setHistorico(Array.isArray(histData) ? histData : []);
-      setExames(Array.isArray(examesData) ? examesData : []);
+      setHistorico(Array.isArray(histData) ? histData : (histData.consultas || histData.historico || []));
+      setExames(Array.isArray(examesData) ? examesData : (examesData.exames || []));
     }).catch(err => {
       setHistorico([]); setExames([]);
     });
@@ -79,63 +88,61 @@ const Pacientes = () => {
 
   const guardarNotas = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/pacientes/${selectedPaciente.id}/notas`, {
-        method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: notasClinicas })
-      });
-      if (res.ok) { showNotif(t('patients.modal.save_notes') + ' OK!'); carregarPacientes(); }
+      await apiService.put(`/api/pacientes/${selectedPaciente.id}/notas`, { notas: notasClinicas });
+      showNotif(t('patients.modal.save_notes') + ' OK!'); carregarPacientes();
     } catch (err) {}
   };
 
   const salvarOdontograma = async (dadosDentes) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/pacientes/${selectedPaciente.id}/odontograma`, {
-        method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dados: dadosDentes })
-      });
-      if (res.ok) {
-        setOdontogramaData(dadosDentes);
-        setSelectedPaciente({...selectedPaciente, odontograma_dados: JSON.stringify(dadosDentes)});
-        carregarPacientes(); 
-        showNotif('Odontograma guardado permanentemente!');
-      }
+      await apiService.put(`/api/pacientes/${selectedPaciente.id}/odontograma`, { dados: dadosDentes });
+      setOdontogramaData(dadosDentes);
+      setSelectedPaciente({...selectedPaciente, odontograma_dados: JSON.stringify(dadosDentes)});
+      carregarPacientes(); 
+      showNotif('Odontograma guardado permanentemente!');
     } catch(err) { showNotif('Erro ao guardar o Odontograma.', 'error'); }
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
+    if (!ALLOWED_EXAM_TYPES.includes(file.type)) {
+      showNotif('Tipo de ficheiro não permitido. Apenas PDF ou PNG são aceites.', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_EXAM_SIZE) {
+      showNotif('Ficheiro demasiado grande. Tamanho máximo: 10 MB.', 'error');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result;
       try {
-        const res = await fetch(`/api/pacientes/${selectedPaciente.id}/exames`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: file.name, base64: base64 })
-        });
-        if (res.ok) {
-          showNotif('Documento guardado com sucesso!');
-          const resE = await fetch(`/api/pacientes/${selectedPaciente.id}/exames`);
-          setExames(await resE.json());
-        }
-      } catch (err) {}
+        await apiService.post(`/api/pacientes/${selectedPaciente.id}/exames`, { nome: file.name, base64: base64 });
+        showNotif('Documento guardado com sucesso!');
+        const examesData = await apiService.get(`/api/pacientes/${selectedPaciente.id}/exames`);
+        setExames(Array.isArray(examesData) ? examesData : (examesData.exames || []));
+      } catch (err) {
+        showNotif(err.message || 'Erro ao guardar o documento. Tente novamente.', 'error');
+      }
     };
     reader.readAsDataURL(file);
   };
 
   const apagarExame = async (idExame) => {
     try {
-      const res = await fetch(`/api/pacientes/exames/${idExame}`, { method: 'DELETE' });
-      if (res.ok) { showNotif('Documento apagado.'); setExames(exames.filter(e => e.id !== idExame)); }
+      await apiService.delete(`/api/pacientes/exames/${idExame}`);
+      showNotif('Documento apagado.'); setExames(exames.filter(e => e.id !== idExame));
     } catch (err) {}
   };
 
   const confirmarApagarPaciente = async () => {
     if (!pacienteToDelete) return;
     try {
-      const res = await fetch(`/api/pacientes/${pacienteToDelete.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showNotif('Paciente eliminado permanentemente!');
-        setPacienteToDelete(null); setShowDeleteConfirm(false); setSelectedPaciente(null); carregarPacientes();
-      }
+      await apiService.delete(`/api/pacientes/${pacienteToDelete.id}`);
+      showNotif('Paciente eliminado permanentemente!');
+      setPacienteToDelete(null); setShowDeleteConfirm(false); setSelectedPaciente(null); carregarPacientes();
     } catch (err) {}
   };
 
@@ -152,13 +159,9 @@ const Pacientes = () => {
     if (partesNome.length < 2) { showNotif('É obrigatório preencher o Primeiro e Último nome.', 'error'); return; }
     if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif('O número de telemóvel é obrigatório.', 'error'); return; }
     try {
-      const res = await fetch(`/api/pacientes/${formData.id}/dados`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes();
-        setSelectedPaciente({ ...selectedPaciente, nome: formData.nome, telefone: formData.telefone, email: formData.email });
-      }
+      await apiService.put(`/api/pacientes/${formData.id}/dados`, formData);
+      showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes();
+      setSelectedPaciente({ ...selectedPaciente, nome: formData.nome, telefone: formData.telefone, email: formData.email });
     } catch (err) {}
   };
 
@@ -175,61 +178,140 @@ const Pacientes = () => {
 
   const gerarReceitaPDF = async () => {
     if (rxMeds.length === 0 || !rxMeds[0].nome) { showNotif('Adicione pelo menos um medicamento à receita.', 'error'); return; }
-    const doc = new jsPDF();
-    
-    doc.setTextColor(37, 99, 235); doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text("MECLINIC", 20, 20);
-    doc.setTextColor(0, 0, 0); doc.setFontSize(14); doc.text(t('patients.rx.title') || "RECEITA MÉDICA", 20, 32);
 
-    doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(100, 116, 139);
-    const dataHoje = new Date().toLocaleDateString(activeLocale);
-    doc.text(`Data: ${dataHoje}`, 20, 42);
-    doc.text(`Paciente: ${selectedPaciente.nome}`, 20, 48);
-    doc.text(`Médico Responsável: ${currentUser.nome || 'Corpo Clínico'}`, 20, 54);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, mg = 12;
+    const C = {
+      teal:      [14, 170, 165],
+      tealDark:  [8,  120, 116],
+      tealBg:    [230, 248, 248],
+      white:     [255, 255, 255],
+      dark:      [25,  25,  25],
+      gray:      [110, 110, 110],
+      lightGray: [247, 247, 247],
+      midGray:   [210, 210, 210],
+    };
 
-    doc.setDrawColor(200, 200, 200); doc.line(20, 60, 190, 60);
+    const clinicSettings = (() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; } })();
+    const clinicNome     = clinicSettings.nome     || 'MeClinic';
+    const clinicMorada   = (clinicSettings.morada  || 'Rua Principal, 123  |  Lisboa').replace(/\n/g, '  |  ');
+    const clinicEmail    = clinicSettings.email    || 'geral@meclinic.pt';
+    const clinicTelefone = clinicSettings.telefone || '+351 XXX XXX XXX';
+    const dataHoje       = new Date().toLocaleDateString('pt-PT', { dateStyle: 'full' });
 
-    doc.setTextColor(0, 0, 0);
-    let y = 75;
-    doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(37, 99, 235); doc.text("Rx", 20, y); y += 10;
-    doc.setTextColor(0, 0, 0);
-    
-    rxMeds.forEach((med, index) => {
-      if(y > 250) { doc.addPage(); y = 20; }
-      if(med.nome) {
-        doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text(`${index + 1}. ${med.nome}`, 20, y); y += 6;
-        doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.text(med.posologia || 'Tomar conforme indicação médica.', 25, y); y += 14;
-      }
+    // ── BANNER ──────────────────────────────────
+    doc.setFillColor(...C.tealDark); doc.rect(0, 0, W, 2, 'F');
+    doc.setFillColor(...C.teal);     doc.rect(0, 2, W, 26, 'F');
+    doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+    doc.text(clinicNome.toUpperCase(), mg, 14);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text('Clínica Dentária', mg, 21);
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text('RECEITA MÉDICA', W - mg, 13, { align: 'right' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text(clinicMorada, W - mg, 19, { align: 'right' });
+    doc.text(`${clinicEmail}  |  ${clinicTelefone}`, W - mg, 25, { align: 'right' });
+
+    // ── INFO BAR ────────────────────────────────
+    const nib = 28;
+    doc.setFillColor(...C.tealBg); doc.rect(0, nib, W, 13, 'F');
+    doc.setFillColor(...C.teal);   doc.rect(0, nib + 13, W, 0.4, 'F');
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`Paciente: ${selectedPaciente.nome}`, mg, nib + 5);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text(`Data de emissão: ${dataHoje}   |   Médico: ${currentUser.nome || 'Corpo Clínico'}`, mg, nib + 10.5);
+
+    // ── MEDICAÇÃO ───────────────────────────────
+    let y = nib + 22;
+    const bW = W - 2 * mg;
+    doc.setFillColor(...C.tealDark); doc.rect(mg, y, bW, 1.5, 'F');
+    doc.setFillColor(...C.teal);     doc.rect(mg, y + 1.5, bW, 9, 'F');
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+    doc.text('Rx  —  Medicação Prescrita', mg + 5, y + 8);
+    y += 13;
+
+    const medsFiltered = rxMeds.filter(m => m.nome);
+    medsFiltered.forEach((med, index) => {
+      if (y > H - 55) { doc.addPage(); y = 20; }
+      doc.setFillColor(...C.tealBg); doc.setDrawColor(...C.midGray); doc.setLineWidth(0.25);
+      doc.rect(mg, y, bW, 19, 'FD');
+      doc.setFillColor(...C.teal); doc.rect(mg, y, 2.5, 19, 'F');
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.gray);
+      doc.text(`${index + 1}`, mg + 7, y + 7.5, { align: 'center' });
+      doc.setFontSize(10.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+      doc.text(med.nome, mg + 12, y + 8);
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+      doc.text(med.posologia || 'Tomar conforme indicação médica.', mg + 12, y + 14.5);
+      y += 22;
     });
 
-    y += 20;
-    if(y > 250) { doc.addPage(); y = 30; }
-    if (assinaturaMedica) { doc.addImage(assinaturaMedica, 'PNG', 20, y - 15, 60, 25); }
-    
-    doc.setDrawColor(0, 0, 0); doc.line(20, y + 10, 90, y + 10); doc.text("Assinatura do Médico", 20, y + 16);
+    // ── ASSINATURA ──────────────────────────────
+    y += 8;
+    if (y > H - 60) { doc.addPage(); y = 20; }
+    if (assinaturaMedica) { doc.addImage(assinaturaMedica, 'PNG', mg, y, 65, 25); y += 27; }
+    else { y += 15; }
+    doc.setDrawColor(...C.dark); doc.setLineWidth(0.5);
+    doc.line(mg, y, mg + 72, y);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text('Assinatura do Médico Responsável', mg, y + 5);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(currentUser.nome || 'Corpo Clínico', mg, y + 11);
+
+    // ── FOOTER ──────────────────────────────────
+    doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.gray);
+    doc.text('Documento confidencial. Emitido automaticamente pelo Sistema MeClinic.', W / 2, H - 22, { align: 'center' });
+    doc.setDrawColor(...C.teal); doc.setLineWidth(0.4);
+    doc.line(mg, H - 16, W - mg, H - 16);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`${clinicNome} — Receita Médica`, W / 2, H - 11, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text(`${dataHoje}  |  Documento confidencial`, W / 2, H - 6, { align: 'center' });
+    doc.setFillColor(...C.teal); doc.rect(0, H - 3.5, W, 3.5, 'F');
 
     const pdfBase64 = doc.output('datauristring');
     const nomeFicheiro = `Receita_${selectedPaciente.nome.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(nomeFicheiro);
 
+    // Preparar mensagens (sync, antes de qualquer await)
+    const clinicCfg   = (() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; } })();
+    const clinicaNome  = clinicCfg.nome     || 'MeClinic';
+    const clinicaTel   = clinicCfg.telefone || '';
+    const clinicaEmail = clinicCfg.email    || '';
+    const primeiroNome = selectedPaciente.nome.split(' ')[0];
+    const dataMensagem = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const msgWa = `Ola ${primeiroNome},\n\nA sua receita medica foi emitida em ${dataMensagem} pela ${clinicaNome}.\n\nEncontra em anexo o PDF com a receita e medicacao prescrita. Por favor cumpra a medicacao conforme indicado. Em caso de duvida ou reacao adversa, contacte-nos de imediato.${clinicaTel ? `\n\nTelefone: ${clinicaTel}` : ''}${clinicaEmail ? `\nEmail: ${clinicaEmail}` : ''}\n\nCom os melhores cumprimentos,\nEquipa ${clinicaNome}`;
+
+    // Abrir WhatsApp e email ANTES do await (browser bloqueia window.open após operações async)
+    const openLink = (url) => {
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    };
+
+    if (sendWhatsapp && selectedPaciente.telefone) {
+      const numWhatsApp = selectedPaciente.telefone.replace(/\D/g, '');
+      if (numWhatsApp) openLink(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(msgWa)}`);
+    }
+
+    if (sendEmail && selectedPaciente.email) {
+      const emailBody = `Caro(a) ${primeiroNome},\n\nServe a presente mensagem para informar que a sua receita medica foi emitida em ${dataMensagem} pela ${clinicaNome}.\n\nEm anexo encontra o ficheiro PDF com a receita completa e a medicacao prescrita. Por favor cumpra a medicacao conforme indicado.\n\nEm caso de duvida ou reacao adversa a qualquer medicamento, entre em contacto connosco de imediato.\n\nAtenciosamente,\nEquipa ${clinicaNome}${clinicaTel ? '\n' + clinicaTel : ''}${clinicaEmail ? '\n' + clinicaEmail : ''}`;
+      const assunto = encodeURIComponent(`Receita Medica - ${clinicaNome} - ${dataMensagem}`);
+      openLink(`mailto:${selectedPaciente.email}?subject=${assunto}&body=${encodeURIComponent(emailBody)}`);
+    }
+
+    // Descarregar PDF e fechar modal
+    doc.save(nomeFicheiro);
+    setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); setActiveTab('exames');
+
+    // Guardar na ficha do paciente (em background, não bloqueia)
     try {
-      await fetch(`/api/pacientes/${selectedPaciente.id}/exames`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: nomeFicheiro, base64: pdfBase64 })
-      });
-      const resE = await fetch(`/api/pacientes/${selectedPaciente.id}/exames`);
-      setExames(await resE.json());
-      showNotif('Receita gerada com sucesso!');
-      setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); setActiveTab('exames'); 
-      
-      if (sendWhatsapp && selectedPaciente.telefone) {
-        const numWhatsApp = selectedPaciente.telefone.replace(/\D/g, ''); 
-        if (numWhatsApp) {
-          const primeiroNome = selectedPaciente.nome.split(' ')[0];
-          // --- MAGIA DO COPYWRITING: RECEITA NA FICHA DO PACIENTE ---
-          const mensagemMsg = `Olá ${primeiroNome}! 🌟\n\nA sua Receita Médica / Relatório já foi emitida. 📄\n\nEnviamos o documento em anexo a esta mensagem. Se precisar de mais alguma coisa ou tiver alguma dúvida sobre a medicação, estamos à disposição!\n\nAs melhoras! 💙`;
-          window.open(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(mensagemMsg)}`, '_blank');
-        }
-      }
-    } catch (err) { showNotif('Receita gerada, mas falha ao guardar.', 'error'); }
+      await apiService.post(`/api/pacientes/${selectedPaciente.id}/exames`, { nome: nomeFicheiro, base64: pdfBase64 });
+      const examesData = await apiService.get(`/api/pacientes/${selectedPaciente.id}/exames`);
+      setExames(Array.isArray(examesData) ? examesData : (examesData.exames || []));
+      showNotif('Receita gerada e guardada na ficha do paciente!');
+    } catch {
+      showNotif('PDF descarregado. Falha ao guardar na ficha (servidor).', 'error');
+    }
   };
 
   const pacientesFiltrados = pacientes.filter(p => p.nome.toLowerCase().includes(pesquisa.toLowerCase()) || (p.telefone && p.telefone.includes(pesquisa)));
@@ -248,79 +330,138 @@ const Pacientes = () => {
       )}
 
       {showRxModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1020, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)', padding: '20px' }}>
-          <div style={{ backgroundColor: theme.cardBg, width: '100%', maxWidth: '750px', borderRadius: '20px', padding: '35px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '95vh', display: 'flex', flexDirection: 'column' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Pill size={24} color="#10b981" /> {t('patients.rx.title') || 'Nova Receita Médica'}
-              </h2>
-              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1020, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(8px)', padding: '20px' }}>
+          <div style={{ backgroundColor: theme.cardBg, width: '100%', maxWidth: '700px', borderRadius: '24px', border: `1px solid ${theme.border}`, boxShadow: '0 30px 60px -15px rgba(0,0,0,0.6)', maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Header */}
+            <div style={{ padding: '22px 28px', background: theme.isDark ? 'linear-gradient(135deg, #0a1628 0%, #1e293b 100%)' : 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)', borderBottom: `1px solid ${theme.border}`, borderLeft: '4px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #059669, #10b981)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(16,185,129,0.4)' }}><Pill size={20} color="white" /></div>
+                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: theme.isDark ? '#ffffff' : '#0f172a' }}>Nova Receita Médica</h2>
+                </div>
+                <p style={{ margin: 0, fontSize: '13px', color: theme.subText, paddingLeft: '50px' }}>Paciente: <span style={{ fontWeight: '600', color: '#10b981' }}>{selectedPaciente?.nome}</span></p>
+              </div>
+              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ background: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', border: 'none', color: theme.subText, cursor: 'pointer', borderRadius: '8px', padding: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
             </div>
 
-            <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, paddingRight: '10px' }}>
-              
-              <div style={{ marginBottom: '20px', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>Farmácia Rápida:</span>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>DOR / INFL.</span>
-                    <button onClick={() => preencherRapido('Ibuprofeno 600mg', '1 comp. de 8/8h, após refeições, SOS.')} style={quickBtnStyle}>+ Ibuprofeno 600</button>
-                    <button onClick={() => preencherRapido('Paracetamol 1000mg', '1 comp. de 8/8h, SOS dor ou febre.')} style={quickBtnStyle}>+ Paracetamol 1g</button>
-                    <button onClick={() => preencherRapido('Clonix 250mg', '1 comp. de 8/8h, SOS dor muito forte.')} style={quickBtnStyle}>+ Clonix 250</button>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>ANTIBIÓTICO</span>
-                    <button onClick={() => preencherRapido('Amoxicilina + Ác. Clavulânico 875/125mg', '1 comp. de 12/12h, durante 8 dias.')} style={quickBtnStyle}>+ Amox/Clav</button>
-                    <button onClick={() => preencherRapido('Azitromicina 500mg', '1 comp. por dia, durante 3 dias.')} style={quickBtnStyle}>+ Azitromicina 500</button>
-                    <button onClick={() => preencherRapido('Clindamicina 300mg', '1 cápsula de 6/6h, durante 8 dias.')} style={quickBtnStyle}>+ Clindamicina</button>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>TÓPICOS</span>
-                    <button onClick={() => preencherRapido('Clorohexidina 0.12% (Colutório)', 'Bochechar 15ml, 2x/dia após escovagem.')} style={quickBtnStyle}>+ Elixir Clorohexidina</button>
-                    <button onClick={() => preencherRapido('Ácido Hialurónico (Gel Oral)', 'Aplicar na lesão 3x/dia, não enxaguar.')} style={quickBtnStyle}>+ Ác. Hialurónico</button>
-                  </div>
+            <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, padding: '24px 28px' }}>
+
+              {/* Farmácia Rápida */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ width: '3px', height: '16px', backgroundColor: '#10b981', borderRadius: '2px' }}></div>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Farmácia Rápida</span>
+                </div>
+                <div style={{ backgroundColor: theme.isDark ? '#1e293b' : '#f8fafc', borderRadius: '14px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
+                  {[
+                    { label: 'Dor / Inflamação', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', items: [
+                      { label: 'Ibuprofeno 600', nome: 'Ibuprofeno 600mg', pos: '1 comp. de 8/8h, após refeições, SOS.' },
+                      { label: 'Paracetamol 1g', nome: 'Paracetamol 1000mg', pos: '1 comp. de 8/8h, SOS dor ou febre.' },
+                      { label: 'Clonix 250', nome: 'Clonix 250mg', pos: '1 comp. de 8/8h, SOS dor muito forte.' },
+                    ]},
+                    { label: 'Antibiótico', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', items: [
+                      { label: 'Amox/Clav', nome: 'Amoxicilina + Ác. Clavulânico 875/125mg', pos: '1 comp. de 12/12h, durante 8 dias.' },
+                      { label: 'Azitromicina 500', nome: 'Azitromicina 500mg', pos: '1 comp. por dia, durante 3 dias.' },
+                      { label: 'Clindamicina', nome: 'Clindamicina 300mg', pos: '1 cáps. de 6/6h, durante 8 dias.' },
+                    ]},
+                    { label: 'Tópicos', color: '#10b981', bg: 'rgba(16,185,129,0.1)', items: [
+                      { label: 'Clorohexidina', nome: 'Clorohexidina 0.12% (Colutório)', pos: 'Bochechar 15ml, 2x/dia após escovagem.' },
+                      { label: 'Ác. Hialurónico', nome: 'Ácido Hialurónico (Gel Oral)', pos: 'Aplicar na lesão 3x/dia, não enxaguar.' },
+                    ]},
+                  ].map((cat, ci, arr) => (
+                    <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', borderBottom: ci < arr.length - 1 ? `1px solid ${theme.border}` : 'none' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: cat.color, backgroundColor: cat.bg, padding: '4px 10px', borderRadius: '20px', whiteSpace: 'nowrap', minWidth: '115px', textAlign: 'center' }}>{cat.label}</span>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {cat.items.map((item, ii) => (
+                          <button key={ii} onClick={() => preencherRapido(item.nome, item.pos)} style={{ padding: '5px 13px', borderRadius: '20px', border: `1.5px solid ${cat.color}`, background: 'transparent', color: cat.color, fontSize: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.backgroundColor = cat.bg; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>+ {item.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
-                {rxMeds.map((med, index) => (
-                  <div key={index} style={{ padding: '15px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '12px', border: `1px solid ${theme.border}`, position: 'relative' }}>
-                    {rxMeds.length > 1 && (
-                      <button onClick={() => removerMed(index)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16}/></button>
-                    )}
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '5px', textTransform: 'uppercase' }}>Medicamento</label>
-                    <input type="text" value={med.nome} onChange={e => updateMed(index, 'nome', e.target.value)} placeholder="Ex: Ibuprofeno 600mg" style={{ ...inputStyle, marginBottom: '10px', padding: '10px' }} />
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '5px', textTransform: 'uppercase' }}>Posologia</label>
-                    <input type="text" value={med.posologia} onChange={e => updateMed(index, 'posologia', e.target.value)} placeholder="Ex: 1 comprimido de 8/8h após as refeições" style={{ ...inputStyle, marginBottom: 0, padding: '10px' }} />
-                  </div>
-                ))}
-                <button onClick={adicionarMed} style={{ padding: '12px', borderRadius: '10px', border: `2px dashed ${theme.border}`, background: 'transparent', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                  <Plus size={18} /> Adicionar Nova Linha
-                </button>
+              {/* Medicamentos */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ width: '3px', height: '16px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Medicamentos Prescritos</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {rxMeds.map((med, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700', flexShrink: 0, marginTop: '11px' }}>{index + 1}</div>
+                      <div style={{ flex: 1, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '12px', border: `1px solid ${theme.border}`, padding: '14px', position: 'relative' }}>
+                        {rxMeds.length > 1 && <button onClick={() => removerMed(index)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}><Trash2 size={15}/></button>}
+                        <input type="text" value={med.nome} onChange={e => updateMed(index, 'nome', e.target.value)} placeholder="Medicamento — ex: Ibuprofeno 600mg" style={{ ...inputStyle, marginBottom: '8px', padding: '10px 12px', fontWeight: '500' }} />
+                        <input type="text" value={med.posologia} onChange={e => updateMed(index, 'posologia', e.target.value)} placeholder="Posologia — ex: 1 comp. de 8/8h após as refeições" style={{ ...inputStyle, marginBottom: 0, padding: '10px 12px' }} />
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={adicionarMed} style={{ marginLeft: '40px', padding: '11px', borderRadius: '10px', border: `2px dashed ${theme.border}`, background: 'transparent', color: '#2563eb', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                    <Plus size={16} /> Adicionar Medicamento
+                  </button>
+                </div>
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>Assinatura Médica</label>
+              {/* Assinatura */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ width: '3px', height: '16px', backgroundColor: '#8b5cf6', borderRadius: '2px' }}></div>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Assinatura Médica</span>
+                </div>
                 <Assinatura onSaveSignature={setAssinaturaMedica} onNotification={showNotif} />
               </div>
 
-              <div style={{ marginTop: '15px', backgroundColor: theme.isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', padding: '15px', borderRadius: '10px', border: `1px solid #22c55e` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input type="checkbox" id="sendWaRx" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: '#22c55e' }} />
-                  <label htmlFor="sendWaRx" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <MessageCircle size={18} /> Preparar envio por WhatsApp
-                  </label>
+              {/* Envio */}
+              {(selectedPaciente?.telefone || selectedPaciente?.email) && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ width: '3px', height: '16px', backgroundColor: '#f59e0b', borderRadius: '2px' }}></div>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Enviar ao Paciente</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    {selectedPaciente?.telefone && (
+                      <div onClick={() => setSendWhatsapp(!sendWhatsapp)} style={{ flex: 1, padding: '14px 16px', borderRadius: '14px', border: `2px solid ${sendWhatsapp ? '#22c55e' : theme.border}`, backgroundColor: sendWhatsapp ? (theme.isDark ? 'rgba(34,197,94,0.07)' : '#f0fdf4') : (theme.isDark ? '#1e293b' : '#f8fafc'), cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: sendWhatsapp ? '#22c55e' : (theme.isDark ? '#334155' : '#e2e8f0'), display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}><MessageCircle size={16} color="white" /></div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '700', fontSize: '13px', color: sendWhatsapp ? '#16a34a' : theme.text }}>WhatsApp</div>
+                            <div style={{ fontSize: '11px', color: theme.subText }}>{selectedPaciente.telefone}</div>
+                          </div>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: sendWhatsapp ? '#22c55e' : 'transparent', border: `2px solid ${sendWhatsapp ? '#22c55e' : theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sendWhatsapp && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'white' }}></div>}</div>
+                        </div>
+                        <div style={{ fontSize: '11px', color: theme.subText, lineHeight: '1.6', backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.04)', padding: '8px 10px', borderRadius: '8px', fontStyle: 'italic' }}>
+                          "Ola {selectedPaciente?.nome?.split(' ')[0]}, a sua receita medica foi emitida hoje. Por favor cumpra a medicacao conforme indicado. Com os melhores cumprimentos, Equipa {(() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}').nome || 'MeClinic'; } catch { return 'MeClinic'; } })()}"
+                        </div>
+                      </div>
+                    )}
+                    {selectedPaciente?.email && (
+                      <div onClick={() => setSendEmail(!sendEmail)} style={{ flex: 1, padding: '14px 16px', borderRadius: '14px', border: `2px solid ${sendEmail ? '#2563eb' : theme.border}`, backgroundColor: sendEmail ? (theme.isDark ? 'rgba(37,99,235,0.07)' : '#eff6ff') : (theme.isDark ? '#1e293b' : '#f8fafc'), cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: sendEmail ? '#2563eb' : (theme.isDark ? '#334155' : '#e2e8f0'), display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}><Mail size={16} color="white" /></div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '700', fontSize: '13px', color: sendEmail ? '#2563eb' : theme.text }}>Email</div>
+                            <div style={{ fontSize: '11px', color: theme.subText }}>{selectedPaciente.email}</div>
+                          </div>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: sendEmail ? '#2563eb' : 'transparent', border: `2px solid ${sendEmail ? '#2563eb' : theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sendEmail && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'white' }}></div>}</div>
+                        </div>
+                        <div style={{ fontSize: '11px', color: theme.subText, lineHeight: '1.6', backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.04)', padding: '8px 10px', borderRadius: '8px', fontStyle: 'italic' }}>
+                          "Caro(a) {selectedPaciente?.nome?.split(' ')[0]}, em anexo encontra a sua receita medica. Em caso de duvida, entre em contacto connosco de imediato."
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', borderTop: `1px solid ${theme.border}`, paddingTop: '20px' }}>
-              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ flex: 1, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={gerarReceitaPDF} style={{ flex: 2, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)' }}>
+            {/* Footer */}
+            <div style={{ display: 'flex', gap: '10px', padding: '18px 28px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0a1628' : '#f8fafc' }}>
+              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ flex: 1, padding: '13px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.text, fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
+              <button onClick={gerarReceitaPDF} style={{ flex: 2, padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #059669, #10b981)', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: '0 4px 14px rgba(16,185,129,0.4)', fontSize: '14px' }}>
                 <FileText size={18} /> Gerar & Guardar Receita
               </button>
             </div>
@@ -412,10 +553,10 @@ const Pacientes = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', overflow: 'hidden', minHeight: 0 }}>
                 <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.cardBg }}>
                   <button onClick={() => setActiveTab('historico')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'historico' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'historico' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><Calendar size={18} /> Histórico</button>
-                  <button onClick={() => setActiveTab('exames')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'exames' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'exames' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><File size={18} /> Exames & Ficheiros</button>
+                  <button onClick={() => setActiveTab('exames')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'exames' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'exames' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><FileIcon size={18} /> Exames & Ficheiros</button>
                   <button onClick={() => setActiveTab('odontograma')} style={{ flex: 1, padding: '20px', background: 'none', border: 'none', borderBottom: activeTab === 'odontograma' ? '3px solid #2563eb' : '3px solid transparent', color: activeTab === 'odontograma' ? '#2563eb' : theme.subText, fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><Smile size={18} /> Odontograma</button>
                 </div>
 
@@ -425,12 +566,16 @@ const Pacientes = () => {
                       {historico.length > 0 ? historico.map(c => {
                         const isFinalizada = c.status === 'FINALIZADA';
                         return (
-                          <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}`, borderLeft: `4px solid ${isFinalizada ? '#10b981' : '#3b82f6'}`, boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{new Date(c.data_consulta).toLocaleDateString(activeLocale)}</span>
-                              <span style={{ fontSize: '12px', color: isFinalizada ? '#10b981' : '#3b82f6', fontWeight: 'bold', backgroundColor: isFinalizada ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '20px' }}>{c.status}</span>
+                          <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '15px 18px', borderRadius: '12px', border: `1px solid ${theme.border}`, borderLeft: `4px solid ${isFinalizada ? '#10b981' : '#3b82f6'}`, boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={13} color={isFinalizada ? '#10b981' : '#3b82f6'}/> {new Date(c.data_consulta).toLocaleDateString(activeLocale)}</span>
+                              <span style={{ fontSize: '12px', color: isFinalizada ? '#10b981' : '#3b82f6', fontWeight: 'bold', backgroundColor: isFinalizada ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', padding: '3px 10px', borderRadius: '20px' }}>{c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1).toLowerCase() : ''}</span>
                             </div>
-                            <div style={{ color: theme.subText, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={14}/> {c.hora_consulta.substring(0,5)} • <span style={{ fontWeight: 'bold', color: theme.text }}>{c.procedimento_nome || 'Consulta Geral'}</span></div>
+                            <div style={{ fontWeight: '600', fontSize: '14px', color: theme.text, marginBottom: '4px' }}>{c.procedimento_nome || 'Consulta Geral'}</div>
+                            <div style={{ color: theme.subText, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> {c.hora_consulta ? c.hora_consulta.substring(0,5) : '—'}</span>
+                            </div>
+                            {c.diagnostico && <div style={{ marginTop: '8px', fontSize: '12px', color: theme.subText, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', padding: '6px 10px', borderRadius: '8px' }}><span style={{ fontWeight: '600', color: theme.text }}>Diagnóstico: </span>{c.diagnostico}</div>}
                           </div>
                         )
                       }) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><Calendar size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>Sem histórico.</div>)}
@@ -440,25 +585,25 @@ const Pacientes = () => {
 
                 {activeTab === 'exames' && (
                   <div className="custom-scrollbar" style={{ padding: '30px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="application/pdf,image/png" onChange={handleFileUpload} />
                     <button onClick={() => fileInputRef.current.click()} style={{ width: '100%', padding: '20px', borderRadius: '12px', border: `2px dashed #2563eb`, backgroundColor: 'rgba(37,99,235,0.05)', color: '#2563eb', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginBottom: '25px', transition: 'all 0.2s' }}><UploadCloud size={24} /> Fazer Upload de Exame/Documento</button>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {exames.length > 0 ? exames.map(exame => (
                         <div key={exame.id} style={{ backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', overflow: 'hidden' }}>
-                            <div style={{ padding: '10px', backgroundColor: theme.pageBg, borderRadius: '10px', color: '#64748b' }}><File size={20} /></div>
+                            <div style={{ padding: '10px', backgroundColor: theme.pageBg, borderRadius: '10px', color: '#64748b' }}><FileIcon size={20} /></div>
                             <div style={{ overflow: 'hidden' }}>
                               <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{exame.nome_exame}</h4>
                               <span style={{ fontSize: '11px', color: theme.subText }}>{new Date(exame.data_exame).toLocaleDateString(activeLocale)}</span>
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <a href={exame.ficheiro_base64} download={exame.nome_exame} style={{ padding: '8px 12px', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', fontWeight: 'bold', fontSize: '12px' }}><Download size={16} /></a>
+                            <a href={exame.arquivo_base64} download={exame.nome_exame} style={{ padding: '8px 12px', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', fontWeight: 'bold', fontSize: '12px' }}><Download size={16} /></a>
                             {isAdmin && (<button onClick={() => apagarExame(exame.id)} style={{ padding: '8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16} /></button>)}
                           </div>
                         </div>
-                      )) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><File size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>Sem exames.</div>)}
+                      )) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><FileIcon size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>Sem exames.</div>)}
                     </div>
                   </div>
                 )}
@@ -521,6 +666,17 @@ const Pacientes = () => {
             </tbody>
           </table>
         </div>
+        {hasMore && !pesquisa && (
+          <div style={{ padding: '20px', textAlign: 'center', borderTop: `1px solid ${theme.border}` }}>
+            <button
+              onClick={() => carregarPacientes(page + 1)}
+              disabled={loadingMore}
+              style={{ padding: '10px 28px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', cursor: loadingMore ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: loadingMore ? 0.7 : 1 }}
+            >
+              {loadingMore ? 'A carregar...' : 'Carregar mais'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

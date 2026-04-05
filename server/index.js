@@ -1,6 +1,3 @@
-console.log("=".repeat(70));
-console.log("UNIQUE_MARKER_12345: Server starting up - checking if this version runs");
-console.log("=".repeat(70));
 const express = require("express");
 const https = require("https");
 const fs = require("fs");
@@ -27,6 +24,7 @@ const { errorHandler, notFoundHandler } = require("./errorHandler");
 
 // Importar pool
 const pool = require("./db");
+const logger = require('./utils/logger');
 
 
 
@@ -46,15 +44,28 @@ app.use(compression({
 
 // CORS configurado com whitelist de origens seguras
 const allowedOrigins = [
+  "http://localhost:3000",
   "http://localhost:3050",
   "http://localhost:3051",
-  "http://localhost:3000",
+  "http://localhost:5000",
   process.env.FRONTEND_URL || "http://localhost:3050"
 ];
 
-// CORS configurado - mais permissivo em desenvolvimento
+// Trust proxy em development (npm run dev pode adicionar X-Forwarded-For)
+if (process.env.NODE_ENV !== 'production') {
+  app.set('trust proxy', 'loopback');
+}
+
+// CORS configurado com whitelist de origens permitidas
 app.use(cors({
-  origin: true, // Aceita qualquer origin
+  origin: (origin, callback) => {
+    // Permite requests sem origin (Postman, scripts internos)
+    if (!origin) return callback(null, true);
+    // Normalizar origin removendo barra final antes de comparar
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
+    callback(new Error(`CORS: origem não permitida: ${origin}`));
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -64,15 +75,24 @@ app.use(cors({
 // ==========================================
 // --- RATE LIMITING ---
 // ==========================================
-// Desabilitado em desenvolvimento para evitar problemas com X-Forwarded-For
-// const generalLimiter = rateLimit({
-//   windowMs: 15 * 60 * 1000,
-//   max: 100,
-//   message: { error: "Muitos requests. Tente novamente em 15 minutos." },
-//   standardHeaders: true,
-//   legacyHeaders: false
-// });
-// app.use(generalLimiter);
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: "Muitos requests. Tente novamente em 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1'
+});
+app.use(generalLimiter);
+
+// Rate limit reforçado para rotas de autenticação
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Demasiadas tentativas de login. Aguarde 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // ==========================================
 // --- HTTPS REDIRECT (Production) ---
@@ -87,13 +107,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // ==========================================
 // --- INICIALIZAÇÃO DA BASE DE DADOS ---
 // ==========================================
 async function initDB() {
-  console.log("A preparar a base de dados e garantir tabelas...");
+  logger.info('A preparar a base de dados e garantir tabelas...');
   
   try { await pool.query("ALTER TABLE produtos ALTER COLUMN stock_atual TYPE NUMERIC(10, 3)"); } catch(e){}
   try { await pool.query("ALTER TABLE produtos ALTER COLUMN stock_minimo TYPE NUMERIC(10, 3)"); } catch(e){}
@@ -112,10 +132,10 @@ async function initDB() {
         paciente_id INT,
         nome_exame VARCHAR(255),
         data_exame DATE DEFAULT CURRENT_DATE,
-        ficheiro_base64 TEXT
+        arquivo_base64 TEXT
       )
     `);
-  } catch(e) { console.error("Erro ao criar tabela exames_paciente:", e); }
+  } catch(e) { logger.error('Erro ao criar tabela exames_paciente:', { message: e.message }); }
 
   try {
     await pool.query(`UPDATE produtos SET categoria = 'Esterilizacao' WHERE nome ILIKE '%manga%' OR nome ILIKE '%desinfe%' OR nome ILIKE '%esteriliz%' OR nome ILIKE '%líquido%' OR nome ILIKE '%liquido%' OR nome ILIKE '%autoclave%'`);
@@ -141,7 +161,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false
+    rejectUnauthorized: process.env.NODE_ENV === 'production'
   }
 });
 
@@ -149,8 +169,8 @@ const transporter = nodemailer.createTransport({
 // --- ROTAS ---
 // ==========================================
 
-// Rotas de Autenticação (refatorizadas)
-app.use('/api/auth', authRoutes);
+// Rotas de Autenticação (com rate limit reforçado)
+app.use('/api/auth', authLimiter, authRoutes);
 
 // Rotas de Pacientes (refatorizadas)
 app.use('/api/pacientes', pacientesRoutes);
@@ -212,10 +232,10 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
         key: keyContent,
         cert: certContent
       };
-      console.log('✅ Certificados SSL carregados com sucesso');
+      logger.info('Certificados SSL carregados com sucesso');
     }
   } catch (err) {
-    console.warn('⚠️  Erro ao carregar certificados:', err.message);
+    logger.warn('Erro ao carregar certificados:', { message: err.message });
   }
 }
 
@@ -223,45 +243,17 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
 if (httpsOptions && process.env.NODE_ENV !== 'development') {
   // HTTPS em produção
   https.createServer(httpsOptions, app).listen(443, () => {
-    console.log(`\n🔒 HTTPS Servidor ativo na porta 443 (HTTPS)`);
-    console.log(`🔐 TLS/SSL: Ativo`);
-    console.log(`🔒 CORS: Origens permitidas [${allowedOrigins.join(', ')}]`);
-    console.log(`📦 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`\n📚 Documentação:`);
-    console.log(`   POST   /api/auth/register  - Registar`);
-    console.log(`   POST   /api/auth/login     - Login`);
-    console.log(`   GET    /api/auth/profile   - Profile (requer token)`);
-    console.log(`   POST   /api/auth/logout    - Logout\n`);
+    logger.info(`HTTPS Servidor ativo na porta 443 | TLS/SSL: Ativo | CORS: [${allowedOrigins.join(', ')}] | NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
   });
 } else if (httpsOptions) {
   // HTTPS em desenvolvimento
   https.createServer(httpsOptions, app).listen(PORT, () => {
-    console.log(`\n🔒 HTTPS Servidor ativo em https://localhost:${PORT}`);
-    console.log(`🔐 TLS/SSL: Ativo (Certificado auto-assinado)`);
-    console.log(`⚠️  Nota: Navegadores vão dar warning (esperado)`);
-    console.log(`🔒 CORS: Origens permitidas [${allowedOrigins.join(', ')}]`);
-    console.log(`📦 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`\n📚 Documentação:`);
-    console.log(`   POST   /api/auth/register  - Registar`);
-    console.log(`   POST   /api/auth/login     - Login`);
-    console.log(`   GET    /api/auth/profile   - Profile (requer token)`);
-    console.log(`   POST   /api/auth/logout    - Logout`);
-    console.log(`   GET    /api/health        - Health check\n`);
+    logger.info(`HTTPS Servidor ativo em https://localhost:${PORT} | TLS/SSL: Ativo (auto-assinado) | CORS: [${allowedOrigins.join(', ')}] | NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
   });
 } else {
   // HTTP (dev sem certificados)
   app.listen(PORT, () => {
-    console.log(`\n✅ HTTP Servidor ativo em http://localhost:${PORT}`);
-    console.log(`⚠️  Aviso: HTTPS não ativo. Para desenvolvimento seguro:`);
-    console.log(`   Execute: node scripts/generate-cert-simple.js`);
-    console.log(`🔒 CORS: Origens permitidas [${allowedOrigins.join(', ')}]`);
-    console.log(`📦 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`\n📚 Documentação:`);
-    console.log(`   POST   /api/auth/register  - Registar`);
-    console.log(`   POST   /api/auth/login     - Login`);
-    console.log(`   GET    /api/auth/profile   - Profile (requer token)`);
-    console.log(`   POST   /api/auth/logout    - Logout`);
-    console.log(`   GET    /api/health        - Health check\n`);
+    logger.info(`HTTP Servidor ativo em http://localhost:${PORT} | CORS: [${allowedOrigins.join(', ')}] | NODE_ENV: ${process.env.NODE_ENV || 'development'} | AVISO: HTTPS não ativo`);
   });
 }
 
@@ -271,18 +263,18 @@ if (httpsOptions && process.env.NODE_ENV !== 'development') {
 // Importar controller de relatórios
 const { sendWeeklyReportEmail } = require('./controllers/reportsController');
 
-console.log('\n📅 Configurando agendamento automático de relatórios...');
+logger.info('Configurando agendamento automático de relatórios...');
 
 // Agendar envio de relatório toda sexta-feira às 16:00 (4:00 PM)
 // Padrão cron: min hora dia_mês mês dia_semana
 // (0 16 * * 5) = 16:00, qualquer dia do mês, qualquer mês, sexta-feira (5)
 const reportSchedule = cron.schedule('0 16 * * 5', async () => {
-  console.log('\n📊 [SCHEDULED] Iniciando envio automático de relatório semanal...');
+  logger.info('[SCHEDULED] Iniciando envio automático de relatório semanal...');
   const result = await sendWeeklyReportEmail();
   if (result.success) {
-    console.log(`✅ [SCHEDULED] ${result.message}`);
+    logger.info(`[SCHEDULED] ${result.message}`);
   } else {
-    console.error(`❌ [SCHEDULED] Erro: ${result.message || result.error}`);
+    logger.error(`[SCHEDULED] Erro: ${result.message || result.error}`);
   }
 }, {
   scheduled: false // Vamos iniciar manualmente após logs
@@ -290,10 +282,7 @@ const reportSchedule = cron.schedule('0 16 * * 5', async () => {
 
 // Iniciar o agendamento
 reportSchedule.start();
-console.log('✅ Agendamento ativo: Relatórios enviados toda sexta-feira às 16:00 (hora do servidor)');
-
-// Opcional: Enviar teste na primeira hora após startup (para desenvolvimento)
-// Descomente para fazer testes em desenvolvimento
+logger.info('Agendamento ativo: Relatórios enviados toda sexta-feira às 16:00 (hora do servidor)');
 // setTimeout(() => {
 //   console.log('\n🧪 [DEV] Enviando relatório de teste...');
 //   sendWeeklyReportEmail();

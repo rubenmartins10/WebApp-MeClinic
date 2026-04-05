@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import apiService from '../services/api';
 
 const FichasTecnicas = () => {
   const { theme } = useContext(ThemeContext);
@@ -23,18 +24,17 @@ const FichasTecnicas = () => {
   const [newProcName, setNewProcName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem('meclinic_user') || '{}');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = user.role === 'ADMIN';
 
   const carregarDados = () => {
-    const token = localStorage.getItem('token');
-    fetch('/api/modelos-procedimento', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setModelos(Array.isArray(data) ? data : (data.modelos || [])));
-      
-    fetch('/api/produtos', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setProdutosInventario(Array.isArray(data) ? data : (data.produtos || [])));
+    apiService.get('/api/modelos-procedimento')
+      .then(data => setModelos(Array.isArray(data) ? data : (data.modelos || [])))
+      .catch(() => setModelos([]));
+
+    apiService.get('/api/produtos')
+      .then(data => setProdutosInventario(Array.isArray(data) ? data : (data.produtos || [])))
+      .catch(() => setProdutosInventario([]));
   };
 
   useEffect(() => carregarDados(), []);
@@ -42,10 +42,9 @@ const FichasTecnicas = () => {
   const carregarItens = (modelo) => {
     setSelecionado(modelo);
     setIsEditing(false);
-    const token = localStorage.getItem('token');
-    fetch(`/api/modelos-procedimento/${modelo.id}/itens`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setItens(Array.isArray(data) ? data : (data.itens || [])));
+    apiService.get(`/api/modelos-procedimento/${modelo.id}/itens`)
+      .then(data => setItens(Array.isArray(data) ? data : (data.itens || [])))
+      .catch(() => setItens([]));
   };
 
   const mostrarNotificacao = (type, message) => {
@@ -58,38 +57,22 @@ const FichasTecnicas = () => {
     e.preventDefault();
     if (!newProcName.trim()) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/modelos-procedimento', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: newProcName })
-      });
-      if (response.ok) {
-        const novo = await response.json();
-        setShowNewModal(false); setNewProcName('');
-        carregarDados(); carregarItens(novo);
-        mostrarNotificacao('success', t('tech_sheets.msg.created'));
-      }
+      const novo = await apiService.post('/api/modelos-procedimento', { nome: newProcName });
+      setShowNewModal(false); setNewProcName('');
+      carregarDados(); carregarItens(novo);
+      mostrarNotificacao('success', t('tech_sheets.msg.created'));
     } catch (err) { mostrarNotificacao('error', t('inventory.msg.server_err')); }
   };
 
   const handleDeleteProcedimento = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/modelos-procedimento/${selecionado.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setShowDeleteConfirm(false); 
-        setSelecionado(null);        
-        carregarDados();           
-        mostrarNotificacao('success', t('tech_sheets.msg.removed'));
-      } else {
-        mostrarNotificacao('error', t('tech_sheets.msg.remove_err'));
-      }
+      await apiService.delete(`/api/modelos-procedimento/${selecionado.id}`);
+      setShowDeleteConfirm(false); 
+      setSelecionado(null);        
+      carregarDados();           
+      mostrarNotificacao('success', t('tech_sheets.msg.removed'));
     } catch (error) {
-      mostrarNotificacao('error', t('inventory.msg.server_err'));
+      mostrarNotificacao('error', t('tech_sheets.msg.remove_err'));
     }
   };
 
@@ -128,17 +111,11 @@ const FichasTecnicas = () => {
     }
 
     try {
-      const response = await fetch(`/api/modelos-procedimento/${selecionado.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itens: editedProdutos, custo_total: editedPrecoTotal, preco_servico: editedPrecoServico })
-      });
-      if (response.ok) {
-        carregarItens({...selecionado, custo_total_estimado: editedPrecoTotal, preco_servico: editedPrecoServico}); 
-        carregarDados();
-        mostrarNotificacao('success', t('tech_sheets.msg.saved'));
-        setIsEditing(false);
-      }
+      await apiService.put(`/api/modelos-procedimento/${selecionado.id}`, { itens: editedProdutos, custo_total: editedPrecoTotal, preco_servico: editedPrecoServico });
+      carregarItens({...selecionado, custo_total_estimado: editedPrecoTotal, preco_servico: editedPrecoServico}); 
+      carregarDados();
+      mostrarNotificacao('success', t('tech_sheets.msg.saved'));
+      setIsEditing(false);
     } catch (err) { mostrarNotificacao('error', t('tech_sheets.msg.save_err')); }
   };
 

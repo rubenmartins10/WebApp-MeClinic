@@ -3,6 +3,8 @@ import { DollarSign, Filter, CheckCircle, Receipt, X, Printer } from 'lucide-rea
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar Idiomas
+import { getActiveLocale } from '../utils/locale';
+import apiService from '../services/api';
 import logo from '../assets/logo.png'; 
 
 const Faturacao = () => {
@@ -15,11 +17,9 @@ const Faturacao = () => {
   const [notaModal, setNotaModal] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch('/api/faturacao', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+    apiService.get('/api/faturacao')
       .then(data => setFaturas(Array.isArray(data) ? data : (data.faturas || [])))
-      .catch(err => console.error(err));
+      .catch(() => {});
   }, []);
 
   const faturasFiltradas = faturas.filter(f => {
@@ -43,33 +43,120 @@ const Faturacao = () => {
   const totalFaturado = faturasFiltradas.reduce((acc, f) => acc + parseFloat(f.valor_total), 0);
 
   const imprimirNotaIndividual = (nota) => {
-    const doc = new jsPDF({ format: [100, 150] }); 
-    const img = new Image(); img.src = logo;
-    doc.addImage(img, 'PNG', 30, 10, 40, 12);
-    
-    doc.setFontSize(12); doc.setFont(undefined, 'bold'); 
-    doc.text(t('billing.modal.title').toUpperCase(), 50, 32, { align: 'center' });
-    
-    doc.setFontSize(8); doc.setFont(undefined, 'normal'); 
-    doc.text(t('billing.modal.subtitle'), 50, 37, { align: 'center' });
-    
-    doc.line(10, 42, 90, 42);
-    
-    // As datas do PDF também se adaptam ao idioma
-    const localeMap = { pt: 'pt-PT', en: 'en-US', es: 'es-ES' };
-    const activeLocale = localeMap[language] || 'pt-PT';
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, mg = 12;
 
-    doc.setFontSize(10);
-    doc.text(`${t('billing.modal.patient')} ${nota.paciente_nome}`, 10, 52);
-    doc.text(`${t('billing.modal.datetime')} ${new Date(nota.data_emissao).toLocaleString(activeLocale)}`, 10, 62);
-    doc.text(`${t('billing.modal.procedure')} ${nota.procedimento_nome}`, 10, 72);
-    doc.text(`${t('billing.modal.method')} ${nota.metodo_pagamento}`, 10, 82);
-    
-    doc.line(10, 92, 90, 92);
-    
-    doc.setFontSize(14); doc.setFont(undefined, 'bold');
-    doc.text(`${t('billing.modal.total')}: ${parseFloat(nota.valor_total).toFixed(2)} EUR`, 50, 105, { align: 'center' });
-    
+    const C = {
+      teal:      [14, 170, 165],
+      tealDark:  [8,  120, 116],
+      tealBg:    [230, 248, 248],
+      white:     [255, 255, 255],
+      dark:      [25,  25,  25],
+      gray:      [110, 110, 110],
+      lightGray: [247, 247, 247],
+      midGray:   [210, 210, 210],
+      headerBg:  [45,   55,  72],
+    };
+
+    const euro = (v) => parseFloat(v || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac';
+
+    const clinicSettings = (() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; } })();
+    const clinicNome     = clinicSettings.nome     || 'MeClinic';
+    const clinicMorada   = (clinicSettings.morada  || 'Rua Principal, 123  |  Lisboa, Portugal').replace(/\n/g, '  |  ');
+    const clinicEmail    = clinicSettings.email    || 'geral@meclinic.pt';
+    const clinicTelefone = clinicSettings.telefone || '+351 XXX XXX XXX';
+
+    const img = new Image(); img.src = logo;
+
+    // ── TOP TEAL BANNER ──────────────────────────────────────────────────
+    doc.setFillColor(...C.tealDark); doc.rect(0, 0, W, 2, 'F');
+    doc.setFillColor(...C.teal);     doc.rect(0, 2, W, 26, 'F');
+
+    try { doc.addImage(img, 'PNG', mg, 7, 32, 11); }
+    catch {
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.white); doc.text(clinicNome, mg, 16);
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.text('Clínica Dentária', mg, 22);
+    }
+
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+    doc.text('NOTA DE HONORÁRIOS', W - mg, 13, { align: 'right' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text(clinicMorada, W - mg, 19, { align: 'right' });
+    doc.text(`${clinicEmail}  |  ${clinicTelefone}`, W - mg, 25, { align: 'right' });
+
+    // ── INFO BAR ─────────────────────────────────────────────────────────
+    const nib = 28;
+    doc.setFillColor(...C.tealBg); doc.rect(0, nib, W, 13, 'F');
+    doc.setFillColor(...C.teal);   doc.rect(0, nib + 13, W, 0.4, 'F');
+
+    const emissaoDate = new Date(nota.data_emissao);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`Paciente: ${nota.paciente_nome}`, mg, nib + 5);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text(`Emitido: ${emissaoDate.toLocaleString('pt-PT')}`, mg, nib + 10.5);
+
+    // ── BODY ─────────────────────────────────────────────────────────────
+    let ny = nib + 21;
+    const bW      = W - 2 * mg;
+    const leftW   = bW * 0.55;
+    const rightW  = bW * 0.45;
+    const rowH    = 22;
+
+    const fieldBox = (label, value, x, y, w, accent) => {
+      doc.setDrawColor(...C.midGray); doc.setLineWidth(0.25);
+      doc.setFillColor(...C.lightGray);
+      doc.rect(x, y, w, rowH, 'FD');
+      doc.setFillColor(...(accent || C.teal));
+      doc.rect(x, y, 2.5, rowH, 'F');
+      doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.gray);
+      doc.text(label.toUpperCase(), x + 6, y + 6.5);
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+      const maxChars = Math.floor(w / 2.5);
+      const valStr   = String(value || 'Não informado');
+      const display  = valStr.length > maxChars ? valStr.slice(0, maxChars - 1) + '…' : valStr;
+      doc.text(display, x + 6, y + 15);
+    };
+
+    fieldBox('Procedimento Realizado', nota.procedimento_nome,  mg,              ny, leftW,  C.teal);
+    fieldBox('Método de Pagamento',    nota.metodo_pagamento,   mg + leftW + 4,  ny, rightW - 4, C.headerBg);
+    ny += rowH + 5;
+
+    fieldBox('Data e Hora da Consulta',
+      emissaoDate.toLocaleString('pt-PT', { dateStyle: 'full', timeStyle: 'short' }),
+      mg, ny, bW, [107, 114, 128]);
+    ny += rowH + 10;
+
+    // ── DIVIDER ──────────────────────────────────────────────────────────
+    doc.setDrawColor(...C.teal); doc.setLineWidth(0.4);
+    doc.line(mg, ny, W - mg, ny);
+    ny += 10;
+
+    // ── TOTAL LIQUIDADO BOX ──────────────────────────────────────────────
+    const totalH = 38;
+    doc.setFillColor(...C.tealDark); doc.rect(mg, ny, bW, 2, 'F');
+    doc.setFillColor(...C.teal);     doc.rect(mg, ny + 2, bW, totalH - 2, 'F');
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(230, 248, 248);
+    doc.text('TOTAL LIQUIDADO', W / 2, ny + 11, { align: 'center' });
+    doc.setFontSize(26); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+    doc.text(euro(nota.valor_total), W / 2, ny + 30, { align: 'center' });
+    ny += totalH + 15;
+
+    // ── CONFIDENTIALITY NOTE ─────────────────────────────────────────────
+    doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.gray);
+    doc.text('Este documento é de uso interno e confidencial. Emitido automaticamente pelo Sistema MeClinic.', W / 2, ny, { align: 'center' });
+
+    // ── FOOTER ───────────────────────────────────────────────────────────
+    const nFy = H - 16;
+    doc.setDrawColor(...C.teal); doc.setLineWidth(0.4);
+    doc.line(mg, nFy, W - mg, nFy);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`${clinicNome} \u2014 Nota de Honor\u00e1rios`, W / 2, nFy + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text('Documento confidencial destinado apenas a uso interno.', W / 2, nFy + 10, { align: 'center' });
+    doc.setFillColor(...C.teal); doc.rect(0, H - 3.5, W, 3.5, 'F');
+
     doc.save(`Nota_Faturacao_${nota.paciente_nome.replace(/\s+/g, '_')}.pdf`);
   };
 
