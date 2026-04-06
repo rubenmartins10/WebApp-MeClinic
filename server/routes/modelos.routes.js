@@ -57,7 +57,7 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/itens', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, modelo_id, nome_item, quantidade, preco_unitario, preco_total_item
+      SELECT id, modelo_id, nome_item, quantidade, preco_unitario, preco_total_item, produto_id
       FROM modelo_procedimento_itens
       WHERE modelo_id = $1
       ORDER BY nome_item ASC
@@ -124,9 +124,9 @@ router.put('/:id', async (req, res) => {
       for (const item of itens) {
         if (item.nome_item && item.nome_item.trim() !== '') {
           await pool.query(
-            `INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario)
-             VALUES ($1, $2, $3, $4)`,
-            [req.params.id, item.nome_item, parseFloat(item.quantidade) || 0, parseFloat(item.preco_unitario) || 0]
+            `INSERT INTO modelo_procedimento_itens (modelo_id, nome_item, quantidade, preco_unitario, produto_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [req.params.id, item.nome_item, parseFloat(item.quantidade) || 0, parseFloat(item.preco_unitario) || 0, item.produto_id || null]
           );
         }
       }

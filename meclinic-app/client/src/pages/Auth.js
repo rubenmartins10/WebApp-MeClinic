@@ -44,10 +44,10 @@ const Auth = ({ onLogin }) => {
       });
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error || 'Ocorreu um erro.');
+      if (!response.ok) throw new Error(data.error || data.errors || data.message || 'Ocorreu um erro.');
 
       if (authMode === 'REGISTER') {
-        setQrCode(data.qrCodeUrl);
+        setQrCode(data.mfa?.qrCodeUrl || data.qrCodeUrl);
         setFormData({ ...formData, password: '', mfaToken: '' });
       } else {
         localStorage.setItem('token', data.token);

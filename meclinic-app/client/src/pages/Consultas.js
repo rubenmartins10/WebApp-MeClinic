@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
 import Assinatura from '../components/specialized/Assinatura';
 import { getActiveLocale } from '../utils/locale';
+import { flattenToWhite } from '../utils/signatureUtils';
 import { PRECO_CARIE, PRECO_EXTRACAO, PRECO_ENDO, PRECO_COROA, PRECO_IMPLANTE } from '../utils/treatmentPrices';
 import apiService from '../services/api';
 
@@ -41,6 +42,7 @@ const Consultas = () => {
   const [rxMeds, setRxMeds] = useState([{ nome: '', posologia: '' }]);
   const [recommendations, setRecommendations] = useState('');
   const [assinaturaMedica, setAssinaturaMedica] = useState(null);
+  const [assinaturaMedicaNome, setAssinaturaMedicaNome] = useState('');
 
   const [odontogramaAvaliacao, setOdontogramaAvaliacao] = useState({});
   const [orcamentoEstimado, setOrcamentoEstimado] = useState({ caries: 0, extracoes: 0, endo: 0, coroas: 0, implantes: 0, total: 0 });
@@ -73,6 +75,34 @@ const Consultas = () => {
   };
 
   useEffect(() => { fetchDados(); }, []);
+
+  useEffect(() => {
+    if (!currentUser.id) return;
+    const token = localStorage.getItem('meclinic_token');
+    fetch(`/api/utilizadores/${currentUser.id}/assinatura`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(async data => {
+        const raw = data.assinatura;
+        if (!raw) return;
+        let sig = null, nome = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.signatures) && parsed.signatures.length > 0) {
+            sig = parsed.signatures[0].signature;
+            nome = parsed.signatures[0].nome || '';
+          } else if (parsed.signature) {
+            sig = parsed.signature;
+            nome = parsed.nome || '';
+          }
+        } catch {
+          if (typeof raw === 'string' && raw.startsWith('data:')) sig = raw;
+        }
+        if (sig) { setAssinaturaMedica(await flattenToWhite(sig)); setAssinaturaMedicaNome(nome); }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showNotif = (msg, type = 'success') => {
     setNotification({ show: true, message: msg, type });
@@ -165,7 +195,7 @@ const Consultas = () => {
     setCheckoutModal(c);
     
     const nomeProc = (c.procedimento_nome || '').toLowerCase();
-    const eAvaliacao = nomeProc.includes('avalia') || nomeProc.includes('consulta');
+    const eAvaliacao = nomeProc.includes('avalia');
     setIsAvaliacao(eAvaliacao);
 
     setCheckoutData({ metodo_pagamento: 'Multibanco' });
@@ -175,8 +205,7 @@ const Consultas = () => {
     setRecommendations('');
     setOdontogramaAvaliacao({});
     setOrcamentoEstimado({ caries: 0, extracoes: 0, endo: 0, coroas: 0, implantes: 0, total: 0 });
-    setAssinaturaMedica(null);
-    
+
     setSendWhatsapp(true);
     if (c.email) { setSendEmail(true); setEmailPaciente(c.email); } else { setSendEmail(false); setEmailPaciente(''); }
 
@@ -301,6 +330,22 @@ const Consultas = () => {
       doc.text(`TOTAL:`, 20, curY + 10);
       doc.text(`${(isAvaliacao ? orcamentoEstimado.total : parseFloat(checkoutModal.preco_servico || 0)).toFixed(2)} €`, 133, curY + 10, { align: 'right' });
 
+      if (assinaturaMedica) {
+        const sigY = curY + 23;
+        doc.addImage(assinaturaMedica, 44, sigY, 60, 15);
+        const lineY = sigY + 12;
+        doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.line(44, lineY, 104, lineY);
+        if (assinaturaMedicaNome) {
+          doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(15, 23, 42);
+          doc.text(assinaturaMedicaNome, 74, lineY + 5, { align: 'center' });
+          doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(148, 163, 184);
+          doc.text('Assinatura do Responsável', 74, lineY + 10, { align: 'center' });
+        } else {
+          doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(148, 163, 184);
+          doc.text('Assinatura do Responsável', 74, lineY + 5, { align: 'center' });
+        }
+      }
+
       doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(148, 163, 184);
       doc.text("MeClinic - Medicina Dentária Avançada | NIF: 500 123 456", 74, 195, { align: 'center' });
       doc.text("Avenida da Liberdade, 123, Lisboa | +351 912 345 678 | www.meclinic.pt", 74, 200, { align: 'center' });
@@ -315,7 +360,7 @@ const Consultas = () => {
       try {
         const docRx = new jsPDF({ format: [148, 210] });
         
-        docRx.setFillColor(16, 185, 129);
+        docRx.setFillColor(37, 99, 235);
         docRx.rect(0, 0, 148, 25, 'F'); 
         docRx.setTextColor(255, 255, 255); 
         docRx.setFontSize(18); docRx.setFont(undefined, 'bold'); 
@@ -328,13 +373,13 @@ const Consultas = () => {
         docRx.setFontSize(10); docRx.setFont(undefined, 'normal'); docRx.setTextColor(100, 116, 139);
         docRx.text(`Data: ${new Date().toLocaleDateString(activeLocale)}`, 15, 55);
         docRx.text(`Paciente: ${checkoutModal.paciente_nome}`, 15, 62);
-        docRx.text(`Médico: ${currentUser.nome || 'Corpo Clínico'}`, 15, 69);
+        docRx.text(`Médico: ${assinaturaMedicaNome || currentUser.nome || 'Corpo Clínico'}`, 15, 69);
         
         docRx.setDrawColor(226, 232, 240); docRx.line(15, 76, 133, 76);
 
         let y = 88;
         if (hasMeds) {
-          docRx.setFontSize(14); docRx.setFont(undefined, 'bold'); docRx.setTextColor(16, 185, 129); docRx.text("Rx (Prescrição Médica)", 15, y); y += 8;
+          docRx.setFontSize(14); docRx.setFont(undefined, 'bold'); docRx.setTextColor(37, 99, 235); docRx.text("Rx (Prescrição Médica)", 15, y); y += 8;
           docRx.setTextColor(15, 23, 42);
           rxMeds.forEach((med, index) => {
             if (med.nome) {
@@ -357,12 +402,19 @@ const Consultas = () => {
         }
 
         if(y > 170) { docRx.addPage(); y = 30; }
-        if (assinaturaMedica) { docRx.addImage(assinaturaMedica, 'PNG', 44, y, 60, 25); }
-        
-        y += 26;
-        docRx.setDrawColor(200, 200, 200); docRx.line(44, y, 104, y); 
-        docRx.setFontSize(8); docRx.setTextColor(148, 163, 184);
-        docRx.text("Assinatura do Médico", 74, y + 5, { align: 'center' });
+        if (assinaturaMedica) { docRx.addImage(assinaturaMedica, 44, y, 60, 15); }
+
+        y += 12;
+        docRx.setDrawColor(200, 200, 200); docRx.line(44, y, 104, y);
+        if (assinaturaMedicaNome) {
+          docRx.setFontSize(9); docRx.setFont(undefined, 'bold'); docRx.setTextColor(15, 23, 42);
+          docRx.text(assinaturaMedicaNome, 74, y + 5, { align: 'center' });
+          docRx.setFontSize(7); docRx.setFont(undefined, 'normal'); docRx.setTextColor(148, 163, 184);
+          docRx.text('Assinatura do Médico', 74, y + 10, { align: 'center' });
+        } else {
+          docRx.setFontSize(8); docRx.setFont(undefined, 'normal'); docRx.setTextColor(148, 163, 184);
+          docRx.text('Assinatura do Médico', 74, y + 5, { align: 'center' });
+        }
         
         pdfReceitaBase64 = docRx.output('datauristring');
         nomeReceita = `Relatorio_${checkoutModal.paciente_nome.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -392,14 +444,12 @@ const Consultas = () => {
 
       const data = await apiService.post('/api/faturacao/checkout', payload);
       if (data) {
-        showNotif(isAvaliacao ? 'Avaliação Guardada e Orçamento Gerado!' : 'Consulta Finalizada e Documentos Guardados!');
+        showNotif(isAvaliacao ? 'Avaliação Guardada e Orçamento Gerado!' : (sendWhatsapp || sendEmail) ? 'Consulta Finalizada e Documentos Enviados!' : 'Consulta Finalizada!');
         if (sendWhatsapp && checkoutModal.telefone) {
-          const numWhatsApp = checkoutModal.telefone.replace(/\D/g, ''); 
+          const numWhatsApp = checkoutModal.telefone.replace(/\D/g, '');
           if (numWhatsApp) {
             const primeiroNome = checkoutModal.paciente_nome.split(' ')[0];
             let msgTexto = "";
-            
-            // --- MAGIA DO COPYWRITING: ENTREGA DE DOCUMENTOS ---
             if (isAvaliacao) {
                if (sendEmail && emailPaciente) {
                  msgTexto = `Olá ${primeiroNome}! ✨\n\nMuito obrigado por nos ter confiado o seu sorriso na avaliação de hoje.\n\nO seu *Plano de Tratamento e Orçamento* detalhado já foi emitido. 📄 Acabámos de o enviar para o seu email (${emailPaciente}).\n\nEstamos prontos para iniciar esta jornada consigo. Quando desejar agendar a próxima sessão, basta responder a esta mensagem!\n\nUm excelente dia! 🦷💙`;
@@ -417,18 +467,6 @@ const Consultas = () => {
           }
         }
         setCheckoutModal(null); fetchDados();
-
-        // Enviar email automaticamente via cliente de email
-        if (sendEmail && emailPaciente && pdfFaturaBase64) {
-          const assunto = isAvaliacao
-            ? `MeClinic - Plano de Tratamento e Orçamento - ${checkoutModal.paciente_nome}`
-            : `MeClinic - Fatura/Recibo - ${checkoutModal.paciente_nome}`;
-          const corpo = isAvaliacao
-            ? `Exmo(a) ${checkoutModal.paciente_nome},\n\nEm anexo encontra o seu Plano de Tratamento e Orçamento emitido pela MeClinic.\n\nObrigado pela sua confiança.\n\nMeClinic`
-            : `Exmo(a) ${checkoutModal.paciente_nome},\n\nEm anexo encontra a fatura referente à consulta de ${checkoutModal.procedimento_nome || 'Consulta'} realizada hoje.\n\nObrigado pela sua confiança.\n\nMeClinic`;
-          const mailtoLink = `mailto:${emailPaciente}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
-          const a = document.createElement('a'); a.href = mailtoLink; a.click();
-        }
       }
     } catch (err) { showNotif(err.message || 'Erro de comunicação', 'error'); } finally { setIsProcessing(false); }
   };
@@ -497,7 +535,7 @@ const Consultas = () => {
 
   return (
     <>
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
       
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.border}; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #2563eb; } `}</style>
 
@@ -514,7 +552,7 @@ const Consultas = () => {
             
             <div style={{ padding: '20px 30px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isAvaliacao ? '#3b82f6' : (theme.isDark ? '#0f172a' : '#f8fafc') }}>
               <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: isAvaliacao ? 'white' : theme.text }}>
-                {isAvaliacao ? <><Smile color="white" /> Avaliação & Orçamento</> : <><CheckCircle color="#10b981" /> Finalizar Consulta e Faturar</>}
+                {isAvaliacao ? <><Smile color="white" /> Avaliação & Orçamento</> : <><CheckCircle color="#10b981" /> {sendWhatsapp || sendEmail ? 'Finalizar Consulta e Faturar' : 'Finalizar Consulta'}</>}
               </h2>
               <button onClick={() => setCheckoutModal(null)} style={{ background: 'none', border: 'none', color: isAvaliacao ? 'white' : theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
@@ -651,7 +689,7 @@ const Consultas = () => {
             <div style={{ padding: '20px 30px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '15px', backgroundColor: theme.cardBg }}>
               <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>Cancelar</button>
               <button onClick={finalizarCheckout} disabled={isProcessing || (sendEmail && !emailPaciente)} style={{ flex: 2, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: isAvaliacao ? '#3b82f6' : '#10b981', color: 'white', cursor: (isProcessing || (sendEmail && !emailPaciente)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: isAvaliacao ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(16, 185, 129, 0.3)', opacity: (isProcessing || (sendEmail && !emailPaciente)) ? 0.6 : 1 }}>
-                {isProcessing ? 'A Processar...' : (isAvaliacao ? <><Save size={20} /> Guardar Mapa & Gerar Orçamento (PDF)</> : <><CheckCircle size={20} /> Finalizar Consulta & Faturar</>)}
+                {isProcessing ? 'A Processar...' : (isAvaliacao ? <><Save size={20} /> Guardar Mapa & Gerar Orçamento (PDF)</> : <><CheckCircle size={20} /> {sendWhatsapp || sendEmail ? 'Finalizar Consulta & Faturar' : 'Finalizar Consulta'}</>)}
               </button>
             </div>
 
@@ -660,9 +698,9 @@ const Consultas = () => {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '15px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <CalendarIcon color="#2563eb" size={32} />
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('consultations.title')}</h1>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('consultations.title')}</h1>
+          <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>{t('consultations.subtitle')}</p>
         </div>
 
         <div style={{ display: 'flex', backgroundColor: theme.cardBg, padding: '5px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>

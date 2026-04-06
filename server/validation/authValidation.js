@@ -24,11 +24,7 @@ const commonPatterns = {
 exports.registerSchema = Joi.object({
   nome: commonPatterns.nome,
   email: commonPatterns.email,
-  password: commonPatterns.password,
-  confirmPassword: Joi.string().valid(Joi.ref('password')).required().messages({
-    'any.only': 'Passwords não correspondem',
-    'any.required': 'Confirmação de password é obrigatória'
-  })
+  password: commonPatterns.password
 }).strict();
 
 exports.loginSchema = Joi.object({

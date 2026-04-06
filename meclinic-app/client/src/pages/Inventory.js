@@ -184,7 +184,7 @@ const Inventory = () => {
   const activeLocale = getActiveLocale(language);
 
   return (
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
       
       <style>
         {`
@@ -348,7 +348,7 @@ const Inventory = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>
             {t('inventory.title') || 'Inventário'}
           </h1>
           <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>{t('inventory.subtitle') || 'Gestão de materiais'}</p>

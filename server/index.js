@@ -17,7 +17,8 @@ const faturaçãoRoutes = require("./routes/faturacao.routes");
 const modelosRoutes = require("./routes/modelos.routes");
 const utilizadoresRoutes = require("./routes/utilizadores.routes");
 const statsRoutes = require("./routes/stats.routes");
-const reportsRoutes = require("./routes/reports.routes");
+const reportsRoutes = require('./routes/reports.routes');
+const notificacoesRoutes = require('./routes/notificacoes.routes');
 
 // Importar middleware de erro
 const { errorHandler, notFoundHandler } = require("./errorHandler");
@@ -81,7 +82,7 @@ const generalLimiter = rateLimit({
   message: { error: "Muitos requests. Tente novamente em 15 minutos." },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1'
+  skip: (req) => process.env.NODE_ENV === 'development' && (req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1')
 });
 app.use(generalLimiter);
 
@@ -196,6 +197,9 @@ app.use('/api/stats', statsRoutes);
 // Rotas de Relatórios (refatorizadas)
 app.use('/api/reports', reportsRoutes);
 
+// Rotas de Notificações (email + WhatsApp)
+app.use('/api/notificacoes', notificacoesRoutes);
+
 // ==========================================
 // --- HEALTH CHECK ---
 // ==========================================
@@ -262,6 +266,8 @@ if (httpsOptions && process.env.NODE_ENV !== 'development') {
 // ==========================================
 // Importar controller de relatórios
 const { sendWeeklyReportEmail } = require('./controllers/reportsController');
+const { sendConsultaReminderEmail, sendStockAlertEmail } = require('./services/notificationService');
+const Produto = require('./models/Produto');
 
 logger.info('Configurando agendamento automático de relatórios...');
 
@@ -283,6 +289,62 @@ const reportSchedule = cron.schedule('0 16 * * 5', async () => {
 // Iniciar o agendamento
 reportSchedule.start();
 logger.info('Agendamento ativo: Relatórios enviados toda sexta-feira às 16:00 (hora do servidor)');
+
+// ==========================================
+// --- LEMBRETES DE CONSULTAS (a cada minuto) ---
+// ==========================================
+// Guarda IDs de consultas já notificadas (reset ao reiniciar o servidor)
+const consultasJaNotificadas = new Set();
+
+cron.schedule('* * * * *', async () => {
+  try {
+    const now = new Date();
+    const target = new Date(now.getTime() + 15 * 60 * 1000); // daqui a 15 minutos
+
+    const dataPT = target.toISOString().split('T')[0]; // YYYY-MM-DD
+    const horaH = String(target.getHours()).padStart(2, '0');
+    const horaM = String(target.getMinutes()).padStart(2, '0');
+    const horaTarget = `${horaH}:${horaM}`;
+
+    const result = await pool.query(
+      `SELECT c.id, p.nome as paciente_nome, p.email, p.telefone,
+              c.data_consulta, c.hora_consulta, m.nome as procedimento_nome
+       FROM consultas c
+       JOIN pacientes p ON c.paciente_id = p.id
+       LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
+       WHERE c.data_consulta = $1
+         AND LEFT(c.hora_consulta::text, 5) = $2
+         AND c.status NOT IN ('cancelada', 'concluida')`,
+      [dataPT, horaTarget]
+    );
+
+    for (const consulta of result.rows) {
+      if (consultasJaNotificadas.has(consulta.id)) continue;
+      consultasJaNotificadas.add(consulta.id);
+      await sendConsultaReminderEmail(consulta);
+    }
+  } catch (err) {
+    logger.error('[CRON][CONSULTAS] Erro no cron de lembretes:', { message: err.message });
+  }
+});
+logger.info('Agendamento ativo: Lembretes de consultas verificados a cada minuto');
+
+// ==========================================
+// --- SCAN DIÁRIO DE STOCK BAIXO (08:00) ---
+// ==========================================
+cron.schedule('0 8 * * *', async () => {
+  try {
+    const produtosBaixos = await Produto.getLowStockAlerts();
+    if (produtosBaixos.length === 0) return;
+    logger.info(`[CRON][STOCK] ${produtosBaixos.length} produto(s) com stock baixo — enviando alertas...`);
+    for (const produto of produtosBaixos) {
+      await sendStockAlertEmail(produto);
+    }
+  } catch (err) {
+    logger.error('[CRON][STOCK] Erro no scan diário de stock:', { message: err.message });
+  }
+});
+logger.info('Agendamento ativo: Scan de stock baixo todos os dias às 08:00');
 // setTimeout(() => {
 //   console.log('\n🧪 [DEV] Enviando relatório de teste...');
 //   sendWeeklyReportEmail();

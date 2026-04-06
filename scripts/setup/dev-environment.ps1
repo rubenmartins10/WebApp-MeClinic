@@ -8,7 +8,7 @@
     Script para inicializar o ambiente de desenvolvimento profissional.
     
 .AUTHOR
-    MeClinic Development Team
+    Rúben David Silva Martins 
     
 .VERSION
     1.0.0

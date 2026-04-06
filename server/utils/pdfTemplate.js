@@ -17,7 +17,7 @@ class PDFTemplate {
     this.colors = {
       primary: '#2563eb',      // Azul
       secondary: '#6b7280',    // Cinzento
-      success: '#10b981',      // Verde
+      success: '#3b82f6',      // Azul claro
       warning: '#f59e0b',      // Amarelo
       danger: '#ef4444',       // Vermelho
       text: '#000000',

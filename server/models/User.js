@@ -49,10 +49,10 @@ class User {
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
 
     const result = await pool.query(
-      `INSERT INTO utilizadores (nome, email, password_hash, mfa_enabled, mfa_secret, role) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO utilizadores (nome, email, password_hash, mfa_enabled, mfa_secret, role, perfil) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING id, nome, email, role`,
-      [nome, email, password_hash, true, secret.base32, role]
+      [nome, email, password_hash, true, secret.base32, role, role === 'ADMIN' ? 'Admin' : 'Assistente']
     );
 
     return {

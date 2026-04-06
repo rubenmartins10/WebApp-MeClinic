@@ -2,18 +2,22 @@ import React, { useState, useContext, useEffect } from 'react';
 import {
   User, Building, Shield, Bell, Save, CheckCircle, XCircle, Smartphone, Moon, Sun, Globe, Clock, Key,
   Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, AlertCircle, Lock, Download,
-  Trash2, Activity, LogIn, AlertTriangle
+  Trash2, Activity, LogIn, AlertTriangle, Music, Zap, Wind, Sparkles, Play,
+  Circle, Music2, Waves, Disc, Airplay, Repeat, TrendingUp, TrendingDown,
+  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
-import { TimeFormatContext } from '../contexts/TimeFormatContext';
+import { useTimeFormat } from '../contexts/TimeFormatContext';
+import { playNotificationSound, SOUND_OPTIONS } from '../utils/notificationSound';
 import apiService from '../services/api';
+import Assinatura from '../components/specialized/Assinatura';
 
 const Settings = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { language, changeLanguage, t } = useContext(LanguageContext);
-  const { timeFormat, setTimeFormat } = useContext(TimeFormatContext);
+  const { timeFormat, setTimeFormat } = useTimeFormat();
 
   // Estado principal
   const [activeTab, setActiveTab] = useState('perfil');
@@ -47,6 +51,8 @@ const Settings = () => {
     tentativasLogin: 0,
     ultimaAtividadeSuspicta: null
   });
+
+  const [soundOpen, setSoundOpen] = useState(false);
 
   // Estado de notificações — persiste em localStorage
   const [notificacoesData, setNotificacoesData] = useState(() => {
@@ -403,7 +409,7 @@ const Settings = () => {
         doc.text(label, 20, yPos);
         
         doc.setFont('Helvetica', 'normal');
-        const statusColor = value === 'Ativado' ? [16, 185, 129] : value === 'Desativado' ? [239, 68, 68] : [107, 114, 128];
+        const statusColor = value === 'Ativado' ? [59, 130, 246] : value === 'Desativado' ? [239, 68, 68] : [107, 114, 128];
         doc.setTextColor(...statusColor);
         doc.text(String(value || '-'), 90, yPos);
         
@@ -747,7 +753,7 @@ const Settings = () => {
 
       {/* Cabeçalho */}
       <div style={{ marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '30px', fontWeight: '800', margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>
           {t('settings.title')}
         </h1>
         <p style={{ color: theme.subText, margin: 0, fontSize: '16px' }}>
@@ -761,6 +767,9 @@ const Settings = () => {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <button onClick={() => setActiveTab('perfil')} style={tabStyle(activeTab === 'perfil')}>
             <User size={18} /> {t('settings.tab.profile')}
+          </button>
+          <button onClick={() => setActiveTab('assinatura')} style={tabStyle(activeTab === 'assinatura')}>
+            <Edit3 size={18} /> {t('settings.tab.signature')}
           </button>
           <button onClick={() => setActiveTab('seguranca')} style={tabStyle(activeTab === 'seguranca')}>
             <Shield size={18} /> {t('settings.tab.security')}
@@ -891,6 +900,21 @@ const Settings = () => {
                   <span style={{ fontSize: '13px', color: '#ea580c' }}>
                     {t('settings.profile.contact_admin')}
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB ASSINATURA DIGITAL */}
+            {activeTab === 'assinatura' && (
+              <div style={{ animation: 'fadeIn 0.3s' }}>
+                <h2 style={{ margin: '0 0 8px 0', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px', color: theme.isDark ? '#ffffff' : theme.text }}>
+                  {t('settings.signature.title')}
+                </h2>
+                <p style={{ margin: '0 0 28px 0', color: theme.subText, fontSize: '14px' }}>
+                  {t('settings.signature.subtitle')}
+                </p>
+                <div style={{ maxWidth: '520px' }}>
+                  <Assinatura onSaveSignature={() => {}} onNotification={(msg, type) => setNotification({ show: true, message: msg, type: type || 'success' })} />
                 </div>
               </div>
             )}
@@ -1165,7 +1189,10 @@ const Settings = () => {
                         cursor: 'pointer'
                       }}
                         value={perfilData.timeFormat}
-                        onChange={e => setPerfilData({ ...perfilData, timeFormat: e.target.value })}
+                        onChange={e => {
+                          setPerfilData({ ...perfilData, timeFormat: e.target.value });
+                          setTimeFormat(e.target.value);
+                        }}
                       >
                         <option value="24h">{t('time.24h')}</option>
                         <option value="12h">{t('time.12h')}</option>
@@ -1194,7 +1221,7 @@ const Settings = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '30px' }}>
                   {[
                     { key: 'email', label: 'Email', icon: Mail },
-                    { key: 'sms', label: 'SMS', icon: Smartphone },
+                    { key: 'sms', label: 'WhatsApp', icon: Smartphone },
                     { key: 'push', label: 'App', icon: Bell }
                   ].map(channel => (
                     <div
@@ -1238,6 +1265,101 @@ const Settings = () => {
                   checked={notificacoesData.consultas}
                   onChange={() => setNotificacoesData({ ...notificacoesData, consultas: !notificacoesData.consultas })}
                 />
+
+                {/* Sound selector */}
+                {(() => {
+                  const ICON_MAP = {
+                    Bell, Music, Wind, Zap, Sparkles, Circle, Music2, AlertCircle, Key,
+                    Waves, Disc, Airplay, Activity, Repeat, TrendingUp, TrendingDown,
+                    BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar,
+                  };
+                  const currentSoundId = localStorage.getItem('meclinic_notification_sound') || 'plim';
+                  const currentSound = SOUND_OPTIONS.find(s => s.id === currentSoundId) || SOUND_OPTIONS[0];
+                  const CurrentIcon = ICON_MAP[currentSound.Icon] || Bell;
+                  return (
+                    <div style={{ marginTop: '20px', borderRadius: '12px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
+                      {/* Collapsed header — always visible */}
+                      <button
+                        type="button"
+                        onClick={() => setSoundOpen(o => !o)}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
+                          padding: '13px 18px', border: 'none', cursor: 'pointer',
+                          backgroundColor: theme.pageBg, textAlign: 'left',
+                          borderBottom: soundOpen ? `1px solid ${theme.border}` : 'none',
+                          transition: 'background-color 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = theme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = theme.pageBg; }}
+                      >
+                        <div style={{
+                          width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: 'rgba(37,99,235,0.15)',
+                        }}>
+                          <CurrentIcon size={15} color="#3b82f6" />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Som de Notificação</div>
+                          <div style={{ fontSize: '13px', fontWeight: '600', color: theme.text, marginTop: '1px' }}>{currentSound.label}</div>
+                        </div>
+                        <ChevronDown size={16} color={theme.subText} style={{ flexShrink: 0, transform: soundOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                      </button>
+                      {/* Expandable list */}
+                      {soundOpen && SOUND_OPTIONS.map((s, i, arr) => {
+                        const selected = currentSoundId === s.id;
+                        const IconComp = ICON_MAP[s.Icon] || Bell;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              localStorage.setItem('meclinic_notification_sound', s.id);
+                              playNotificationSound(s.id);
+                              setNotificacoesData(prev => ({ ...prev }));
+                              setSoundOpen(false);
+                            }}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
+                              padding: '13px 18px', border: 'none', cursor: 'pointer',
+                              borderBottom: i < arr.length - 1 ? `1px solid ${theme.border}` : 'none',
+                              backgroundColor: selected
+                                ? (theme.isDark ? 'rgba(37,99,235,0.1)' : 'rgba(37,99,235,0.06)')
+                                : 'transparent',
+                              borderLeft: `3px solid ${selected ? '#2563eb' : 'transparent'}`,
+                              transition: 'all 0.15s', textAlign: 'left',
+                            }}
+                            onMouseEnter={e => { if (!selected) e.currentTarget.style.backgroundColor = theme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'; }}
+                            onMouseLeave={e => { if (!selected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <div style={{
+                              width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              backgroundColor: selected ? 'rgba(37,99,235,0.15)' : (theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                            }}>
+                              <IconComp size={15} color={selected ? '#3b82f6' : theme.subText} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '13px', fontWeight: '600', color: selected ? (theme.isDark ? '#e2e8f0' : theme.text) : theme.text }}>{s.label}</div>
+                              <div style={{ fontSize: '11px', color: theme.subText, marginTop: '1px' }}>{s.desc}</div>
+                            </div>
+                            <div style={{
+                              width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              backgroundColor: selected ? '#2563eb' : 'transparent',
+                              border: selected ? 'none' : `1px solid ${theme.border}`,
+                              transition: 'all 0.15s',
+                            }}>
+                              {selected
+                                ? <CheckCircle size={14} color="white" />
+                                : <Play size={11} color={theme.subText} style={{ marginLeft: '1px' }} />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1787,8 +1909,8 @@ const Settings = () => {
 
           <style>{`
             @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
+              from { opacity: 0; transform: translateY(6px); }
+              to   { opacity: 1; transform: translateY(0); }
             }
             @keyframes slideUp {
               from { 

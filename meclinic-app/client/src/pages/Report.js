@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Users, ChevronLeft, ChevronRight, Printer, Mail, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, ChevronLeft, ChevronRight, Printer, Mail, CheckCircle, XCircle, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar Idiomas
+import { useTimeFormat } from '../contexts/TimeFormatContext';
 import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
 import logo from '../assets/logo.png'; 
@@ -11,6 +12,7 @@ import logo from '../assets/logo.png';
 const Report = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext); // <-- Tradutor e língua ativa
+  const { formatTime } = useTimeFormat();
   
   const [reportData, setReportData] = useState(null);
   const [isSending, setIsSending] = useState(false);
@@ -51,9 +53,9 @@ const Report = () => {
 
     // ─ Colour palette ──────────────────────────────────────────────────────
     const C = {
-      teal:      [14, 170, 165],
-      tealDark:  [8,  120, 116],
-      tealBg:    [230, 248, 248],
+      teal:      [37,  99, 235],
+      tealDark:  [29,  78, 216],
+      tealBg:    [219, 234, 254],
       white:     [255, 255, 255],
       dark:      [25,  25,  25],
       gray:      [110, 110, 110],
@@ -121,7 +123,7 @@ const Report = () => {
     doc.setTextColor(...C.dark);
     doc.text(`Período: ${fmt(dateStart)} – ${fmt(dateEnd)}`, mg, y + 5);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
-    doc.text(`Emitido: ${fmt(new Date())}  ${new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}`, mg, y + 10.5);
+    doc.text(`Emitido: ${fmt(new Date())}  ${formatTime(new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }))}`, mg, y + 10.5);
 
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
     doc.text(
@@ -225,7 +227,7 @@ const Report = () => {
     const kpis = [
       { label: 'TOTAL FATURADO',       value: euro(rs.faturacao_total),         color: [37, 99, 235]  },
       { label: 'CUSTO DE MATERIAIS',   value: euro(rs.custos_materiais_total),   color: C.red          },
-      { label: 'LUCRO BRUTO ESTIMADO', value: euro(rs.lucro_estimado),           color: [16, 185, 129] },
+      { label: 'LUCRO BRUTO ESTIMADO', value: euro(rs.lucro_estimado),           color: [59, 130, 246] },
     ];
 
     kpis.forEach(kpi => {
@@ -622,7 +624,7 @@ const Report = () => {
   const valStyle = { fontSize: '32px', fontWeight: '900', margin: '10px 0 5px 0' };
 
   return (
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
       
       {notification.show && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
@@ -641,8 +643,8 @@ const Report = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: '0 0 5px 0', color: theme.isDark ? '#ffffff' : theme.text, display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <BarChart3 color="#2563eb" size={32} /> {t('reports.title')}
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 5px 0', color: theme.isDark ? '#ffffff' : theme.text }}>
+            {t('reports.title')}
           </h1>
           <p style={{ color: theme.subText, margin: 0 }}>{t('reports.subtitle')}</p>
         </div>

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File as FileIcon, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
+import { Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File as FileIcon, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useTimeFormat } from '../contexts/TimeFormatContext';
 import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
-import Assinatura from '../components/specialized/Assinatura';
 import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
+import { flattenToWhite } from '../utils/signatureUtils';
 
 const ALLOWED_EXAM_TYPES = ['application/pdf', 'image/png'];
 const MAX_EXAM_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -45,11 +45,42 @@ const Pacientes = () => {
   const [sendWhatsapp, setSendWhatsapp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
   const [assinaturaMedica, setAssinaturaMedica] = useState(null);
+  const [assinaturaMedicaNome, setAssinaturaMedicaNome] = useState('');
 
   const fileInputRef = useRef(null);
   const activeLocale = getActiveLocale(language);
 
   useEffect(() => { carregarPacientes(1, true); }, []);
+
+  // Carregar assinatura guardada do médico ao montar
+  useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId) return;
+    const token = localStorage.getItem('meclinic_token');
+    fetch(`/api/utilizadores/${userId}/assinatura`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(async data => {
+        const raw = data?.assinatura;
+        if (!raw) return;
+        let sig = null, nome = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.signatures) && parsed.signatures.length > 0) {
+            sig = parsed.signatures[0].signature;
+            nome = parsed.signatures[0].nome || '';
+          } else if (parsed.signature) {
+            sig = parsed.signature;
+            nome = parsed.nome || '';
+          }
+        } catch {
+          if (typeof raw === 'string' && raw.startsWith('data:')) sig = raw;
+        }
+        if (sig) { setAssinaturaMedica(await flattenToWhite(sig)); setAssinaturaMedicaNome(nome); }
+      })
+      .catch(() => {});
+  }, [currentUser?.id]);
 
   const carregarPacientes = async (p = 1, reset = false) => {
     try {
@@ -184,9 +215,9 @@ const Pacientes = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = 210, H = 297, mg = 12;
     const C = {
-      teal:      [14, 170, 165],
-      tealDark:  [8,  120, 116],
-      tealBg:    [230, 248, 248],
+      teal:      [37,  99, 235],
+      tealDark:  [29,  78, 216],
+      tealBg:    [219, 234, 254],
       white:     [255, 255, 255],
       dark:      [25,  25,  25],
       gray:      [110, 110, 110],
@@ -221,7 +252,7 @@ const Pacientes = () => {
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
     doc.text(`Paciente: ${selectedPaciente.nome}`, mg, nib + 5);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
-    doc.text(`Data de emissão: ${dataHoje}   |   Médico: ${currentUser.nome || 'Corpo Clínico'}`, mg, nib + 10.5);
+    doc.text(`Data de emissão: ${dataHoje}   |   Médico: ${assinaturaMedicaNome || currentUser.nome || 'Corpo Clínico'}`, mg, nib + 10.5);
 
     // ── MEDICAÇÃO ───────────────────────────────
     let y = nib + 22;
@@ -250,14 +281,14 @@ const Pacientes = () => {
     // ── ASSINATURA ──────────────────────────────
     y += 8;
     if (y > H - 60) { doc.addPage(); y = 20; }
-    if (assinaturaMedica) { doc.addImage(assinaturaMedica, 'PNG', mg, y, 65, 25); y += 27; }
-    else { y += 15; }
+    if (assinaturaMedica) { doc.addImage(assinaturaMedica, mg, y, 60, 15); y += 12; }
+    else { y += 10; }
     doc.setDrawColor(...C.dark); doc.setLineWidth(0.5);
     doc.line(mg, y, mg + 72, y);
     doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
     doc.text('Assinatura do Médico Responsável', mg, y + 5);
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
-    doc.text(currentUser.nome || 'Corpo Clínico', mg, y + 11);
+    doc.text(assinaturaMedicaNome || currentUser.nome || 'Corpo Clínico', mg, y + 11);
 
     // ── FOOTER ──────────────────────────────────
     doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.gray);
@@ -273,7 +304,7 @@ const Pacientes = () => {
     const pdfBase64 = doc.output('datauristring');
     const nomeFicheiro = `Receita_${selectedPaciente.nome.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-    // Preparar mensagens (sync, antes de qualquer await)
+    // Preparar mensagem WhatsApp (para o backend)
     const clinicCfg   = (() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; } })();
     const clinicaNome  = clinicCfg.nome     || 'MeClinic';
     const clinicaTel   = clinicCfg.telefone || '';
@@ -281,9 +312,9 @@ const Pacientes = () => {
     const primeiroNome = selectedPaciente.nome.split(' ')[0];
     const dataMensagem = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const msgWa = `Ola ${primeiroNome},\n\nA sua receita medica foi emitida em ${dataMensagem} pela ${clinicaNome}.\n\nEncontra em anexo o PDF com a receita e medicacao prescrita. Por favor cumpra a medicacao conforme indicado. Em caso de duvida ou reacao adversa, contacte-nos de imediato.${clinicaTel ? `\n\nTelefone: ${clinicaTel}` : ''}${clinicaEmail ? `\nEmail: ${clinicaEmail}` : ''}\n\nCom os melhores cumprimentos,\nEquipa ${clinicaNome}`;
+    const msgWa = `Olá ${primeiroNome}!\n\nA sua receita médica foi emitida em ${dataMensagem} pela ${clinicaNome}.\n\nEncontrará em anexo o PDF com a receita e medicação prescrita. Por favor cumpra a medicação conforme indicado. Em caso de dúvida ou reação adversa, contacte-nos de imediato.${clinicaTel ? `\n\nTelefone: ${clinicaTel}` : ''}${clinicaEmail ? `\nEmail: ${clinicaEmail}` : ''}\n\nCom os melhores cumprimentos,\nEquipa ${clinicaNome}`;
 
-    // Abrir WhatsApp e email ANTES do await (browser bloqueia window.open após operações async)
+    // Abrir WhatsApp ANTES do await (browser bloqueia window.open após operações async)
     const openLink = (url) => {
       const a = document.createElement('a');
       a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -295,15 +326,19 @@ const Pacientes = () => {
       if (numWhatsApp) openLink(`https://wa.me/${numWhatsApp}?text=${encodeURIComponent(msgWa)}`);
     }
 
-    if (sendEmail && selectedPaciente.email) {
-      const emailBody = `Caro(a) ${primeiroNome},\n\nServe a presente mensagem para informar que a sua receita medica foi emitida em ${dataMensagem} pela ${clinicaNome}.\n\nEm anexo encontra o ficheiro PDF com a receita completa e a medicacao prescrita. Por favor cumpra a medicacao conforme indicado.\n\nEm caso de duvida ou reacao adversa a qualquer medicamento, entre em contacto connosco de imediato.\n\nAtenciosamente,\nEquipa ${clinicaNome}${clinicaTel ? '\n' + clinicaTel : ''}${clinicaEmail ? '\n' + clinicaEmail : ''}`;
-      const assunto = encodeURIComponent(`Receita Medica - ${clinicaNome} - ${dataMensagem}`);
-      openLink(`mailto:${selectedPaciente.email}?subject=${assunto}&body=${encodeURIComponent(emailBody)}`);
-    }
-
     // Descarregar PDF e fechar modal
     doc.save(nomeFicheiro);
-    setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); setActiveTab('exames');
+    setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setActiveTab('exames');
+
+    // Enviar email com PDF real via backend (fire-and-forget, não bloqueia o UI)
+    if (sendEmail && selectedPaciente.email) {
+      apiService.post('/api/notificacoes/enviar-receita', {
+        email:         selectedPaciente.email,
+        paciente_nome: selectedPaciente.nome,
+        pdfBase64,
+        nomeFicheiro,
+      }).catch(err => console.error('[RECEITA] Erro ao enviar email:', err));
+    }
 
     // Guardar na ficha do paciente (em background, não bloqueia)
     try {
@@ -344,7 +379,7 @@ const Pacientes = () => {
                 </div>
                 <p style={{ margin: 0, fontSize: '13px', color: theme.subText, paddingLeft: '50px' }}>Paciente: <span style={{ fontWeight: '600', color: '#10b981' }}>{selectedPaciente?.nome}</span></p>
               </div>
-              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ background: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', border: 'none', color: theme.subText, cursor: 'pointer', borderRadius: '8px', padding: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
+              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); }} style={{ background: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', border: 'none', color: theme.subText, cursor: 'pointer', borderRadius: '8px', padding: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
             </div>
 
             <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, padding: '24px 28px' }}>
@@ -408,12 +443,11 @@ const Pacientes = () => {
               </div>
 
               {/* Assinatura */}
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <div style={{ width: '3px', height: '16px', backgroundColor: '#8b5cf6', borderRadius: '2px' }}></div>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Assinatura Médica</span>
-                </div>
-                <Assinatura onSaveSignature={setAssinaturaMedica} onNotification={showNotif} />
+              <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', borderRadius: '8px', backgroundColor: assinaturaMedica ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.06)', border: `1px solid ${assinaturaMedica ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
+                <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: assinaturaMedica ? '#10b981' : '#ef4444', flexShrink: 0 }} />
+                <span style={{ fontSize: '12px', fontWeight: '500', color: assinaturaMedica ? '#10b981' : '#ef4444' }}>
+                  {assinaturaMedica ? 'Assinatura digital incluída no PDF automaticamente' : 'Sem assinatura — configure em Definições → Assinatura Digital'}
+                </span>
               </div>
 
               {/* Envio */}
@@ -462,7 +496,7 @@ const Pacientes = () => {
 
             {/* Footer */}
             <div style={{ display: 'flex', gap: '10px', padding: '18px 28px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0a1628' : '#f8fafc' }}>
-              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); setAssinaturaMedica(null); }} style={{ flex: 1, padding: '13px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.text, fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
+              <button onClick={() => { setShowRxModal(false); setRxMeds([{ nome: '', posologia: '' }]); }} style={{ flex: 1, padding: '13px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.text, fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
               <button onClick={gerarReceitaPDF} style={{ flex: 2, padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #059669, #10b981)', color: 'white', fontWeight: '700', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: '0 4px 14px rgba(16,185,129,0.4)', fontSize: '14px' }}>
                 <FileText size={18} /> Gerar & Guardar Receita
               </button>
@@ -624,7 +658,8 @@ const Pacientes = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text, display: 'flex', alignItems: 'center', gap: '12px' }}><Users size={32} color="#2563eb" /> Meus Pacientes</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('patients.title')}</h1>
+          <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>{t('patients.subtitle')}</p>
         </div>
         <div style={{ position: 'relative', width: '100%', maxWidth: '350px' }}>
           <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />

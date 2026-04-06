@@ -28,7 +28,7 @@ class AuthController {
       }
 
       // Criar utilizador
-      const { user, mfaSecret, mfaUrl } = await User.create(nome, email, password, 'USER');
+      const { user, mfaSecret, mfaUrl } = await User.create(nome, email, password, 'ASSISTENTE');
 
       // Gerar QR code para MFA
       const qrCodeUrl = await QRCode.toDataURL(mfaUrl);
@@ -100,7 +100,7 @@ class AuthController {
       tokenStore.set(refreshToken, user.id, REFRESH_TOKEN_TTL_MS);
 
       // Registar atividade de login (async, sem await para não bloquear resposta)
-      this.logLoginActivity(user.id, req).catch(err => logger.error('Log de login falhou:', { message: err.message }));
+      AuthController.logLoginActivity(user.id, req).catch(err => logger.error('Log de login falhou:', { message: err.message }));
 
       res.json({
         message: 'Login realizado com sucesso!',

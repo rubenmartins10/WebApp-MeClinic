@@ -1,5 +1,6 @@
 const Produto = require('../models/Produto');
 const { AppError } = require('../errorHandler');
+const { sendStockAlertEmail } = require('../services/notificationService');
 
 /**
  * ProdutosController - Lógica de produtos e stock
@@ -155,6 +156,12 @@ class ProdutosController {
 
       const updated = await Produto.update(req.params.id, req.body);
 
+      // Enviar alerta de stock baixo se aplicável
+      if (updated.stock_atual !== undefined && updated.stock_minimo !== undefined &&
+          updated.stock_atual <= updated.stock_minimo) {
+        sendStockAlertEmail(updated).catch(() => {});
+      }
+
       res.json({
         message: 'Produto atualizado com sucesso!',
         produto: updated
@@ -191,6 +198,11 @@ class ProdutosController {
       }
 
       const updated = await Produto.updateStock(req.params.id, quantity, operation);
+
+      // Enviar alerta de stock baixo se o stock ficou abaixo ou igual ao mínimo
+      if (updated.stock_atual <= updated.stock_minimo) {
+        sendStockAlertEmail(updated).catch(() => {});
+      }
 
       res.json({
         message: `Stock ${operation === 'add' ? 'adicionado' : 'removido'} com sucesso!`,

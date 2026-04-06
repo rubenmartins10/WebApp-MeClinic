@@ -152,7 +152,7 @@ async function generateWeeklyReportPDF() {
       const boxesPerRow = 5;
       const boxes = [
         { label: 'Consultas', value: stats.total_consultas, color: '#0066cc' },
-        { label: 'Pacientes', value: stats.total_pacientes, color: '#28a745' },
+        { label: 'Pacientes', value: stats.total_pacientes, color: '#2563eb' },
         { label: 'Faturação', value: `€${parseFloat(stats.faturacao_total).toFixed(2)}`, color: '#ffc107' },
         { label: 'Faturas', value: stats.total_faturas, color: '#fd7e14' },
         { label: 'Ticket Médio', value: `€${parseFloat(stats.valor_medio_fatura).toFixed(2)}`, color: '#6f42c1' }
@@ -173,7 +173,7 @@ async function generateWeeklyReportPDF() {
       doc.moveDown(0.5);
 
       const consultasStatus = [
-        { status: 'Confirmadas', value: stats.consultas_confirmadas, color: '#28a745' },
+        { status: 'Confirmadas', value: stats.consultas_confirmadas, color: '#2563eb' },
         { status: 'Concluídas', value: stats.consultas_concluidas, color: '#0066cc' },
         { status: 'Canceladas', value: stats.consultas_canceladas, color: '#dc3545' }
       ];

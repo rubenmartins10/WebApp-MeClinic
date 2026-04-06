@@ -145,4 +145,52 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/utilizadores/:id/assinatura
+ * Obter assinatura digital do utilizador
+ */
+router.get('/:id/assinatura', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT assinatura FROM utilizadores WHERE id = $1',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
+    res.json({ assinatura: result.rows[0].assinatura || null });
+  } catch (error) {
+    console.error('Erro ao obter assinatura:', error);
+    res.status(500).json({ error: 'Erro ao obter assinatura' });
+  }
+});
+
+/**
+ * PUT /api/utilizadores/:id/assinatura
+ * Guardar assinatura digital do utilizador
+ */
+router.put('/:id/assinatura', async (req, res) => {
+  const { assinatura } = req.body;
+  if (!assinatura) return res.status(400).json({ error: 'Assinatura em falta' });
+  try {
+    const result = await pool.query(
+      'UPDATE utilizadores SET assinatura = $1 WHERE id = $2 RETURNING id',
+      [assinatura, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
+    res.json({ success: true });
+  } catch (error) {
+    // Se a coluna não existir, criá-la automaticamente e tentar de novo
+    if (error.code === '42703') {
+      try {
+        await pool.query('ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS assinatura TEXT');
+        await pool.query('UPDATE utilizadores SET assinatura = $1 WHERE id = $2', [assinatura, req.params.id]);
+        return res.json({ success: true });
+      } catch (e2) {
+        return res.status(500).json({ error: 'Erro ao guardar assinatura' });
+      }
+    }
+    console.error('Erro ao guardar assinatura:', error);
+    res.status(500).json({ error: 'Erro ao guardar assinatura' });
+  }
+});
+
 module.exports = router;

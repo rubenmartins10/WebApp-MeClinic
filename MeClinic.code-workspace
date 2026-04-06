@@ -25,20 +25,32 @@
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.tsc.autoDetect": "off",
+    "typescript.tsserver.watchOptions": {
+      "excludeDirectories": ["**/node_modules"]
+    },
     "[typescript]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
     "[javascript]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/build": true
+    },
     "problems.exclude": {
       "**/node_modules/**": true,
-      "**/*.min.js": true
+      "**/node_modules": true,
+      "**/*.min.js": true,
+      "**/dist/**": true
     },
     "search.exclude": {
-      "node_modules": true,
-      "dist": true,
-      ".next": true
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/build": true,
+      "**/.next": true
     }
   }
 }

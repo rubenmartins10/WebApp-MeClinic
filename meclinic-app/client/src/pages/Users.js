@@ -84,7 +84,7 @@ const Users = () => {
   );
 
   return (
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
       
       {notification.show && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
@@ -177,7 +177,7 @@ const Users = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('users.title')}</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>{t('users.title')}</h1>
           <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>{t('users.subtitle')}</p>
         </div>
         

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, X, Clock, User } from 'lucide-react';
 import apiService from '../services/api';
+import { useTimeFormat } from '../contexts/TimeFormatContext';
+import { playNotificationSound } from '../utils/notificationSound';
 
 const REMINDER_WINDOW_MIN = 15; // show reminder when < 15 min away
-const TOAST_DURATION_S = 60;    // auto-dismiss after 60 seconds
+const TOAST_DURATION_S = 120;   // auto-dismiss after 120 seconds
 
 // ─── Individual toast ────────────────────────────────────────────────────────
 function ConsultaToast({ toast, onDismiss }) {
+  const { formatTime } = useTimeFormat();
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
@@ -27,11 +30,11 @@ function ConsultaToast({ toast, onDismiss }) {
   const [h, m] = (c.hora_consulta || '00:00').split(':').map(Number);
   const appt = new Date(now);
   appt.setHours(h, m, 0, 0);
-  const diffMin = Math.max(1, Math.round((appt - now) / 60000));
+  const diffMin = Math.max(1, Math.ceil((appt - now) / 60000));
 
   return (
     <div style={{
-      width: '340px',
+      width: '390px',
       backgroundColor: '#0f172a',
       borderRadius: '14px',
       border: '1px solid rgba(37, 99, 235, 0.35)',
@@ -41,26 +44,26 @@ function ConsultaToast({ toast, onDismiss }) {
       animation: 'meclinic-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1)',
     }}>
       {/* Body */}
-      <div style={{ padding: '14px 14px 12px' }}>
+      <div style={{ padding: '16px 16px 14px' }}>
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Icon */}
             <div style={{
-              width: '36px', height: '36px', borderRadius: '10px',
+              width: '40px', height: '40px', borderRadius: '11px',
               background: 'linear-gradient(135deg, rgba(37,99,235,0.25), rgba(99,102,241,0.25))',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
             }}>
-              <Bell size={16} color="#60a5fa" />
+              <Bell size={18} color="#60a5fa" />
             </div>
             {/* Label + Name */}
             <div>
               <div style={{ fontSize: '10px', fontWeight: '800', color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                 Lembrete de Consulta
               </div>
-              <div style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <User size={12} color="#94a3b8" />
-                {c.nome_paciente || 'Paciente'}
+              <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <User size={13} color="#94a3b8" />
+                {c.paciente_nome || c.nome_paciente || 'Paciente'}
               </div>
             </div>
           </div>
@@ -82,19 +85,19 @@ function ConsultaToast({ toast, onDismiss }) {
         </div>
 
         {/* Procedure */}
-        {c.procedimento && (
-          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '6px', paddingLeft: '46px' }}>
-            {c.procedimento}
+        {(c.procedimento_nome || c.procedimento) && (
+          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '6px', paddingLeft: '56px' }}>
+            {c.procedimento_nome || c.procedimento}
           </div>
         )}
 
         {/* Time */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
-          paddingLeft: '46px', color: '#fbbf24', fontSize: '12px', fontWeight: '700'
+          paddingLeft: '56px', color: '#fbbf24', fontSize: '13px', fontWeight: '700'
         }}>
-          <Clock size={12} />
-          <span>Às {c.hora_consulta} · em {diffMin} min</span>
+          <Clock size={13} />
+          <span>Às {formatTime(c.hora_consulta)} · em {diffMin} min</span>
         </div>
       </div>
 
@@ -147,13 +150,14 @@ export default function ConsultaReminders() {
           if (!notifiedRef.current.has(key)) {
             notifiedRef.current.add(key);
             setToasts(prev => [...prev, { id: `${key}-${Date.now()}`, consulta: c }]);
+            playNotificationSound();
           }
         }
       });
     } catch {
       // fail silently — user is unaware
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     checkUpcoming();

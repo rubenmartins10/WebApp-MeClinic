@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Users, Calendar, Euro, AlertTriangle, ChevronLeft, ChevronRight, TrendingUp, X, Package, Clock, FileDown } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -6,10 +7,12 @@ import { LanguageContext } from '../contexts/LanguageContext';
 import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
 import jsPDF from 'jspdf';
+import logo from '../assets/logo.png';
 
 const Dashboard = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
+  const navigate = useNavigate();
 
   const [chartData, setChartData] = useState([]);
   const [summary, setSummary] = useState({ pacientes_semana: 0, consultas_semana: 0, faturacao_semana: 0, alertas_stock: 0, alertas_validade: 0 });
@@ -74,55 +77,189 @@ const Dashboard = () => {
 
   const gerarEncomendaPDF = () => {
     if (stockAlertsList.length === 0) return;
-    const doc = new jsPDF();
-    doc.setTextColor(37, 99, 235); doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text("MECLINIC", 20, 20);
-    doc.setTextColor(0, 0, 0); doc.setFontSize(14); doc.text(t('dashboard.order.title'), 20, 30);
-    doc.setTextColor(100, 116, 139); doc.setFontSize(11); doc.setFont(undefined, 'normal'); doc.text(`${t('dashboard.order.date')} ${new Date().toLocaleDateString(activeLocale)}`, 20, 38);
-    doc.setDrawColor(200, 200, 200); doc.line(20, 42, 190, 42);
-    
-    doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont(undefined, 'bold');
-    doc.text(t('dashboard.order.product').toUpperCase(), 20, 52);
-    doc.text(t('dashboard.order.current').toUpperCase(), 130, 52);
-    doc.text(t('dashboard.order.suggested').toUpperCase(), 160, 52);
-    doc.line(20, 55, 190, 55);
-    
-    doc.setFont(undefined, 'normal');
-    let y = 65;
-    
-    stockAlertsList.forEach((item) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297;
+    const mg = 12;
+
+    // ─ Colour palette ──────────────────────────────────────────────────────
+    const C = {
+      teal:      [37,  99, 235],
+      tealDark:  [29,  78, 216],
+      tealBg:    [219, 234, 254],
+      white:     [255, 255, 255],
+      dark:      [25,  25,  25],
+      gray:      [110, 110, 110],
+      lightGray: [247, 247, 247],
+      midGray:   [210, 210, 210],
+      blue:      [37,   99, 235],
+      red:       [220,  38,  38],
+      headerBg:  [45,   55,  72],
+    };
+
+    const clinicSettings = (() => {
+      try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; }
+    })();
+    const clinicNome     = clinicSettings.nome     || 'MeClinic';
+    const clinicMorada   = (clinicSettings.morada  || 'Rua Principal, 123  |  Lisboa, Portugal').replace(/\n/g, '  |  ');
+    const clinicEmail    = clinicSettings.email    || 'geral@meclinic.pt';
+    const clinicTelefone = clinicSettings.telefone || '+351 XXX XXX XXX';
+
+    const FW          = W - 2 * mg;
+    const SAFE_BOTTOM = H - 22;
+
+    // ── TOP TEAL BANNER ────────────────────────────────────────────────────
+    doc.setFillColor(...C.tealDark);
+    doc.rect(0, 0, W, 2, 'F');
+    doc.setFillColor(...C.teal);
+    doc.rect(0, 2, W, 26, 'F');
+
+    const img = new Image();
+    img.src = logo;
+    try { doc.addImage(img, 'PNG', mg, 7, 32, 11); }
+    catch {
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.white);
+      doc.text(clinicNome, mg, 16);
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.text('Cl\u00ednica', mg, 22);
+    }
+
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.white);
+    doc.text(t('dashboard.order.title') || 'NOTA DE ENCOMENDA', W - mg, 13, { align: 'right' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text(clinicMorada, W - mg, 19, { align: 'right' });
+    doc.text(`${clinicEmail}  |  ${clinicTelefone}`, W - mg, 25, { align: 'right' });
+
+    // ── INFO BAR ──────────────────────────────────────────────────────────
+    const ib = 28;
+    doc.setFillColor(...C.tealBg);
+    doc.rect(0, ib, W, 13, 'F');
+    doc.setFillColor(...C.teal);
+    doc.rect(0, ib + 13, W, 0.4, 'F');
+
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`${t('dashboard.order.date') || 'Data:'} ${new Date().toLocaleDateString(activeLocale)}`, mg, ib + 5);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text(`${stockAlertsList.length} produto(s) com stock abaixo do m\u00ednimo`, mg, ib + 10.5);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+    doc.text(`Emitido: ${new Date().toLocaleString('pt-PT')}`, W - mg, ib + 8, { align: 'right' });
+
+    let curY = ib + 17;
+
+    // ── FOOTER helper ──────────────────────────────────────────────────────
+    const drawFooter = () => {
+      const fy = H - 16;
+      doc.setDrawColor(...C.teal); doc.setLineWidth(0.4);
+      doc.line(mg, fy, W - mg, fy);
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+      doc.text(`${clinicNome} \u2014 Nota de Encomenda`, W / 2, fy + 5, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+      doc.text('Documento confidencial destinado apenas a uso interno.', W / 2, fy + 10, { align: 'center' });
+      doc.setFillColor(...C.teal);
+      doc.rect(0, H - 3.5, W, 3.5, 'F');
+    };
+
+    const contPage = () => {
+      drawFooter();
+      doc.addPage();
+      doc.setFillColor(...C.teal); doc.rect(0, 0, W, 8, 'F');
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+      doc.text(clinicNome, mg, 5.5);
+      doc.text('NOTA DE ENCOMENDA (cont.)', W - mg, 5.5, { align: 'right' });
+      return 14;
+    };
+
+    // ── TABLE HEADER ──────────────────────────────────────────────────────
+    const nW1 = FW * 0.52, nW2 = FW * 0.20, nW3 = FW * 0.16, nW4 = FW * 0.12;
+    const cols = [
+      { label: t('dashboard.order.product')?.toUpperCase() || 'PRODUTO',   w: nW1 },
+      { label: t('dashboard.order.current')?.toUpperCase() || 'STOCK ATUAL', w: nW2, right: true },
+      { label: 'STOCK MÍN.',  w: nW3, right: true },
+      { label: t('dashboard.order.suggested')?.toUpperCase() || 'QTD ENCOMENDAR', w: nW4, right: true },
+    ];
+
+    const drawTableHeader = (yPos) => {
+      doc.setFillColor(...C.headerBg);
+      doc.rect(mg, yPos, FW, 6.5, 'F');
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.white);
+      let cx = mg + 2;
+      cols.forEach(({ label, w, right }) => {
+        doc.text(label, right ? cx + w - 2 : cx, yPos + 4.5, right ? { align: 'right' } : {});
+        cx += w;
+      });
+      return yPos + 6.5;
+    };
+
+    // ── SECTION HEADER ─────────────────────────────────────────────────────
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.teal);
+    doc.text('PRODUTOS A ENCOMENDAR', mg, curY);
+    doc.setDrawColor(...C.teal); doc.setLineWidth(0.45);
+    doc.line(mg, curY + 1.5, W - mg, curY + 1.5);
+    curY += 8;
+
+    curY = drawTableHeader(curY);
+
+    // ── ROWS ───────────────────────────────────────────────────────────────
+    stockAlertsList.forEach((item, i) => {
+      if (curY + 6.5 > SAFE_BOTTOM) { curY = contPage(); curY = drawTableHeader(curY); }
+
       const current = parseFloat(item.stock_atual);
-      const min = parseFloat(item.stock_minimo);
-      
-      let currentVisual = current;
+      const min     = parseFloat(item.stock_minimo);
+
+      let currentVisual;
       if (item.unidade_medida === 'cx' || item.nome.match(/\((\d+)\s*[a-zA-Z]+\)/)) {
         currentVisual = Math.ceil(current);
       } else {
         currentVisual = current % 1 === 0 ? current : current.toFixed(2);
       }
+      const minVisual = min % 1 === 0 ? min : min.toFixed(2);
 
       let qtdSugerida = Math.ceil((min * 2) - current);
-      if (qtdSugerida <= 0) qtdSugerida = 1; 
-      
-      let nomeCurto = item.nome;
-      if (nomeCurto.length > 50) nomeCurto = nomeCurto.substring(0, 47) + '...';
+      if (qtdSugerida <= 0) qtdSugerida = 1;
 
-      doc.text(nomeCurto, 20, y);
-      doc.text(`${currentVisual} ${item.unidade_medida}`, 130, y);
-      
-      doc.setDrawColor(37, 99, 235); doc.setFillColor(240, 249, 255); doc.rect(158, y - 5, 32, 7, 'FD');
-      doc.setFont(undefined, 'bold'); doc.setTextColor(37, 99, 235); doc.text(`${qtdSugerida} ${item.unidade_medida}`, 160, y);
-      
-      doc.setFont(undefined, 'normal'); doc.setTextColor(0, 0, 0);
-      y += 12;
+      const nomeCurto = item.nome.length > 46 ? item.nome.slice(0, 43) + '\u2026' : item.nome;
+
+      doc.setFillColor(...(i % 2 === 0 ? C.lightGray : C.white));
+      doc.rect(mg, curY, FW, 6.5, 'F');
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.dark);
+
+      let cx = mg + 2;
+      // Nome
+      doc.text(nomeCurto, cx, curY + 4.5); cx += nW1;
+      // Stock atual (red if critical)
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.red);
+      doc.text(`${currentVisual} ${item.unidade_medida}`, cx + nW2 - 2, curY + 4.5, { align: 'right' }); cx += nW2;
+      // Stock mínimo
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+      doc.text(`${minVisual} ${item.unidade_medida}`, cx + nW3 - 2, curY + 4.5, { align: 'right' }); cx += nW3;
+      // Qtd sugerida (blue bold)
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.blue);
+      doc.text(`${qtdSugerida} ${item.unidade_medida}`, cx + nW4 - 2, curY + 4.5, { align: 'right' });
+
+      curY += 6.5;
     });
-    
-    y += 20;
-    if (y > 270) { doc.addPage(); y = 30; }
-    doc.setDrawColor(0, 0, 0); doc.line(20, y, 90, y);
-    doc.setFontSize(10); doc.text(t('dashboard.order.signature'), 20, y + 6);
-    
+
+    // ── SUMMARY BAR ───────────────────────────────────────────────────────
+    curY += 4;
+    if (curY + 10 > SAFE_BOTTOM) curY = contPage();
+    doc.setFillColor(...C.tealBg);
+    doc.rect(mg, curY, FW, 8, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.teal);
+    doc.text(`Total: ${stockAlertsList.length} produto(s) a encomendar`, mg + 3, curY + 5.5);
+    curY += 14;
+
+    // ── SIGNATURE LINE ────────────────────────────────────────────────────
+    if (curY + 20 > SAFE_BOTTOM) curY = contPage();
+    doc.setDrawColor(...C.midGray); doc.setLineWidth(0.4);
+    doc.line(mg, curY, mg + 80, curY);
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+    doc.text(t('dashboard.order.signature') || 'Assinatura / Aprovação', mg, curY + 5);
+
+    // ── FOOTER ────────────────────────────────────────────────────────────
+    drawFooter();
+
     const dataFicheiro = new Date().toISOString().split('T')[0];
     doc.save(`Encomenda_MeClinic_${dataFicheiro}.pdf`);
   };
@@ -295,9 +432,9 @@ const Dashboard = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-        <StatCard title={t('dashboard.card.new_patients')} value={summary.pacientes_semana} icon={Users} color="#2563eb" sub={t('dashboard.card.new_patients_sub')} />
-        <StatCard title={t('dashboard.card.consultations')} value={summary.consultas_semana} icon={Calendar} color="#7c3aed" sub={t('dashboard.card.consultations_sub')} />
-        <StatCard title={t('dashboard.card.billing')} value={`${parseFloat(summary.faturacao_semana || 0).toFixed(2)}€`} icon={Euro} color="#059669" sub={t('dashboard.card.billing_sub')} />
+        <StatCard title={t('dashboard.card.new_patients')} value={summary.pacientes_semana} icon={Users} color="#2563eb" sub={t('dashboard.card.new_patients_sub')} clickableIcon onIconClick={() => navigate('/pacientes')} />
+        <StatCard title={t('dashboard.card.consultations')} value={summary.consultas_semana} icon={Calendar} color="#7c3aed" sub={t('dashboard.card.consultations_sub')} clickableIcon onIconClick={() => navigate('/consultas')} />
+        <StatCard title={t('dashboard.card.billing')} value={`${parseFloat(summary.faturacao_semana || 0).toFixed(2)}€`} icon={Euro} color="#059669" sub={t('dashboard.card.billing_sub')} clickableIcon onIconClick={() => navigate('/faturacao')} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>

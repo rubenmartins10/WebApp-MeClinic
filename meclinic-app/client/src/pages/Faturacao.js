@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { DollarSign, Filter, CheckCircle, Receipt, X, Printer } from 'lucide-react';
+import { Filter, CheckCircle, Receipt, X, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; // <-- Importar Idiomas
 import { getActiveLocale } from '../utils/locale';
+import { flattenToWhite } from '../utils/signatureUtils';
 import apiService from '../services/api';
 import logo from '../assets/logo.png'; 
 
@@ -15,10 +16,38 @@ const Faturacao = () => {
   const [filtroTempo, setFiltroTempo] = useState('hoje'); // hoje, semana, mes, tudo
   
   const [notaModal, setNotaModal] = useState(null);
+  const [assinaturaPreferida, setAssinaturaPreferida] = useState({ img: null, nome: '' });
 
   useEffect(() => {
     apiService.get('/api/faturacao')
       .then(data => setFaturas(Array.isArray(data) ? data : (data.faturas || [])))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
+    if (!user.id) return;
+    const token = localStorage.getItem('meclinic_token');
+    fetch(`/api/utilizadores/${user.id}/assinatura`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(async data => {
+        const raw = data.assinatura;
+        if (!raw) return;
+        let sig = null, nome = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.signatures) && parsed.signatures.length > 0) {
+            sig = parsed.signatures[0].signature; nome = parsed.signatures[0].nome || '';
+          } else if (parsed.signature) {
+            sig = parsed.signature; nome = parsed.nome || '';
+          }
+        } catch {
+          if (typeof raw === 'string' && raw.startsWith('data:')) sig = raw;
+        }
+        if (sig) setAssinaturaPreferida({ img: await flattenToWhite(sig), nome });
+      })
       .catch(() => {});
   }, []);
 
@@ -47,9 +76,9 @@ const Faturacao = () => {
     const W = 210, H = 297, mg = 12;
 
     const C = {
-      teal:      [14, 170, 165],
-      tealDark:  [8,  120, 116],
-      tealBg:    [230, 248, 248],
+      teal:      [37,  99, 235],
+      tealDark:  [29,  78, 216],
+      tealBg:    [219, 234, 254],
       white:     [255, 255, 255],
       dark:      [25,  25,  25],
       gray:      [110, 110, 110],
@@ -147,6 +176,23 @@ const Faturacao = () => {
     doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.gray);
     doc.text('Este documento é de uso interno e confidencial. Emitido automaticamente pelo Sistema MeClinic.', W / 2, ny, { align: 'center' });
 
+    // ── SIGNATURE ────────────────────────────────────────────────────────
+    if (assinaturaPreferida.img) {
+      const sigY = ny + 12;
+      doc.addImage(assinaturaPreferida.img, W / 2 - 30, sigY, 60, 15);
+      const lineY = sigY + 12;
+      doc.setDrawColor(...C.midGray); doc.setLineWidth(0.3); doc.line(W / 2 - 30, lineY, W / 2 + 30, lineY);
+      if (assinaturaPreferida.nome) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+        doc.text(assinaturaPreferida.nome, W / 2, lineY + 5, { align: 'center' });
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+        doc.text('Assinatura do Responsável', W / 2, lineY + 10, { align: 'center' });
+      } else {
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+        doc.text('Assinatura do Responsável', W / 2, lineY + 5, { align: 'center' });
+      }
+    }
+
     // ── FOOTER ───────────────────────────────────────────────────────────
     const nFy = H - 16;
     doc.setDrawColor(...C.teal); doc.setLineWidth(0.4);
@@ -171,7 +217,7 @@ const Faturacao = () => {
   const activeLocale = localeMap[language] || 'pt-PT';
 
   return (
-    <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
       
       {notaModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
@@ -221,8 +267,8 @@ const Faturacao = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
-          <h1 style={{ fontSize: '30px', fontWeight: '800', margin: 0, color: theme.isDark ? '#ffffff' : theme.text, display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <DollarSign color="#10b981" size={32} /> {t('billing.title')}
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: theme.isDark ? '#ffffff' : theme.text }}>
+            {t('billing.title')}
           </h1>
           <p style={{ color: theme.subText, margin: '5px 0 0 0' }}>{t('billing.subtitle')}</p>
         </div>

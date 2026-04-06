@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 export const TimeFormatContext = createContext();
 
@@ -16,8 +16,9 @@ export const TimeFormatProvider = ({ children }) => {
    * Converte uma string "HH:MM" ou "HH:MM:SS" para o formato ativo.
    * Devolve sempre string — ex: "14:30" ou "02:30 PM"
    */
-  const formatTime = (timeStr) => {
+  const formatTime = useCallback((timeStr) => {
     if (!timeStr) return '—';
+    if (typeof timeStr !== 'string' && !(timeStr instanceof String)) return '—';
     const clean = String(timeStr).substring(0, 5); // "14:30"
     if (timeFormat === '24h') return clean;
 
@@ -27,7 +28,7 @@ export const TimeFormatProvider = ({ children }) => {
     const period = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return `${String(h).padStart(2, '0')}:${m} ${period}`;
-  };
+  }, [timeFormat]);
 
   return (
     <TimeFormatContext.Provider value={{ timeFormat, setTimeFormat, formatTime }}>

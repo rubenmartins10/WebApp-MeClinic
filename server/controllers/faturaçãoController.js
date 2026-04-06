@@ -247,17 +247,42 @@ class FaturaçãoController {
         if (materiais_gastos && Array.isArray(materiais_gastos) && materiais_gastos.length > 0) {
           for (const item of materiais_gastos) {
             if (parseFloat(item.quantidade) > 0) {
-              const prodRes = await client.query(
-                'SELECT id FROM produtos WHERE LOWER(TRIM(nome)) = LOWER(TRIM($1)) FOR UPDATE',
-                [item.nome_item]
-              );
-              if (prodRes.rows.length > 0) {
+              // Prefer produto_id (reliable) over name match (fragile)
+              let prodId = null;
+              if (item.produto_id) {
+                const lockRes = await client.query(
+                  'SELECT id FROM produtos WHERE id = $1 FOR UPDATE',
+                  [item.produto_id]
+                );
+                if (lockRes.rows.length > 0) prodId = lockRes.rows[0].id;
+              }
+              if (!prodId) {
+                // Tier 1: exact name match
+                const prodRes = await client.query(
+                  'SELECT id FROM produtos WHERE LOWER(TRIM(nome)) = LOWER(TRIM($1)) FOR UPDATE',
+                  [item.nome_item]
+                );
+                if (prodRes.rows.length > 0) prodId = prodRes.rows[0].id;
+              }
+              if (!prodId) {
+                // Tier 2: fuzzy match — strip packaging prefixes/suffixes from product names
+                // e.g. "Agulha" matches "Caixa Agulhas (100 un)", "Cavit" matches "Cavit (38 grs)"
+                const fuzzyRes = await client.query(
+                  `SELECT id FROM produtos
+                   WHERE LOWER(REGEXP_REPLACE(REGEXP_REPLACE(nome, '\\(.*\\)', '', 'g'), '^(Caixas?\\s*(de\\s+)?|Saco\\s+)', '', 'i'))
+                   LIKE '%' || LOWER(TRIM($1)) || '%'
+                   ORDER BY LENGTH(nome) ASC LIMIT 1 FOR UPDATE`,
+                  [item.nome_item]
+                );
+                if (fuzzyRes.rows.length > 0) prodId = fuzzyRes.rows[0].id;
+              }
+              if (prodId) {
                 const deduction = parseFloat(item.quantidade);
                 await client.query(
                   'UPDATE produtos SET stock_atual = GREATEST(0, stock_atual - $1) WHERE id = $2',
-                  [deduction, prodRes.rows[0].id]
+                  [deduction, prodId]
                 );
-                logger.info(`Stock abatido: ${item.nome_item} x${deduction} (produto ID: ${prodRes.rows[0].id})`);
+                logger.info(`Stock abatido: ${item.nome_item} x${deduction} (produto ID: ${prodId})`);
               } else {
                 logger.warn(`Produto não encontrado para abate de stock: "${item.nome_item}"`);
               }
@@ -305,6 +330,8 @@ class FaturaçãoController {
                   ? `Orcamento_${paciente_nome.replace(/\s+/g, '_')}.pdf`
                   : `Fatura_${paciente_nome.replace(/\s+/g, '_')}.pdf`,
                 content: dataUriToBuffer(pdfBase64),
+                contentType: 'application/pdf',
+                encoding: 'binary',
               });
             }
 
@@ -312,6 +339,8 @@ class FaturaçãoController {
               attachments.push({
                 filename: receita_nome,
                 content: dataUriToBuffer(receita_base64),
+                contentType: 'application/pdf',
+                encoding: 'binary',
               });
             }
 
