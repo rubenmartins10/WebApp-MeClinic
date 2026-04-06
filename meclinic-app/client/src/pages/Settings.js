@@ -1,24 +1,26 @@
-import React, { useState, useContext, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   User, Building, Shield, Bell, Save, CheckCircle, XCircle, Smartphone, Moon, Sun, Globe, Clock, Key,
-  Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, Zap, AlertCircle, Lock, Download,
-  Trash2, Activity, LogIn, Volume2, AlertTriangle, HelpCircle, ExternalLink
+  Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, AlertCircle, Lock, Download,
+  Trash2, Activity, LogIn, AlertTriangle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import { TimeFormatContext } from '../contexts/TimeFormatContext';
 import apiService from '../services/api';
 
 const Settings = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { language, changeLanguage, t } = useContext(LanguageContext);
+  const { timeFormat, setTimeFormat } = useContext(TimeFormatContext);
 
   // Estado principal
   const [activeTab, setActiveTab] = useState('perfil');
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
-  const [expandedSections, setExpandedSections] = useState({});
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPushModal, setShowPushModal] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = user.role === 'ADMIN';
@@ -29,6 +31,7 @@ const Settings = () => {
     email: user.email || '',
     cargo: user.role || 'Assistente',
     idioma: language,
+    timeFormat: localStorage.getItem('meclinic_time_format') || '24h',
     ultimoLogin: '2024-01-15T10:30:00Z',
     dataAcesso: '12 de Janeiro de 2024'
   });
@@ -45,16 +48,22 @@ const Settings = () => {
     ultimaAtividadeSuspicta: null
   });
 
-  // Estado de notificações
-  const [notificacoesData, setNotificacoesData] = useState({
-    stock: true,
-    relatorios: true,
-    consultas: false,
-    marketing: false,
-    email: true,
-    sms: false,
-    push: true,
-    frequencia: 'imediato'
+  // Estado de notificações — persiste em localStorage
+  const [notificacoesData, setNotificacoesData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('meclinic_notificacoes');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      stock: true,
+      relatorios: true,
+      consultas: false,
+      marketing: false,
+      email: true,
+      sms: false,
+      push: true,
+      frequencia: 'imediato'
+    };
   });
 
   // Estado da clínica
@@ -74,62 +83,65 @@ const Settings = () => {
   // Sessões activas em tempo real - Buscar do API
   const [sessionsAtivas, setSessionsAtivas] = useState([]);
   const [loginHistory, setLoginHistory] = useState([]);
-  const [loadingActivity, setLoadingActivity] = useState(true);
+  const [, setLoadingActivity] = useState(true);
+
+  // Sessão atual — sempre visível independentemente do backend
+  const currentSession = {
+    id: 'current',
+    user: user.nome || 'Utilizador',
+    role: user.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'ASSISTENTE',
+    device: navigator.userAgent.includes('Chrome') ? 'Google Chrome'
+          : navigator.userAgent.includes('Firefox') ? 'Mozilla Firefox'
+          : navigator.userAgent.includes('Safari') ? 'Safari'
+          : 'Browser',
+    location: 'Este dispositivo',
+    lastActivity: new Date(),
+    loginTime: new Date(),
+    status: 'active',
+    current: true
+  };
 
   // Buscar dados reais de atividade quando o componente carrega
   useEffect(() => {
     const fetchActivityData = async () => {
       try {
         const data = await apiService.get('/api/auth/activity');
-        
-          // Formatar sessões activas
-          const formattedSessions = (data.activeSessions || []).map((session, index) => ({
-            id: session.id || index,
-            user: session.user_name || 'Utilizador',
-            role: session.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
-            device: session.device_info || 'Dispositivo Desconhecido',
-            location: session.location || 'Localização Desconhecida',
-            lastActivity: new Date(session.last_activity),
-            loginTime: new Date(session.login_time),
-            status: 'active',
-            current: session.user_id === user.id && index === 0 // Primeiro do utilizador actual
-          }));
 
-          // Formatar histórico de login
-          const formattedHistory = (data.loginHistory || []).map((login, index) => ({
-            id: login.id || index,
-            user: login.user_name || 'Utilizador',
-            role: login.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
-            data: new Date(login.data),
-            dataFormatada: new Date(login.data).toLocaleString('pt-PT'),
-            localizacao: login.location || 'Localização Desconhecida',
-            dispositivo: login.device_info || 'Dispositivo Desconhecido',
-            status: login.status || 'success'
-          }));
-
-          setSessionsAtivas(formattedSessions);
-          setLoginHistory(formattedHistory);
-      } catch (err) {
-        console.error('Erro ao buscar dados de atividade:', err);
-        // Fallback silencioso
-        setSessionsAtivas([{
-          id: 1,
-          user: user.nome || 'Utilizador Actual',
-          role: user.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
-          device: 'Browser Atual',
-          location: 'Localização Atual',
-          lastActivity: new Date(),
-          loginTime: new Date(),
+        const formattedSessions = (data.activeSessions || []).map((session, index) => ({
+          id: session.id || index,
+          user: session.user_name || 'Utilizador',
+          role: session.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
+          device: session.device_info || 'Browser',
+          location: session.location || 'Desconhecido',
+          lastActivity: new Date(session.last_activity),
+          loginTime: new Date(session.login_time),
           status: 'active',
-          current: true
-        }]);
+          current: session.user_id === user.id && index === 0
+        }));
+
+        const formattedHistory = (data.loginHistory || []).map((login, index) => ({
+          id: login.id || index,
+          user: login.user_name || 'Utilizador',
+          role: login.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
+          data: new Date(login.data),
+          dataFormatada: new Date(login.data).toLocaleString('pt-PT'),
+          localizacao: login.location || 'Desconhecido',
+          dispositivo: login.device_info || 'Browser',
+          status: login.status || 'success'
+        }));
+
+        setSessionsAtivas(formattedSessions.length > 0 ? formattedSessions : [currentSession]);
+        setLoginHistory(formattedHistory);
+      } catch {
+        setSessionsAtivas([currentSession]);
       } finally {
         setLoadingActivity(false);
       }
     };
 
     fetchActivityData();
-  }, [user.id, user.nome, user.role]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
 
   // Calcular força de senha
   const calculatePasswordStrength = (password) => {
@@ -207,6 +219,12 @@ const Settings = () => {
       return;
     }
 
+    if (activeTab === 'notificacoes') {
+      localStorage.setItem('meclinic_notificacoes', JSON.stringify(notificacoesData));
+      showNotif('success', 'Preferências de notificações guardadas com sucesso.');
+      return;
+    }
+
     if (activeTab === 'clinica') {
       if (!isAdmin) return;
       localStorage.setItem('meclinic_settings', JSON.stringify(clinicaData));
@@ -216,6 +234,7 @@ const Settings = () => {
 
     if (activeTab === 'aparencia') {
       changeLanguage(perfilData.idioma);
+      setTimeFormat(perfilData.timeFormat || timeFormat);
     }
 
     showNotif('success', t('settings.alert.success'));
@@ -239,21 +258,28 @@ const Settings = () => {
           showNotif('error', 'Notificações bloqueadas. Ative-as nas definições do browser e recarregue a página.');
           return;
         }
-        if (Notification.permission === 'default') {
-          const permission = await Notification.requestPermission();
-          if (permission !== 'granted') {
-            showNotif('error', 'Permissão de notificações recusada.');
-            return;
-          }
-        }
-        // Permission granted — show confirmation notification
-        new Notification('MeClinic — Notificações Ativas', {
-          body: 'Receberá alertas de stock baixo, lembretes de consultas e relatórios semanais.',
-          icon: '/logo192.png'
-        });
+        // Show our beautiful modal first
+        setShowPushModal(true);
+        return;
       }
     }
     setNotificacoesData(prev => ({ ...prev, [channelKey]: !prev[channelKey] }));
+  };
+
+  const confirmPushPermission = async () => {
+    setShowPushModal(false);
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showNotif('error', 'Permissão de notificações recusada.');
+        return;
+      }
+    }
+    setNotificacoesData(prev => ({ ...prev, push: true }));
+    new Notification('MeClinic — Notificações Ativas', {
+      body: 'Receberá alertas de stock baixo, lembretes de consultas e relatórios semanais.',
+      icon: '/logo192.png'
+    });
   };
 
   const handleDownloadData = () => {
@@ -268,8 +294,6 @@ const Settings = () => {
       // Cores profissionais
       const primaryColor = [37, 99, 235]; // Azul
       const secondaryColor = [107, 114, 128]; // Cinzento
-      const lightGray = [243, 244, 246];
-      
       // === CABEÇALHO ===
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(20);
@@ -311,11 +335,13 @@ const Settings = () => {
       doc.setFontSize(10);
       doc.setTextColor(50);
       
+      const idiomaLabel = perfilData.idioma === 'pt' ? 'Português' : perfilData.idioma === 'en' ? 'English' : perfilData.idioma;
+
       const profileData = [
         ['Nome:', perfilData.nome],
         ['Email:', perfilData.email],
         ['Cargo:', perfilData.cargo],
-        ['Idioma:', perfilData.idioma],
+        ['Idioma:', idiomaLabel],
         ['Último Acesso:', perfilData.dataAcesso]
       ];
       
@@ -331,7 +357,7 @@ const Settings = () => {
         
         doc.setFont('Helvetica', 'normal');
         doc.setTextColor(50);
-        doc.text(String(value || '-'), 60, yPos);
+        doc.text(String(value || '-'), 90, yPos);
         
         yPos += 7;
       });
@@ -377,10 +403,9 @@ const Settings = () => {
         doc.text(label, 20, yPos);
         
         doc.setFont('Helvetica', 'normal');
-        doc.setTextColor(50);
         const statusColor = value === 'Ativado' ? [16, 185, 129] : value === 'Desativado' ? [239, 68, 68] : [107, 114, 128];
         doc.setTextColor(...statusColor);
-        doc.text(String(value || '-'), 60, yPos);
+        doc.text(String(value || '-'), 90, yPos);
         
         yPos += 7;
       });
@@ -427,7 +452,7 @@ const Settings = () => {
           
           doc.setFont('Helvetica', 'normal');
           doc.setTextColor(50);
-          doc.text(String(value || '-'), 60, yPos);
+          doc.text(String(value || '-'), 90, yPos);
           
           yPos += 7;
         });
@@ -488,10 +513,6 @@ const Settings = () => {
     }
   };
 
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
-
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.nome || 'User')}&background=2563eb&color=fff&rounded=true&bold=true&size=128`;
 
   // Estilos reutilizáveis
@@ -515,19 +536,6 @@ const Settings = () => {
     color: theme.subText,
     textTransform: 'uppercase',
     letterSpacing: '0.5px'
-  };
-
-  const sectionHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '15px 20px',
-    backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.1)' : 'rgba(37, 99, 235, 0.05)',
-    borderLeft: '4px solid #2563eb',
-    borderRadius: '8px',
-    marginBottom: '15px',
-    cursor: 'pointer',
-    transition: 'all 0.2s'
   };
 
   const tabStyle = (isActive) => ({
@@ -642,6 +650,77 @@ const Settings = () => {
 
   return (
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
+
+      {/* Modal de permissão push — substitui o popup feio do browser */}
+      {showPushModal && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, backdropFilter: 'blur(6px)',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            width: '420px', borderRadius: '20px',
+            background: theme.isDark ? '#0f172a' : '#ffffff',
+            border: `1px solid ${theme.isDark ? 'rgba(37,99,235,0.3)' : '#e2e8f0'}`,
+            boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+            animation: 'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)'
+          }}>
+            {/* Gradient top bar */}
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #2563eb, #6366f1, #8b5cf6)' }} />
+
+            <div style={{ padding: '32px' }}>
+              {/* Icon */}
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '16px', margin: '0 auto 20px',
+                background: 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(99,102,241,0.15))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid rgba(37,99,235,0.2)'
+              }}>
+                <Bell size={28} color="#3b82f6" />
+              </div>
+
+              {/* Title */}
+              <h2 style={{ textAlign: 'center', color: theme.isDark ? '#f1f5f9' : '#0f172a', fontSize: '20px', fontWeight: '800', margin: '0 0 8px' }}>
+                Ativar Notificações
+              </h2>
+              <p style={{ textAlign: 'center', color: theme.subText, fontSize: '14px', margin: '0 0 24px', lineHeight: '1.6' }}>
+                O MeClinic vai enviar alertas directamente para este dispositivo.
+              </p>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setShowPushModal(false)}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '10px', border: `1px solid ${theme.border}`,
+                    background: 'transparent', color: theme.subText, cursor: 'pointer', fontWeight: '600', fontSize: '14px'
+                  }}
+                >
+                  Agora não
+                </button>
+                <button
+                  onClick={confirmPushPermission}
+                  style={{
+                    flex: 2, padding: '12px', borderRadius: '10px', border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                    color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '14px',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                  }}
+                >
+                  <Bell size={16} /> Permitir Notificações
+                </button>
+              </div>
+
+              <p style={{ textAlign: 'center', fontSize: '11px', color: theme.subText, marginTop: '16px', marginBottom: 0 }}>
+                Podes desativar a qualquer momento nas definições do browser.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notificação */}
       {notification.show && (
@@ -1084,7 +1163,10 @@ const Settings = () => {
                         paddingLeft: '45px',
                         appearance: 'none',
                         cursor: 'pointer'
-                      }}>
+                      }}
+                        value={perfilData.timeFormat}
+                        onChange={e => setPerfilData({ ...perfilData, timeFormat: e.target.value })}
+                      >
                         <option value="24h">{t('time.24h')}</option>
                         <option value="12h">{t('time.12h')}</option>
                       </select>
@@ -1376,288 +1458,155 @@ const Settings = () => {
             {/* TAB ATIVIDADE */}
             {activeTab === 'atividade' && (
               <div style={{ animation: 'fadeIn 0.3s' }}>
-                <h2 style={{
-                  margin: '0 0 30px 0',
-                  borderBottom: `1px solid ${theme.border}`,
-                  paddingBottom: '15px',
-                  color: theme.isDark ? '#ffffff' : theme.text
-                }}>
+                <h2 style={{ margin: '0 0 30px 0', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px', color: theme.isDark ? '#ffffff' : theme.text }}>
                   Atividade da Conta
                 </h2>
 
-                <div className="tabs-container" style={{ marginBottom: '25px', display: 'flex', gap: '15px', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px' }}>
-                  <button
-                    onClick={() => toggleSection('sessions')}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: expandedSections.sessions ? '#2563eb' : 'transparent',
-                      color: expandedSections.sessions ? 'white' : theme.text,
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    Sessões Ativas
-                  </button>
-                  <button
-                    onClick={() => toggleSection('history')}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: expandedSections.history ? '#2563eb' : 'transparent',
-                      color: expandedSections.history ? 'white' : theme.text,
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    Histórico de Login
-                  </button>
-                </div>
-
-                {/* Sessões Ativas */}
-                {expandedSections.sessions && (
-                  <div style={{ marginBottom: '30px' }}>
-                    <h4 style={{ margin: '0 0 20px 0', color: theme.text, fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Smartphone size={16} /> Sessões Conectadas em Tempo Real ({sessionsAtivas.length})
+                {/* ── Sessões Ativas ── */}
+                <div style={{ marginBottom: '32px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Sessões Ativas
                     </h4>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 8px', borderRadius: '20px' }}>
+                      {sessionsAtivas.length}
+                    </span>
+                  </div>
 
-                    {sessionsAtivas.map((session) => (
-                      <div key={session.id} style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'auto 1fr auto',
-                        alignItems: 'center',
-                        padding: '15px 20px',
-                        backgroundColor: session.current ? (theme.isDark ? 'rgba(37, 99, 235, 0.1)' : 'rgba(37, 99, 235, 0.05)') : theme.pageBg,
-                        borderRadius: '12px',
-                        border: `2px solid ${session.current ? '#2563eb' : theme.border}`,
-                        marginBottom: '12px',
-                        gap: '15px'
-                      }}>
-                        {/* Avatar e indicador */}
-                        <div style={{ position: 'relative' }}>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            backgroundColor: session.role === 'ADMIN' ? '#a78bfa' : '#60a5fa',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            fontWeight: 'bold',
-                            fontSize: '16px'
-                          }}>
-                            {session.user.substring(0, 1).toUpperCase()}
-                          </div>
-                          {session.status === 'active' && (
-                            <div style={{
-                              position: 'absolute',
-                              bottom: '0',
-                              right: '0',
-                              width: '12px',
-                              height: '12px',
-                              borderRadius: '50%',
-                              backgroundColor: '#10b981',
-                              border: `2px solid ${theme.cardBg}`,
-                              boxShadow: '0 0 4px rgba(16, 185, 129, 0.5)'
-                            }} />
-                          )}
+                  {sessionsAtivas.map((session) => (
+                    <div key={session.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '16px',
+                      padding: '16px 20px',
+                      backgroundColor: session.current
+                        ? (theme.isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.04)')
+                        : theme.pageBg,
+                      borderRadius: '14px',
+                      border: `1px solid ${session.current ? 'rgba(37,99,235,0.35)' : theme.border}`,
+                      marginBottom: '10px'
+                    }}>
+                      {/* Avatar */}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{
+                          width: '44px', height: '44px', borderRadius: '12px',
+                          background: session.role === 'ADMIN'
+                            ? 'linear-gradient(135deg,#7c3aed,#a78bfa)'
+                            : 'linear-gradient(135deg,#1d4ed8,#60a5fa)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'white', fontWeight: '800', fontSize: '18px'
+                        }}>
+                          {session.user.charAt(0).toUpperCase()}
                         </div>
+                        <div style={{
+                          position: 'absolute', bottom: '-2px', right: '-2px',
+                          width: '12px', height: '12px', borderRadius: '50%',
+                          backgroundColor: '#10b981', border: `2px solid ${theme.cardBg}`
+                        }} />
+                      </div>
 
-                        {/* Informações */}
-                        <div>
-                          <div style={{ fontSize: '13px', color: theme.text, fontWeight: 'bold', marginBottom: '4px' }}>
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '700', fontSize: '14px', color: theme.isDark ? '#f1f5f9' : theme.text }}>
                             {session.user}
-                            {session.current && (
-                              <span style={{
-                                marginLeft: '8px',
-                                display: 'inline-block',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                backgroundColor: '#2563eb',
-                                color: 'white',
-                                fontSize: '10px',
-                                fontWeight: 'bold'
-                              }}>
-                                ESTE DISPOSITIVO
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '11px', color: theme.subText, marginBottom: '6px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '3px 8px',
-                              borderRadius: '8px',
-                              backgroundColor: session.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                              color: session.role === 'ADMIN' ? '#a78bfa' : '#60a5fa',
-                              fontWeight: 'bold'
-                            }}>
-                              {session.role === 'ADMIN' ? '🔐 ADMINISTRADOR' : '👤 ASSISTENTE'}
-                            </span>
-                            <span>Ativo agora</span>
-                          </div>
-                          <div style={{ fontSize: '11px', color: theme.subText, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 12px' }}>
-                            <span style={{ fontWeight: 'bold' }}>Login:</span>
-                            <span>{session.loginTime.toLocaleString('pt-PT')}</span>
-                            <span style={{ fontWeight: 'bold' }}>Dispositivo:</span>
-                            <span>{session.device}</span>
-                            <span style={{ fontWeight: 'bold' }}>Local:</span>
-                            <span>📍 {session.location}</span>
-                            <span style={{ fontWeight: 'bold' }}>Última atividade:</span>
-                            <span>{Math.floor((Date.now() - session.lastActivity) / 60000)} min atrás</span>
-                          </div>
-                        </div>
-
-                        {/* Botão de ação */}
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                          </span>
                           {session.current && (
-                            <button onClick={handleLogoutAllSessions} style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#f59e0b',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              transition: 'all 0.2s',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              <LogOut size={12} style={{ display: 'inline', marginRight: '4px' }} /> Desconectar Tudo
-                            </button>
+                            <span style={{ fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#2563eb', color: 'white', letterSpacing: '0.3px' }}>
+                              ESTE DISPOSITIVO
+                            </span>
                           )}
+                          <span style={{
+                            fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                            backgroundColor: session.role === 'ADMIN' ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)',
+                            color: session.role === 'ADMIN' ? '#a78bfa' : '#60a5fa'
+                          }}>
+                            {session.role === 'ADMIN' ? '🔐 Admin' : '👤 Assistente'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: theme.subText, display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                          <span>🖥️ {session.device}</span>
+                          <span>📍 {session.location}</span>
+                          <span>🕐 Login: {session.loginTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                    ))}
 
-                    <div style={{
-                      padding: '12px 16px',
-                      backgroundColor: theme.isDark ? 'rgba(16, 185, 129, 0.1)' : '#d1fae5',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                      fontSize: '12px',
-                      color: theme.isDark ? '#a7f3d0' : '#065f46',
-                      marginTop: '15px'
-                    }}>
-                      ℹ️ As sessões activas são actualizadas em tempo real. Clique no botão para desconectar dispositivos específicos ou todos os dispositivos.
+                      {/* Desconectar */}
+                      {session.current && (
+                        <button onClick={handleLogoutAllSessions} style={{
+                          flexShrink: 0, padding: '7px 14px', borderRadius: '8px',
+                          border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)',
+                          color: '#f59e0b', cursor: 'pointer', fontSize: '12px', fontWeight: '700',
+                          display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.2s'
+                        }}>
+                          <LogOut size={13} /> Desconectar tudo
+                        </button>
+                      )}
                     </div>
-                  </div>
-                )}
+                  ))}
+                </div>
 
-                {/* Histórico de Login */}
-                {expandedSections.history && (
-                  <div>
-                    <h4 style={{ margin: '0 0 15px 0', color: theme.text, fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <LogIn size={16} /> Histórico de Logins Recentes ({loginHistory.length})
+                {/* Divisor */}
+                <div style={{ height: '1px', background: theme.border, margin: '0 0 28px' }} />
+
+                {/* ── Histórico de Login ── */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                    <LogIn size={15} color={theme.subText} />
+                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Histórico de Logins
                     </h4>
-                    {loginHistory.map((login) => (
-                      <div key={login.id} style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'auto 1fr auto',
-                        alignItems: 'stretch',
-                        padding: '15px 20px',
-                        backgroundColor: theme.pageBg,
-                        borderRadius: '12px',
-                        border: `1px solid ${theme.border}`,
-                        marginBottom: '12px',
-                        gap: '15px'
-                      }}>
-                        {/* Status Icon */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {login.status === 'success' ? (
-                            <div style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <CheckCircle size={20} color="#10b981" />
-                            </div>
-                          ) : (
-                            <div style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <XCircle size={20} color="#ef4444" />
-                            </div>
-                          )}
-                        </div>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 8px', borderRadius: '20px' }}>
+                      {loginHistory.length}
+                    </span>
+                  </div>
 
-                        {/* Informações */}
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '13px', color: theme.text, fontWeight: 'bold' }}>
-                              {login.user}
-                            </span>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              borderRadius: '8px',
-                              backgroundColor: login.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                              color: login.role === 'ADMIN' ? '#a78bfa' : '#60a5fa',
-                              fontSize: '10px',
-                              fontWeight: 'bold'
-                            }}>
-                              {login.role === 'ADMIN' ? '🔐 ADMIN' : '👤 ASSISTENTE'}
-                            </span>
-                            <span style={{
-                              fontSize: '11px',
-                              color: login.status === 'success' ? '#10b981' : '#ef4444',
-                              fontWeight: 'bold'
-                            }}>
+                  {loginHistory.length === 0 ? (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: '40px 20px', borderRadius: '14px',
+                      border: `1px dashed ${theme.border}`, color: theme.subText, gap: '10px'
+                    }}>
+                      <Activity size={32} color={theme.border} />
+                      <span style={{ fontSize: '14px', fontWeight: '600' }}>Sem histórico registado</span>
+                      <span style={{ fontSize: '12px', textAlign: 'center', maxWidth: '280px' }}>
+                        Os próximos logins serão registados aqui com data, dispositivo e localização.
+                      </span>
+                    </div>
+                  ) : (
+                    loginHistory.map((login) => (
+                      <div key={login.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '14px',
+                        padding: '14px 18px', borderRadius: '12px',
+                        border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, marginBottom: '8px'
+                      }}>
+                        <div style={{
+                          width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                          backgroundColor: login.status === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          {login.status === 'success'
+                            ? <CheckCircle size={18} color="#10b981" />
+                            : <XCircle size={18} color="#ef4444" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: theme.isDark ? '#f1f5f9' : theme.text, marginBottom: '3px' }}>
+                            {login.user}
+                            <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: '600', color: login.status === 'success' ? '#10b981' : '#ef4444' }}>
                               {login.status === 'success' ? '✓ Sucesso' : '✗ Falha'}
                             </span>
                           </div>
-
-                          <div style={{ fontSize: '11px', color: theme.subText, display: 'grid', gridTemplateColumns: 'auto 1fr auto 1fr', gap: '8px', marginBottom: '6px' }}>
-                            <span style={{ fontWeight: 'bold' }}>Dispositivo:</span>
-                            <span>{login.dispositivo}</span>
-                            <span style={{ fontWeight: 'bold' }}>Local:</span>
+                          <div style={{ fontSize: '11px', color: theme.subText, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <span>🖥️ {login.dispositivo}</span>
                             <span>📍 {login.localizacao}</span>
                           </div>
-
-                          <div style={{ fontSize: '10px', color: theme.subText, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px' }}>
-                            <span style={{ fontWeight: 'bold' }}>Data:</span>
-                            <span>{login.dataFormatada}</span>
-                          </div>
                         </div>
-
-                        {/* Tempo decorrido */}
-                        <div style={{ textAlign: 'right', fontSize: '11px', color: theme.subText, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <span style={{ fontWeight: 'bold' }}>
-                            {Math.floor((Date.now() - login.data.getTime()) / (1000 * 60 * 60 * 24))} dias atrás
-                          </span>
+                        <div style={{ fontSize: '11px', color: theme.subText, textAlign: 'right', flexShrink: 0 }}>
+                          {login.dataFormatada}
                         </div>
                       </div>
-                    ))}
-                    
-                    <div style={{
-                      padding: '12px 16px',
-                      backgroundColor: theme.isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                      fontSize: '12px',
-                      color: theme.isDark ? '#93c5fd' : '#1e40af',
-                      marginTop: '15px'
-                    }}>
-                      ℹ️ Todos os logins são registados com timestamp, IP, dispositivo e localização para conformidade de segurança.
-                    </div>
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
 

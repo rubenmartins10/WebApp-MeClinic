@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Package, Users, Calendar,
@@ -7,12 +7,33 @@ import {
 
 import { ThemeContext } from '../../contexts/ThemeContext'; 
 import { LanguageContext } from '../../contexts/LanguageContext';
+import { TimeFormatContext } from '../../contexts/TimeFormatContext';
 
 const Sidebar = ({ onLogout, user }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { t } = useContext(LanguageContext);
+  const { timeFormat } = useContext(TimeFormatContext);
   const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
+
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const clockStr = (() => {
+    if (timeFormat === '12h') {
+      let h = now.getHours();
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const period = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, '0')}:${m} ${period}`;
+    }
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  })();
+
+  const dateStr = now.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
 
   const navItems = [
     { path: '/dashboard', label: t('sidebar.dashboard'), icon: <LayoutDashboard size={20} /> },
@@ -39,8 +60,16 @@ const Sidebar = ({ onLogout, user }) => {
       zIndex: 100 // Garante que a barra fica por cima
     }}>
       
-      <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', letterSpacing: '0.5px' }}>MeClinic</h2>
+      <div style={{ padding: '20px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', letterSpacing: '0.5px', textAlign: 'center' }}>MeClinic</h2>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '1.15rem', fontWeight: 600, letterSpacing: '0.04em', fontVariantNumeric: 'tabular-nums', color: 'rgba(255,255,255,0.9)', lineHeight: 1 }}>
+            {clockStr}
+          </div>
+          <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', marginTop: '4px', textTransform: 'capitalize' }}>
+            {dateStr}
+          </div>
+        </div>
       </div>
 
       <nav style={{ flexGrow: 1, padding: '20px 0', overflowY: 'auto' }}>

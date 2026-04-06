@@ -248,7 +248,7 @@ class FaturaçãoController {
           for (const item of materiais_gastos) {
             if (parseFloat(item.quantidade) > 0) {
               const prodRes = await client.query(
-                'SELECT id FROM produtos WHERE nome = $1 FOR UPDATE',
+                'SELECT id FROM produtos WHERE LOWER(TRIM(nome)) = LOWER(TRIM($1)) FOR UPDATE',
                 [item.nome_item]
               );
               if (prodRes.rows.length > 0) {
@@ -257,9 +257,14 @@ class FaturaçãoController {
                   'UPDATE produtos SET stock_atual = GREATEST(0, stock_atual - $1) WHERE id = $2',
                   [deduction, prodRes.rows[0].id]
                 );
+                logger.info(`Stock abatido: ${item.nome_item} x${deduction} (produto ID: ${prodRes.rows[0].id})`);
+              } else {
+                logger.warn(`Produto não encontrado para abate de stock: "${item.nome_item}"`);
               }
             }
           }
+        } else {
+          logger.info(`Checkout sem materiais para abater (consulta_id: ${consulta_id})`);
         }
 
         // 4. Guarda exames e receitas

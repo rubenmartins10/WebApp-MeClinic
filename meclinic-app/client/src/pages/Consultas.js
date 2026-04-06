@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle, Globe, Grid, List as ListIcon, ChevronLeft, ChevronRight, Plus, Minus, Package, X, UploadCloud, File, Pill, MessageCircle, Smile, Save } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; 
+import { useTimeFormat } from '../contexts/TimeFormatContext';
 import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
 import Assinatura from '../components/specialized/Assinatura';
@@ -15,6 +16,7 @@ const MAX_EXAM_SIZE = 10 * 1024 * 1024; // 10 MB
 const Consultas = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
+  const { formatTime } = useTimeFormat();
   const currentUser = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
 
   const [consultas, setConsultas] = useState([]);
@@ -48,6 +50,13 @@ const Consultas = () => {
   const [emailPaciente, setEmailPaciente] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showUrgenciaModal, setShowUrgenciaModal] = useState(false);
+  const [urgStep, setUrgStep] = useState(1);
+  const [urgCriada, setUrgCriada] = useState(null);
+  const nowDate = new Date();
+  const [urgForm, setUrgForm] = useState({ nome: '', telefone: '', email: '', procedimento_id: '', data: nowDate.toLocaleDateString('sv-SE'), hora: `${String(nowDate.getHours()).padStart(2,'0')}:${String(nowDate.getMinutes()).padStart(2,'0')}`, motivo: '' });
+  const [urgProcessing, setUrgProcessing] = useState(false);
+  const [urgMetodoPagamento, setUrgMetodoPagamento] = useState('Multibanco');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   
   const [viewMode, setViewMode] = useState('list'); 
@@ -143,7 +152,7 @@ const Consultas = () => {
     const numWhatsApp = c.telefone.replace(/\D/g, '');
     const primeiroNome = c.paciente_nome.split(' ')[0];
     const dataC = new Date(c.data_consulta).toLocaleDateString(activeLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const horaC = c.hora_consulta.substring(0, 5);
+    const horaC = formatTime(c.hora_consulta);
     
     const procedimento = c.procedimento_nome || 'Avaliação Geral';
 
@@ -457,10 +466,10 @@ const Consultas = () => {
           <div style={{ alignSelf: 'flex-end', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: isToday ? '#2563eb' : 'transparent', color: isToday ? 'white' : theme.text, fontWeight: 'bold', fontSize: '13px', marginBottom: '10px' }}>{day}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1, overflowY: 'auto' }}>
             {consultasDoDia.map(c => {
-              const isFinished = c.status === 'FINALIZADA'; const pColor = getProcedimentoColor(c.procedimento_nome); 
+              const isFinished = c.status === 'realizada'; const pColor = getProcedimentoColor(c.procedimento_nome); 
               return (
                 <div key={c.id} onClick={() => handleEdit(c)} title={`Editar`} style={{ fontSize: '11px', padding: '6px', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 'bold', transition: 'all 0.2s', backgroundColor: pColor.bg, color: pColor.text, border: `1px solid ${pColor.border}`, textDecoration: isFinished ? 'line-through' : 'none', opacity: isFinished ? 0.6 : 1 }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                  {c.hora_consulta.substring(0, 5)} - {c.paciente_nome.split(' ')[0]}
+                  {formatTime(c.hora_consulta)} - {c.paciente_nome.split(' ')[0]}
                 </div>
               );
             })}
@@ -477,7 +486,7 @@ const Consultas = () => {
     const cDateStr = String(c.data_consulta).substring(0, 10);
     if (filtro === 'dia') return cDateStr === hojeStr;
     const diffDias = Math.round((new Date(cDateStr + 'T00:00:00') - new Date(hojeStr + 'T00:00:00')) / 86400000);
-    if (filtro === 'semana') return diffDias >= 0 && diffDias <= 7;
+    if (filtro === 'semana') return diffDias >= -7 && diffDias <= 7;
     if (filtro === 'mes') return cDateStr.substring(0, 7) === hojeStr.substring(0, 7);
     return true;
   });
@@ -487,6 +496,7 @@ const Consultas = () => {
   const quickBtnStyle = { padding: '5px 12px', borderRadius: '20px', border: `1px solid ${theme.border}`, background: theme.pageBg, color: theme.text, fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' };
 
   return (
+    <>
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1200px', margin: '0 auto' }}>
       
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.border}; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #2563eb; } `}</style>
@@ -700,13 +710,13 @@ const Consultas = () => {
               <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                 <Phone size={12} /> Telemóvel <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '8px' }}>
                 <select value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)}
-                  style={{ width: '110px', flexShrink: 0, padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
+                  style={{ width: '100%', padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
                   <option value="+351">🇵🇹 +351</option><option value="+34">🇪🇸 +34</option><option value="+33">🇫🇷 +33</option><option value="+44">🇬🇧 +44</option><option value="+49">🇩🇪 +49</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+55">🇧🇷 +55</option>
                 </select>
                 <input type="text" name="telefone" value={formData.telefone} onChange={handleChange} placeholder="9XX XXX XXX"
-                  style={{ flex: 1, padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
                   onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} required />
               </div>
             </div>
@@ -742,7 +752,7 @@ const Consultas = () => {
                   <select name="hora_hh" value={formData.hora.split(':')[0] || '09'}
                     onChange={(e) => { const hh = e.target.value; const mm = formData.hora.split(':')[1] || '00'; setFormData({ ...formData, hora: `${hh}:${mm}` }); }}
                     style={{ padding: '11px 8px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', cursor: 'pointer', textAlign: 'center' }}>
-                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}h</option>)}
+                    {Array.from({ length: 10 }, (_, i) => String(i + 9).padStart(2, '0')).map(h => <option key={h} value={h}>{h}h</option>)}
                   </select>
                   <select name="hora_mm" value={formData.hora.split(':')[1] || '00'}
                     onChange={(e) => { const hh = formData.hora.split(':')[0] || '09'; const mm = e.target.value; setFormData({ ...formData, hora: `${hh}:${mm}` }); }}
@@ -790,7 +800,8 @@ const Consultas = () => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 {consultasFiltradas.length > 0 ? consultasFiltradas.map(c => {
-                  const isFinalizada = c.status === 'FINALIZADA';
+                  const isFinalizada = c.status === 'realizada';
+                  const isUrgente = c.motivo && c.motivo.startsWith('[URGÊNCIA]');
                   const cardBackground = isFinalizada ? (theme.isDark ? '#0f172a' : '#f1f5f9') : (theme.isDark ? '#1e293b' : '#ffffff');
                   const opacityLevel = isFinalizada ? 0.6 : 1;
                   const mesCurto = new Date(c.data_consulta).toLocaleDateString(activeLocale, { month: 'short' }).toUpperCase();
@@ -798,20 +809,21 @@ const Consultas = () => {
                   const pColor = getProcedimentoColor(c.procedimento_nome);
 
                   return (
-                    <div key={c.id} style={{ backgroundColor: cardBackground, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: opacityLevel, transition: 'all 0.3s' }}>
+                    <div key={c.id} style={{ backgroundColor: cardBackground, border: `1px solid ${isUrgente && !isFinalizada ? '#ef4444' : theme.border}`, borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: opacityLevel, transition: 'all 0.3s' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <div style={{ backgroundColor: isFinalizada ? theme.border : theme.pageBg, padding: '12px 15px', borderRadius: '10px', textAlign: 'center', minWidth: '60px' }}>
+                        <div style={{ backgroundColor: isFinalizada ? theme.border : theme.pageBg, padding: '10px 14px', borderRadius: '10px', textAlign: 'center', minWidth: '64px' }}>
                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: isFinalizada ? theme.subText : '#2563eb' }}>{mesCurto}</div>
-                          <div style={{ fontSize: '22px', fontWeight: '900', color: isFinalizada ? theme.subText : '#2563eb' }}>{dia}</div>
+                          <div style={{ fontSize: '22px', fontWeight: '900', color: isFinalizada ? theme.subText : '#2563eb', lineHeight: 1 }}>{dia}</div>
+                          <div style={{ fontSize: '11px', fontWeight: '700', color: isFinalizada ? theme.subText : '#2563eb', marginTop: '4px', fontVariantNumeric: 'tabular-nums', borderTop: `1px solid ${isFinalizada ? theme.subText : 'rgba(37,99,235,0.3)'}`, paddingTop: '4px' }}>{formatTime(c.hora_consulta)}</div>
                         </div>
                         <div>
-                          <h4 style={{ margin: '0 0 5px 0', fontSize: '16px', color: theme.text, textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.paciente_nome}</h4>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText }}><Clock size={14} /> {c.hora_consulta.substring(0, 5)}</span>
+                          <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: theme.text, textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.paciente_nome}</h4>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '4px' }}>
+                            {isUrgente && !isFinalizada && <span style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444', padding: '2px 7px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11px' }}>🚨 Urgência</span>}
                             <span style={{ backgroundColor: pColor.bg, color: pColor.text, padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold', textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.procedimento_nome || t('consultations.list.no_procedure')}</span>
                           </div>
-                          {c.email && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '12px', marginTop: '3px' }}><Mail size={13} /> {c.email}</div>}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '13px', marginTop: '5px' }}>
+                          {c.email && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '12px', marginTop: '2px' }}><Mail size={13} /> {c.email}</div>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '13px', marginTop: '4px' }}>
                             <Phone size={14} /> {c.telefone || t('consultations.list.no_phone')}
                             {!isFinalizada && c.telefone && c.telefone !== t('consultations.list.no_phone') && (
                               <button onClick={(e) => enviarLembreteWhatsapp(c, e)} title="Enviar Lembrete" style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '2px', marginLeft: '5px', display: 'flex', alignItems: 'center', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}><MessageCircle size={16} /></button>
@@ -855,6 +867,316 @@ const Consultas = () => {
         </div>
       </div>
     </div>
+
+      {false && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9990, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '0', borderRadius: '20px', width: isAvaliacao ? '1050px' : '850px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            
+            <div style={{ padding: '20px 30px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isAvaliacao ? '#3b82f6' : (theme.isDark ? '#0f172a' : '#f8fafc') }}>
+              <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: isAvaliacao ? 'white' : theme.text }}>
+                {isAvaliacao ? <><Smile color="white" /> Avaliação & Orçamento</> : <><CheckCircle color="#10b981" /> Finalizar Consulta e Faturar</>}
+              </h2>
+              <button onClick={() => setCheckoutModal(null)} style={{ background: 'none', border: 'none', color: isAvaliacao ? 'white' : theme.subText, cursor: 'pointer' }}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: isAvaliacao ? '1fr 380px' : '1fr 1fr', flex: 1, overflow: 'hidden' }}>
+              
+              <div className="custom-scrollbar" style={{ padding: '25px', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
+                
+                <div style={{ backgroundColor: theme.pageBg, padding: '20px', borderRadius: '10px', marginBottom: '20px', borderLeft: `4px solid ${isAvaliacao ? '#3b82f6' : '#10b981'}` }}>
+                  <p style={{ margin: '0 0 10px 0', color: theme.subText }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
+                  <p style={{ margin: '0 0 0 0', color: theme.subText }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
+                </div>
+
+                {isAvaliacao ? (
+                  <div>
+                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>Análise Clínica na Cadeira</label>
+                     <p style={{ fontSize: '12px', color: theme.subText, marginBottom: '15px', marginTop: 0 }}>Pinte os dentes que precisam de intervenção para calcular o orçamento abaixo.</p>
+                     <Odontograma initialData={odontogramaAvaliacao} onChange={handleMudancaOdontograma} />
+                     <div style={{ marginTop: '25px', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', padding: '20px', borderRadius: '12px', border: `1px dashed #3b82f6` }}>
+                       <h4 style={{ margin: '0 0 15px 0', color: '#3b82f6', fontSize: '15px' }}>Pré-visualização do Orçamento</h4>
+                       {orcamentoEstimado.caries > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px' }}><span>{orcamentoEstimado.caries}x Restaurações (Cáries)</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.caries * 50).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.endo > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#f97316' }}><span>{orcamentoEstimado.endo}x Endodontias</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.endo * 150).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.coroas > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#a855f7' }}><span>{orcamentoEstimado.coroas}x Coroas/Próteses</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.coroas * 400).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.implantes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}><span>{orcamentoEstimado.implantes}x Implantes</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.implantes * 600).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.extracoes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '15px' }}><span>{orcamentoEstimado.extracoes}x Extrações</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.extracoes * 40).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.total === 0 && <div style={{fontSize:'13px', color: theme.subText, marginBottom:'10px'}}>Nenhum tratamento selecionado.</div>}
+                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', paddingTop: '10px', borderTop: `1px solid ${theme.border}`, color: theme.text }}><strong>TOTAL ESTIMADO:</strong><strong style={{ color: '#10b981' }}>{orcamentoEstimado.total.toFixed(2)} €</strong></div>
+                     </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3 style={{ margin: '0 0 20px 0', color: '#10b981', fontSize: '28px' }}>{parseFloat(checkoutModal.preco_servico || 0).toFixed(2)} €</h3>
+                    <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>{t('consultations.checkout.materials')}</label>
+                    {checkoutMateriais.length > 0 ? (
+                      <div style={{ border: `1px solid ${theme.border}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+                        {checkoutMateriais.map((mat, index) => (
+                          <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px', borderBottom: index < checkoutMateriais.length - 1 ? `1px solid ${theme.border}` : 'none', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: theme.text, flex: 1 }}>{mat.nome_item}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: theme.cardBg, padding: '4px', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+                              <button onClick={() => alterarQuantidadeMaterial(index, -1)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Minus size={16} /></button>
+                              <span style={{ fontSize: '14px', fontWeight: '900', width: '25px', textAlign: 'center' }}>{mat.quantidade}</span>
+                              <button onClick={() => alterarQuantidadeMaterial(index, 1)} style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Plus size={16} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (<div style={{ padding: '15px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '10px', color: theme.subText, fontSize: '13px', textAlign: 'center', border: `1px dashed ${theme.border}` }}>Nenhum material previsto.</div>)}
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>{t('consultations.checkout.payment_method')}</label>
+                    <select value={checkoutData.metodo_pagamento} onChange={(e) => setCheckoutData({...checkoutData, metodo_pagamento: e.target.value})} style={{ ...inputStyle, paddingLeft: '12px' }}>
+                      <option value={t('consultations.checkout.multibanco')}>{t('consultations.checkout.multibanco')}</option>
+                      <option value={t('consultations.checkout.mbway')}>{t('consultations.checkout.mbway')}</option>
+                      <option value={t('consultations.checkout.cash')}>{t('consultations.checkout.cash')}</option>
+                      <option value={t('consultations.checkout.transfer')}>{t('consultations.checkout.transfer')}</option>
+                    </select>
+                  </>
+                )}
+              </div>
+
+              <div className="custom-scrollbar" style={{ padding: '25px', overflowY: 'auto', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold', color: theme.text, textTransform: 'uppercase' }}><UploadCloud size={16} style={{verticalAlign:'middle', marginRight: '5px'}}/> 1. Anexar Exame (Opcional)</label>
+                <input type="file" ref={checkoutFileInputRef} style={{ display: 'none' }} onChange={handleCheckoutFileUpload} />
+                <button onClick={() => checkoutFileInputRef.current.click()} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: checkoutExame ? '1px solid #10b981' : `2px dashed ${theme.border}`, backgroundColor: checkoutExame ? 'rgba(16, 185, 129, 0.1)' : theme.cardBg, color: checkoutExame ? '#10b981' : theme.subText, fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', transition: 'all 0.2s', marginBottom: '25px' }}>
+                  {checkoutExame ? <><File size={18} /> {checkoutExame.name}</> : 'Procurar ficheiro no PC...'}
+                </button>
+
+                <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold', color: theme.text, textTransform: 'uppercase' }}><Pill size={16} style={{verticalAlign:'middle', marginRight: '5px'}}/> 2. Receita Médica (Opcional)</label>
+                <div style={{ marginBottom: '20px', backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
+                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>Farmácia Rápida:</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>DOR / INFL.</span>
+                      <button onClick={() => preencherRapidoMed('Ibuprofeno 600mg', '1 comp. de 8/8h, após refeições, SOS.')} style={quickBtnStyle}>+ Ibuprofeno</button>
+                      <button onClick={() => preencherRapidoMed('Paracetamol 1000mg', '1 comp. de 8/8h, SOS dor ou febre.')} style={quickBtnStyle}>+ Paracetamol</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>ANTIBIÓTICO</span>
+                      <button onClick={() => preencherRapidoMed('Amoxicilina + Ác. Clavulânico 875/125mg', '1 comp. de 12/12h, durante 8 dias.')} style={quickBtnStyle}>+ Amox/Clav</button>
+                      <button onClick={() => preencherRapidoMed('Azitromicina 500mg', '1 comp. por dia, durante 3 dias.')} style={quickBtnStyle}>+ Azitromicina</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>TÓPICOS</span>
+                      <button onClick={() => preencherRapidoMed('Clorohexidina 0.12% (Colutório)', 'Bochechar 15ml, 2x/dia após escovagem.')} style={quickBtnStyle}>+ Colutório</button>
+                      <button onClick={() => preencherRapidoMed('Ácido Hialurónico (Gel Oral)', 'Aplicar na lesão 3x/dia, não enxaguar.')} style={quickBtnStyle}>+ Ác. Hialurónico</button>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
+                  {rxMeds.map((med, index) => (
+                    <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <input type="text" value={med.nome} onChange={e => { const n = [...rxMeds]; n[index].nome = e.target.value; setRxMeds(n); }} placeholder="Medicamento" style={{ ...inputStyle, marginBottom: 0, padding: '10px', fontSize: '12px' }} />
+                      <input type="text" value={med.posologia} onChange={e => { const n = [...rxMeds]; n[index].posologia = e.target.value; setRxMeds(n); }} placeholder="Posologia" style={{ ...inputStyle, marginBottom: 0, padding: '10px', fontSize: '12px' }} />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setRxMeds([...rxMeds, {nome:'', posologia:''}])} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}><Plus size={14}/> Linha Extra</button>
+                <textarea 
+                  value={recommendations} onChange={(e) => setRecommendations(e.target.value)}
+                  placeholder="Recomendações Pós-Consulta..." className="custom-scrollbar"
+                  style={{ ...inputStyle, height: '60px', resize: 'none', marginBottom: '20px', padding: '12px', fontSize: '12px', backgroundColor: theme.cardBg }}
+                />
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>Assinatura Médica</label>
+                  <Assinatura onSaveSignature={setAssinaturaMedica} onNotification={showNotif} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '15px 30px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '12px', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Opções de Envio ao Paciente ({isAvaliacao ? 'Orçamento' : 'Fatura'})</h4>
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#16a34a' }}>
+                  <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#16a34a' }}/>
+                  <MessageCircle size={18} /> WhatsApp
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#2563eb' }}>
+                  <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}/>
+                  <Mail size={18} /> E-mail
+                </label>
+                {sendEmail && (
+                  <input type="email" value={emailPaciente} onChange={(e) => setEmailPaciente(e.target.value)} placeholder="Email do Paciente" style={{ padding: '8px 15px', borderRadius: '8px', border: `1px solid #2563eb`, outline: 'none', flex: 1, backgroundColor: theme.cardBg, color: theme.text, fontSize: '12px' }} />
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 30px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '15px', backgroundColor: theme.cardBg }}>
+              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>Cancelar</button>
+              <button onClick={finalizarCheckout} disabled={isProcessing || (sendEmail && !emailPaciente)} style={{ flex: 2, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: isAvaliacao ? '#3b82f6' : '#10b981', color: 'white', cursor: (isProcessing || (sendEmail && !emailPaciente)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: isAvaliacao ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(16, 185, 129, 0.3)', opacity: (isProcessing || (sendEmail && !emailPaciente)) ? 0.6 : 1 }}>
+                {isProcessing ? 'A Processar...' : (isAvaliacao ? <><Save size={20} /> Guardar Mapa & Gerar Orçamento (PDF)</> : <><CheckCircle size={20} /> Finalizar Consulta & Faturar</>)}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* FAB Urgência */}
+      <button
+        onClick={() => {
+          const n = new Date();
+          setUrgForm({ nome: '', telefone: '', email: '', procedimento_id: '', data: n.toLocaleDateString('sv-SE'), hora: `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`, motivo: '' });
+          setUrgStep(1);
+          setUrgCriada(null);
+          setUrgMetodoPagamento('Multibanco');
+          setShowUrgenciaModal(true);
+        }}
+        title="Registar Urgência"
+        style={{ position: 'fixed', bottom: '100px', right: '28px', width: '56px', height: '56px', borderRadius: '50%', background: theme.isDark ? '#450a0a' : '#fee2e2', border: `2px solid ${theme.isDark ? '#7f1d1d' : '#fca5a5'}`, color: '#ef4444', fontSize: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: theme.isDark ? '0 4px 20px rgba(127,29,29,0.5)' : '0 4px 20px rgba(239,68,68,0.25)', zIndex: 200, transition: 'transform 0.2s, box-shadow 0.2s' }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = theme.isDark ? '0 6px 28px rgba(127,29,29,0.75)' : '0 6px 28px rgba(239,68,68,0.4)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = theme.isDark ? '0 4px 20px rgba(127,29,29,0.5)' : '0 4px 20px rgba(239,68,68,0.25)'; }}
+      >
+        🚨
+      </button>
+
+      {/* Modal Urgência */}
+      {showUrgenciaModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowUrgenciaModal(false); }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '20px', width: '100%', maxWidth: '420px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', border: `1px solid ${theme.border}` }}>
+            {/* Header */}
+            <div style={{ backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderBottom: `1px solid ${theme.border}`, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: theme.text }}>Urgência Dentária</div>
+                <div style={{ fontSize: '11px', color: theme.subText }}>{urgStep === 1 ? 'Registar consultas feitas por urgência' : 'Consulta registada — processar honorários'}</div>
+              </div>
+              <button onClick={() => setShowUrgenciaModal(false)} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={20} /></button>
+            </div>
+
+            {urgStep === 1 ? (
+            <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Nome do paciente *</label>
+                <input value={urgForm.nome} onChange={e => setUrgForm(f => ({ ...f, nome: e.target.value }))} placeholder="Primeiro e Último Nome"
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Telemóvel</label>
+                  <input value={urgForm.telefone} onChange={e => setUrgForm(f => ({ ...f, telefone: e.target.value }))} placeholder="9XX XXX XXX"
+                    style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Email</label>
+                  <input type="email" value={urgForm.email} onChange={e => setUrgForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com"
+                    style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {/* Procedimento */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Procedimento</label>
+                <select value={urgForm.procedimento_id} onChange={e => setUrgForm(f => ({ ...f, procedimento_id: e.target.value }))}
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: urgForm.procedimento_id ? theme.text : '#94a3b8', fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
+                  <option value="">Selecione um procedimento...</option>
+                  {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+              </div>
+
+              {/* Data + Hora */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Data *</label>
+                  <input type="date" value={urgForm.data} onChange={e => setUrgForm(f => ({ ...f, data: e.target.value }))}
+                    style={{ width: '100%', padding: '11px 10px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Hora *</label>
+                  <input type="time" value={urgForm.hora} onChange={e => setUrgForm(f => ({ ...f, hora: e.target.value }))}
+                    style={{ width: '100%', padding: '11px 10px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Notas (opcional)</label>
+                <textarea value={urgForm.motivo} onChange={e => setUrgForm(f => ({ ...f, motivo: e.target.value }))} placeholder="Descrição breve da urgência..."
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', height: '70px', resize: 'none' }} />
+              </div>
+
+              {/* Botão guardar */}
+              <button disabled={urgProcessing} onClick={async () => {
+                  const partesNome = urgForm.nome.trim().split(' ');
+                  if (partesNome.length < 2) { showNotif('Insira o Primeiro e Último nome.', 'error'); return; }
+                  if (!urgForm.data || !urgForm.hora) { showNotif('Data e hora são obrigatórias.', 'error'); return; }
+                  try {
+                    setUrgProcessing(true);
+                    const res = await apiService.post('/api/consultas', {
+                      nome: urgForm.nome,
+                      email: urgForm.email || null,
+                      telefone: urgForm.telefone || `URG-${Date.now()}`,
+                      data: urgForm.data,
+                      hora: urgForm.hora,
+                      motivo: `[URGÊNCIA] ${urgForm.motivo}`.trim(),
+                      procedimento_id: urgForm.procedimento_id || null
+                    });
+                    const proc = modelos.find(m => String(m.id) === String(urgForm.procedimento_id));
+                    setUrgCriada({ ...res.consulta, paciente_nome: urgForm.nome, nome: urgForm.nome, email: urgForm.email || '', telefone: urgForm.telefone || '', procedimento_nome: proc?.nome || '', preco_servico: proc?.preco_servico || 0 });
+                    fetchDados();
+                    setUrgStep(2);
+                  } catch { showNotif('Erro ao registar urgência.', 'error'); }
+                  finally { setUrgProcessing(false); }
+                }}
+                style={{ width: '100%', padding: '13px', background: urgProcessing ? '#9ca3af' : 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', borderRadius: '12px', border: 'none', fontWeight: '700', fontSize: '15px', fontFamily: 'Inter, system-ui, sans-serif', cursor: urgProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.35)' }}>
+                {urgProcessing ? 'A guardar...' : 'Registar Urgência'}
+              </button>
+            </div>
+            ) : (
+            /* ── Passo 2: Honorários ── */
+            <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ backgroundColor: theme.isDark ? '#0f172a' : '#f1f5f9', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${theme.border}` }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: theme.text, marginBottom: '4px' }}>{urgCriada?.nome}</div>
+                {urgCriada?.procedimento_nome && <div style={{ fontSize: '12px', color: theme.subText }}>{urgCriada.procedimento_nome}</div>}
+                <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginTop: '6px' }}>Consulta registada com sucesso</div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>Método de pagamento</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {['Multibanco', 'MBWay', 'Numerário', 'Transferência'].map(m => (
+                    <button key={m} onClick={() => setUrgMetodoPagamento(m)}
+                      style={{ padding: '10px', borderRadius: '10px', border: `1.5px solid ${urgMetodoPagamento === m ? '#2563eb' : theme.border}`, backgroundColor: urgMetodoPagamento === m ? (theme.isDark ? '#1e3a8a' : '#dbeafe') : (theme.isDark ? '#0f172a' : '#f8fafc'), color: urgMetodoPagamento === m ? '#2563eb' : theme.text, fontSize: '13px', fontWeight: urgMetodoPagamento === m ? '700' : '400', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => {
+                  setShowUrgenciaModal(false);
+                  setCheckoutData({ metodo_pagamento: urgMetodoPagamento });
+                  setCheckoutMateriais([]);
+                  setCheckoutExame(null);
+                  if (urgForm.email) { setSendEmail(true); setEmailPaciente(urgForm.email); } else { setSendEmail(false); setEmailPaciente(''); }
+                  setSendWhatsapp(!!urgForm.telefone);
+                  abrirCheckout({ ...urgCriada, metodo_pagamento: urgMetodoPagamento });
+                }}
+                style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', borderRadius: '12px', border: 'none', fontWeight: '700', fontSize: '15px', fontFamily: 'Inter, system-ui, sans-serif', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(37,99,235,0.35)' }}>
+                Processar Honorários
+              </button>
+              <button onClick={() => setShowUrgenciaModal(false)}
+                style={{ background: 'none', border: 'none', color: theme.subText, fontSize: '13px', cursor: 'pointer', padding: '4px', textDecoration: 'underline' }}>
+                Fechar sem fatura
+              </button>
+            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9995, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: theme.cardBg, borderRadius: '16px', padding: '30px', width: '340px', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: '56px', height: '56px', backgroundColor: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Trash2 size={24} color="#ef4444" />
+            </div>
+            <h3 style={{ margin: '0 0 8px 0', color: theme.text, fontSize: '18px' }}>Apagar consulta?</h3>
+            <p style={{ margin: '0 0 24px 0', color: theme.subText, fontSize: '14px' }}>Esta ação não pode ser revertida.</p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Cancelar</button>
+              <button onClick={confirmarApagar} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Apagar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

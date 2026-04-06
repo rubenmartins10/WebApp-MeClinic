@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Users, Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File as FileIcon, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import { useTimeFormat } from '../contexts/TimeFormatContext';
 import jsPDF from 'jspdf';
 import Odontograma from '../components/specialized/Odontograma';
 import Assinatura from '../components/specialized/Assinatura';
@@ -14,6 +15,7 @@ const MAX_EXAM_SIZE = 10 * 1024 * 1024; // 10 MB
 const Pacientes = () => {
   const { theme } = useContext(ThemeContext);
   const { t, language } = useContext(LanguageContext);
+  const { formatTime } = useTimeFormat();
 
   const currentUser = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN';
@@ -573,7 +575,7 @@ const Pacientes = () => {
                             </div>
                             <div style={{ fontWeight: '600', fontSize: '14px', color: theme.text, marginBottom: '4px' }}>{c.procedimento_nome || 'Consulta Geral'}</div>
                             <div style={{ color: theme.subText, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> {c.hora_consulta ? c.hora_consulta.substring(0,5) : '—'}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> {c.hora_consulta ? formatTime(c.hora_consulta) : '—'}</span>
                             </div>
                             {c.diagnostico && <div style={{ marginTop: '8px', fontSize: '12px', color: theme.subText, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', padding: '6px 10px', borderRadius: '8px' }}><span style={{ fontWeight: '600', color: theme.text }}>Diagnóstico: </span>{c.diagnostico}</div>}
                           </div>

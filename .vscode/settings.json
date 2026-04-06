@@ -19,21 +19,17 @@
     "typescript.tsserver.watchOptions": {
         "excludeDirectories": ["**/node_modules"]
     },
-    "@babel/core": false,
+    "typescript.tsserver.nodePath": "node",
+    "js/ts.implicitProjectConfig.checkJs": false,
     "problems.exclude": {
         "**/node_modules/**": true,
+        "**/node_modules": true,
+        "node_modules/**": true,
+        "server/node_modules/**": true,
+        "meclinic-app/client/node_modules/**": true,
         "**/*.min.js": true,
         "**/dist/**": true,
-        "**/.next/**": true,
-        "**/tsconfig.json": true,
-        "**/jsconfig.json": true,
-        "node_modules": true,
-        "server/node_modules": true,
-        "meclinic-app/client/node_modules": true,
-        "**/@*/**": true,
-        "**/pdfkit/**": true,
-        "**/express-rate-limit/**": true,
-        "**/vjs/**": true
+        "**/.next/**": true
     },
     "typescript.experimental.enableProjectDiagnostics": false,
     "typescript.reportStyleChecksAsWarnings": false,

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 
 import { ThemeProvider, ThemeContext } from './contexts/ThemeContext'; 
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext'; 
+import { TimeFormatProvider, TimeFormatContext } from './contexts/TimeFormatContext';
 
 // Mudamos o nome do ícone para "UsersIcon" para não chocar com a página "Users"
 import { Users as UsersIcon } from 'lucide-react';
@@ -17,7 +18,8 @@ import FichasTecnicas from './pages/FichasTecnicas';
 import Faturacao from './pages/Faturacao';
 import Settings from './pages/Settings';
 import Report from './pages/Report';
-import Pacientes from './pages/Pacientes'; // <-- A NOVA PÁGINA AQUI    
+import Pacientes from './pages/Pacientes'; // <-- A NOVA PÁGINA AQUI    
+import ConsultaReminders from './components/ConsultaReminders';
 
 const MainLayout = ({ user, onLogout }) => {
   const { theme } = useContext(ThemeContext);
@@ -55,6 +57,9 @@ const MainLayout = ({ user, onLogout }) => {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
+
+      {/* Lembretes de consultas — aparecem no canto inferior direito */}
+      <ConsultaReminders />
     </div>
   );
 };
@@ -91,16 +96,18 @@ function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <Router>
-          {!isAuthenticated ? (
-            <Routes>
-              <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
-              <Route path="*" element={<Navigate to="/auth" replace />} />
-            </Routes>
-          ) : (
-            <MainLayout user={user} onLogout={handleLogout} />
-          )}
-        </Router>
+        <TimeFormatProvider>
+          <Router>
+            {!isAuthenticated ? (
+              <Routes>
+                <Route path="/auth" element={<Auth onLogin={handleLogin} />} />
+                <Route path="*" element={<Navigate to="/auth" replace />} />
+              </Routes>
+            ) : (
+              <MainLayout user={user} onLogout={handleLogout} />
+            )}
+          </Router>
+        </TimeFormatProvider>
       </ThemeProvider>
     </LanguageProvider>
   );
