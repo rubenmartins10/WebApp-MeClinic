@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 router.use(authMiddleware);
 
@@ -19,7 +20,8 @@ router.get('/dashboard-summary', async (req, res) => {
     `, [start]);
     res.json(stats.rows[0] || {});
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error('Erro dashboard-summary', { message: err.message });
+    res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
 
@@ -36,7 +38,8 @@ router.get('/patients-weekly', async (req, res) => {
     `, [start]);
     res.json(result.rows || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error('Erro patients-weekly', { message: err.message });
+    res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
 
@@ -48,7 +51,8 @@ router.get('/stock-alerts', async (req, res) => {
     );
     res.json(result.rows || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error('Erro stock-alerts', { message: err.message });
+    res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
 
@@ -60,7 +64,8 @@ router.get('/validade-alerts', async (req, res) => {
     );
     res.json(result.rows || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error('Erro validade-alerts', { message: err.message });
+    res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
 

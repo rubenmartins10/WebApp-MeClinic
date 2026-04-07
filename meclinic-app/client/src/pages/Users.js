@@ -12,6 +12,7 @@ const Users = () => {
   const [pesquisa, setPesquisa] = useState('');
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showChangeRoleConfirm, setShowChangeRoleConfirm] = useState(null); // { id, nome, newRole }
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [novoUser, setNovoUser] = useState({ nome: '', email: '', password: '', role: 'ASSISTENTE' });
@@ -59,12 +60,25 @@ const Users = () => {
     }
   };
 
+  const confirmarMudancaRole = async () => {
+    if (!showChangeRoleConfirm) return;
+    try {
+      await apiService.put(`/api/utilizadores/${showChangeRoleConfirm.id}`, { role: showChangeRoleConfirm.newRole });
+      showNotif('success', t('users.msg.role_changed'));
+      carregarUtilizadores();
+    } catch {
+      showNotif('error', t('users.msg.role_err'));
+    } finally {
+      setShowChangeRoleConfirm(null);
+    }
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       const data = await apiService.post('/api/utilizadores', novoUser);
-      setQrCodeCriado(data.qrCodeUrl); 
+      setQrCodeCriado(data.mfa?.qrCodeUrl || null); 
       carregarUtilizadores();
       setNovoUser({ nome: '', email: '', password: '', role: 'ASSISTENTE' }); 
       showNotif('success', t('users.msg.added'));
@@ -110,6 +124,24 @@ const Users = () => {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.delete.cancel')}</button>
               <button onClick={confirmarEliminacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.delete.confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangeRoleConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
+          <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '15px', width: '380px', textAlign: 'center', border: `1px solid ${theme.border}` }}>
+            <Shield size={50} color="#8b5cf6" style={{ marginBottom: '15px' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>{t('users.role.change.title')}</h2>
+            <p style={{ color: theme.subText, marginBottom: '25px' }}>
+              {t('users.role.change.desc')
+                .replace('{nome}', showChangeRoleConfirm.nome)
+                .replace('{role}', showChangeRoleConfirm.newRole === 'ADMIN' ? t('users.card.role.admin') : t('users.card.role.assistant'))}
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowChangeRoleConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.role.change.cancel')}</button>
+              <button onClick={confirmarMudancaRole} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#8b5cf6', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.role.change.confirm')}</button>
             </div>
           </div>
         </div>
@@ -224,7 +256,13 @@ const Users = () => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', backgroundColor: isThisCardAdmin ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)', color: isThisCardAdmin ? '#a78bfa' : '#60a5fa', border: `1px solid ${isThisCardAdmin ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
+                <div 
+                  onClick={isCurrentUserAdmin && currentUser.id !== u.id ? () => setShowChangeRoleConfirm({ id: u.id, nome: u.nome, newRole: isThisCardAdmin ? 'ASSISTENTE' : 'ADMIN' }) : undefined}
+                  title={isCurrentUserAdmin && currentUser.id !== u.id ? t('users.card.tooltip.change_role') : undefined}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', backgroundColor: isThisCardAdmin ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)', color: isThisCardAdmin ? '#a78bfa' : '#60a5fa', border: `1px solid ${isThisCardAdmin ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}`, cursor: isCurrentUserAdmin && currentUser.id !== u.id ? 'pointer' : 'default', transition: 'opacity 0.2s' }}
+                  onMouseEnter={(e) => { if (isCurrentUserAdmin && currentUser.id !== u.id) e.currentTarget.style.opacity = '0.75'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                >
                   {isThisCardAdmin ? <Shield size={14} /> : <User size={14} />}
                   <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
                     {isThisCardAdmin ? t('users.card.role.admin') : t('users.card.role.assistant')}

@@ -15,7 +15,7 @@ const authMiddleware = async (req, res, next) => {
       throw new AppError('Token não fornecido', 401, { reason: 'missing_token' });
     }
     
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     req.user = decoded;
     next();
     

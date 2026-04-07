@@ -60,8 +60,11 @@ if (process.env.NODE_ENV !== 'production') {
 // CORS configurado com whitelist de origens permitidas
 app.use(cors({
   origin: (origin, callback) => {
-    // Permite requests sem origin (Postman, scripts internos)
-    if (!origin) return callback(null, true);
+    // Em produção bloquear pedidos sem Origin; em desenvolvimento permitir (ex: Postman)
+    if (!origin) {
+      if (process.env.NODE_ENV !== 'production') return callback(null, true);
+      return callback(new Error('CORS: origem não permitida'));
+    }
     // Normalizar origin removendo barra final antes de comparar
     const normalizedOrigin = origin.replace(/\/$/, '');
     if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
@@ -125,6 +128,29 @@ async function initDB() {
   try { await pool.query("ALTER TABLE pacientes ADD COLUMN notas_clinicas TEXT DEFAULT ''"); } catch(e){}
   try { await pool.query("ALTER TABLE pacientes ADD COLUMN odontograma_dados TEXT DEFAULT '{}'"); } catch(e){}
   try { await pool.query("ALTER TABLE utilizadores ADD COLUMN assinatura_base64 TEXT"); } catch(e){}
+  try { await pool.query("ALTER TABLE utilizadores ADD COLUMN telefone VARCHAR(20)"); } catch(e){}
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES utilizadores(id) ON DELETE CASCADE,
+        action_type VARCHAR(50) NOT NULL,
+        description TEXT,
+        location VARCHAR(255),
+        device_info VARCHAR(255),
+        ip_address VARCHAR(45),
+        user_agent VARCHAR(500),
+        status VARCHAR(20) DEFAULT 'success',
+        session_id VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_user_id ON activity_log (user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_log (created_at)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_session_id ON activity_log (session_id)`);
+  } catch(e) { logger.error('Erro ao criar tabela activity_log:', { message: e.message }); }
 
   try {
     await pool.query(`

@@ -74,6 +74,9 @@ function App() {
       try {
         setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
+        if (!localStorage.getItem('meclinic_login_at')) {
+          localStorage.setItem('meclinic_login_at', new Date().toISOString());
+        }
       } catch {
         localStorage.removeItem('meclinic_user');
       }
@@ -87,10 +90,22 @@ function App() {
   };
 
   const handleLogout = () => {
+    // Marcar sessão como inativa no backend
+    const sessionId = localStorage.getItem('meclinic_session_id');
+    const token = localStorage.getItem('token');
+    if (sessionId && token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ sessionId })
+      }).catch(() => {});
+    }
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('meclinic_user');
+    localStorage.removeItem('meclinic_login_at');
+    localStorage.removeItem('meclinic_session_id');
   };
 
   return (

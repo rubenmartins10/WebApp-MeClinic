@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const nodemailer = require('nodemailer');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 // Email transporter setup - usando Mailtrap
@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false
+    rejectUnauthorized: process.env.NODE_ENV === 'production'
   }
 });
 
@@ -72,14 +72,19 @@ router.get('/weekly-detail', async (req, res) => {
       notas_faturacao: notas.rows || []
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error('Erro weekly-detail', { message: err.message });
+    res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
 
-// Envio de Relatório por Email
-router.post('/send-email', async (req, res) => {
+// Envio de Relatório por Email — restrito a ADMIN (M-01)
+router.post('/send-email', requireRole('ADMIN'), async (req, res) => {
   const { emailDestino, pdfBase64, semana, subject, message } = req.body;
-  
+
+  if (!pdfBase64 || !pdfBase64.includes('base64,')) {
+    return res.status(400).json({ error: 'PDF inválido ou em falta.' });
+  }
+
   try {
     // Usar subject e message customizados se fornecidos, caso contrário usar os padrões
     const emailSubject = subject || `[INTERNO] Relatório Geral de Atividade Meclinic – Semana de ${semana}`;

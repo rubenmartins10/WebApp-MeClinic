@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { asyncHandler } = require('../errorHandler');
 const { validateRequest, registerSchema, loginSchema } = require('../validation/authValidation');
 const AuthController = require('../controllers/authController');
@@ -122,24 +123,20 @@ router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   try {
     const userRes = await pool.query("SELECT id, nome FROM utilizadores WHERE email = $1", [email]);
-    if (userRes.rows.length === 0) return res.status(404).json({ error: "E-mail não encontrado no sistema." });
+    if (userRes.rows.length === 0) {
+      // Resposta genérica — não revelar se o email existe (H-04: email enumeration)
+      return res.json({ message: "Se o e-mail existir no sistema, receberá um código em breve." });
+    }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
     const expires = new Date(Date.now() + 15 * 60 * 1000);
 
     await pool.query("UPDATE utilizadores SET reset_code = $1, reset_expires = $2 WHERE email = $3", [code, expires, email]);
 
-    // ======= SOLUÇÃO PARA TESTES: Mostrar código no servidor =======
-    // Em PRODUÇÃO, remover isto e usar email real
-    console.log(`
-╔════════════════════════════════════════════════════╗
-║         CÓDIGO DE RECUPERAÇÃO DE PASSWORD          ║
-╠════════════════════════════════════════════════════╣
-║ Email: ${email.padEnd(40)}║
-║ Código: ${code.padEnd(40)}║
-║ Válido por: 15 minutos                            ║
-╚════════════════════════════════════════════════════╝
-    `);
+    // Mostrar código apenas em desenvolvimento (nunca em produção)
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('Reset code gerado (apenas dev)', { email, code });
+    }
 
     // Tentar enviar email (silenciosa se falhar)
     try {
@@ -154,13 +151,9 @@ router.post('/forgot-password', async (req, res) => {
       });
       res.json({ message: "Código enviado para o seu e-mail." });
     } catch (emailErr) {
-      // Se email falhar, mostrar código no response também (para testes)
-      console.warn("⚠️  Email falhou, devolvendo código no response para testes");
-      res.json({ 
-        message: "Código gerado (email indisponível - use para testes)", 
-        testCode: code,
-        validFor: "15 minutos"
-      });
+      logger.warn('Email de recuperação falhou', { message: emailErr.message });
+      // Não revelar o código nem confirmar se email existe
+      res.json({ message: "Se o e-mail existir no sistema, receberá um código em breve." });
     }
   } catch (err) {
     logger.error('Erro ao solicitar recuperação:', { message: err.message });
@@ -182,7 +175,7 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: "Este código já expirou. Peça um novo." });
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const hash = await bcrypt.hash(newPassword, salt);
 
     await pool.query("UPDATE utilizadores SET password_hash = $1, reset_code = NULL, reset_expires = NULL WHERE email = $2", [hash, email]);
@@ -197,50 +190,54 @@ router.post('/reset-password', async (req, res) => {
 /**
  * GET /api/auth/activity
  * Retorna sessões activas e histórico de login do utilizador autenticado
+ * Admin vê todas as sessões; assistentes vêem só as próprias
  */
 router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
   const userId = req.user.id;
+  const isAdmin = req.user.role === 'ADMIN';
 
   try {
-    // Buscar sessões activas (últimas 24 horas)
+    // Sessões activas: is_active = true E last_seen nos últimos 5 minutos
     const activeSessions = await pool.query(
       `SELECT 
-        id,
-        user_id,
+        al.id,
+        al.user_id,
         u.nome as user_name,
         u.role,
-        device_info,
-        location,
-        created_at as login_time,
-        created_at as last_activity,
-        session_id
+        al.device_info,
+        al.location,
+        al.created_at as login_time,
+        al.last_seen as last_activity,
+        al.session_id,
+        al.is_active,
+        CASE WHEN al.is_active = TRUE AND al.last_seen > NOW() - INTERVAL '5 minutes' THEN TRUE ELSE FALSE END as really_active
       FROM activity_log al
       JOIN utilizadores u ON al.user_id = u.id
-      WHERE action_type = 'LOGIN' 
-        AND status = 'success'
-        AND created_at > NOW() - INTERVAL '24 hours'
-      ORDER BY created_at DESC
-      LIMIT 10`,
+      WHERE al.action_type = 'LOGIN' 
+        AND al.status = 'success'
+        AND al.created_at > NOW() - INTERVAL '30 days'
+      ORDER BY al.is_active DESC, al.last_seen DESC
+      LIMIT 20`,
       []
     );
 
-    // Buscar histórico de login do utilizador (últimos 30 dias)
+    // Histórico de login do utilizador (últimos 30 dias)
     const loginHistory = await pool.query(
       `SELECT 
-        id,
-        user_id,
+        al.id,
+        al.user_id,
         u.nome as user_name,
         u.role,
-        device_info,
-        location,
-        status,
-        created_at as data
-      FROM activity_log
-      JOIN utilizadores u ON activity_log.user_id = u.id
-      WHERE user_id = $1 
-        AND action_type = 'LOGIN'
-        AND created_at > NOW() - INTERVAL '30 days'
-      ORDER BY created_at DESC
+        al.device_info,
+        al.location,
+        al.status,
+        al.created_at as data
+      FROM activity_log al
+      JOIN utilizadores u ON al.user_id = u.id
+      WHERE al.user_id = $1 
+        AND al.action_type = 'LOGIN'
+        AND al.created_at > NOW() - INTERVAL '30 days'
+      ORDER BY al.created_at DESC
       LIMIT 20`,
       [userId]
     );
@@ -258,6 +255,102 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
     logger.error('Erro ao buscar activity:', { message: err.message });
     res.status(500).json({ error: 'Erro ao buscar histórico de atividade' });
   }
+}));
+
+/**
+ * POST /api/auth/heartbeat
+ * Atualiza last_seen da sessão atual para manter status "ativo"
+ */
+router.post('/heartbeat', authMiddleware, asyncHandler(async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId || typeof sessionId !== 'string') {
+    return res.status(400).json({ error: 'sessionId obrigatório' });
+  }
+
+  await pool.query(
+    `UPDATE activity_log SET last_seen = NOW() WHERE session_id = $1 AND user_id = $2 AND is_active = TRUE`,
+    [sessionId, req.user.id]
+  );
+  res.json({ ok: true });
+}));
+
+/**
+ * POST /api/auth/terminate-session
+ * Termina uma sessão específica (marca is_active = false)
+ * Admin pode terminar qualquer sessão; assistente só as próprias
+ */
+router.post('/terminate-session', authMiddleware, asyncHandler(async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId || typeof sessionId !== 'string') {
+    return res.status(400).json({ error: 'sessionId obrigatório' });
+  }
+
+  const isAdmin = req.user.role === 'ADMIN';
+
+  if (isAdmin) {
+    await pool.query(
+      `UPDATE activity_log SET is_active = FALSE WHERE session_id = $1`,
+      [sessionId]
+    );
+  } else {
+    await pool.query(
+      `UPDATE activity_log SET is_active = FALSE WHERE session_id = $1 AND user_id = $2`,
+      [sessionId, req.user.id]
+    );
+  }
+
+  res.json({ ok: true, message: 'Sessão terminada com sucesso' });
+}));
+
+/**
+ * POST /api/auth/terminate-all-sessions
+ * Termina todas as sessões activas (excepto a sessão actual, opcionalmente)
+ */
+router.post('/terminate-all-sessions', authMiddleware, asyncHandler(async (req, res) => {
+  const { exceptSessionId } = req.body;
+  const isAdmin = req.user.role === 'ADMIN';
+
+  if (isAdmin) {
+    // Admin termina TODAS as sessões
+    if (exceptSessionId) {
+      await pool.query(
+        `UPDATE activity_log SET is_active = FALSE WHERE is_active = TRUE AND session_id != $1`,
+        [exceptSessionId]
+      );
+    } else {
+      await pool.query(`UPDATE activity_log SET is_active = FALSE WHERE is_active = TRUE`);
+    }
+  } else {
+    // Assistente só termina as próprias
+    if (exceptSessionId) {
+      await pool.query(
+        `UPDATE activity_log SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE AND session_id != $2`,
+        [req.user.id, exceptSessionId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE activity_log SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`,
+        [req.user.id]
+      );
+    }
+  }
+
+  res.json({ ok: true, message: 'Todas as sessões foram terminadas' });
+}));
+
+/**
+ * POST /api/auth/logout
+ * Marca a sessão actual como inactiva
+ */
+router.post('/logout', authMiddleware, asyncHandler(async (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId) {
+    await pool.query(
+      `UPDATE activity_log SET is_active = FALSE WHERE session_id = $1 AND user_id = $2`,
+      [sessionId, req.user.id]
+    );
+  }
+  res.json({ ok: true });
 }));
 
 module.exports = router;

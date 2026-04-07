@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcryptjs');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 // Middleware de autenticação - todas as rotas requerem login
 router.use(authMiddleware);
@@ -11,10 +13,10 @@ router.use(authMiddleware);
  * GET /api/utilizadores
  * Listar todos os utilizadores
  */
-router.get('/', async (req, res) => {
+router.get('/', requireRole('ADMIN'), async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, nome, email, role, ativo, created_at, mfa_enabled
+      SELECT id, nome, email, role, ativo, created_at, mfa_enabled, telefone
       FROM utilizadores
       ORDER BY nome ASC
     `);
@@ -27,13 +29,49 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/utilizadores/assinaturas-clinica
+ * Devolve todas as assinaturas de todos os utilizadores da clínica (agregadas)
+ * IMPORTANTE: esta rota tem de vir ANTES de /:id para não ser interceptada
+ */
+router.get('/assinaturas-clinica', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, nome, assinatura FROM utilizadores WHERE assinatura IS NOT NULL'
+    );
+    const all = [];
+    for (const row of result.rows) {
+      if (!row.assinatura) continue;
+      try {
+        const parsed = JSON.parse(row.assinatura);
+        const list = Array.isArray(parsed.signatures) ? parsed.signatures
+          : parsed.signature ? [{ id: Date.now() + Math.random(), signature: parsed.signature, nome: parsed.nome || row.nome }]
+          : [];
+        list.forEach(s => all.push({ ...s, userId: row.id, userName: row.nome }));
+      } catch {
+        if (typeof row.assinatura === 'string' && row.assinatura.startsWith('data:')) {
+          all.push({ id: Date.now() + Math.random(), signature: row.assinatura, nome: row.nome, userId: row.id, userName: row.nome });
+        }
+      }
+    }
+    res.json({ assinaturas: all });
+  } catch (error) {
+    console.error('Erro ao obter assinaturas da clínica:', error);
+    res.status(500).json({ error: 'Erro ao obter assinaturas' });
+  }
+});
+
+/**
  * GET /api/utilizadores/:id
  * Obter utilizador específico
  */
 router.get('/:id', async (req, res) => {
+  // Apenas o próprio utilizador ou ADMIN pode aceder ao perfil
+  if (req.user.role !== 'ADMIN' && req.user.id !== parseInt(req.params.id)) {
+    return res.status(403).json({ error: 'Permissão insuficiente' });
+  }
   try {
     const result = await pool.query(
-      `SELECT id, nome, email, role, ativo, created_at, mfa_enabled
+      `SELECT id, nome, email, role, ativo, created_at, mfa_enabled, telefone
        FROM utilizadores WHERE id = $1`,
       [req.params.id]
     );
@@ -53,7 +91,7 @@ router.get('/:id', async (req, res) => {
  * POST /api/utilizadores
  * Criar novo utilizador
  */
-router.post('/', async (req, res) => {
+router.post('/', requireRole('ADMIN'), async (req, res) => {
   const { nome, email, password, role } = req.body;
   
   if (!nome || !email || !password) {
@@ -72,20 +110,25 @@ router.post('/', async (req, res) => {
     }
     
     // Hash da password
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
-    
+
+    // Gerar segredo MFA (M-02)
+    const mfaSecret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
+    const qrCodeUrl = await QRCode.toDataURL(mfaSecret.otpauth_url);
+
+    const safeRole = ['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(role) ? role : 'ASSISTENTE';
     const result = await pool.query(
-      `INSERT INTO utilizadores (nome, email, password_hash, role, ativo, created_at, mfa_enabled)
-       VALUES ($1, $2, $3, $4, true, NOW(), false)
+      `INSERT INTO utilizadores (nome, email, password_hash, role, ativo, created_at, mfa_enabled, mfa_secret)
+       VALUES ($1, $2, $3, $4, true, NOW(), true, $5)
        RETURNING id, nome, email, role, created_at`,
-      [nome, email, passwordHash, role || 'ASSISTENTE']
+      [nome, email, passwordHash, safeRole, mfaSecret.base32]
     );
-    
+
     res.status(201).json({
       message: 'Utilizador criado com sucesso',
       user: result.rows[0],
-      qrCodeUrl: null
+      mfa: { enabled: true, qrCodeUrl }
     });
   } catch (error) {
     console.error('Erro ao criar utilizador:', error);
@@ -97,8 +140,8 @@ router.post('/', async (req, res) => {
  * PUT /api/utilizadores/:id
  * Atualizar utilizador
  */
-router.put('/:id', async (req, res) => {
-  const { nome, email, role, ativo } = req.body;
+router.put('/:id', requireRole('ADMIN'), async (req, res) => {
+  const { nome, email, role, ativo, telefone } = req.body;
   
   try {
     const result = await pool.query(
@@ -106,10 +149,11 @@ router.put('/:id', async (req, res) => {
        SET nome = COALESCE($1, nome), 
            email = COALESCE($2, email), 
            role = COALESCE($3, role),
-           ativo = COALESCE($4, ativo)
-       WHERE id = $5
-       RETURNING id, nome, email, role, ativo, created_at`,
-      [nome || null, email || null, role || null, ativo !== undefined ? ativo : null, req.params.id]
+           ativo = COALESCE($4, ativo),
+           telefone = COALESCE($5, telefone)
+       WHERE id = $6
+       RETURNING id, nome, email, role, ativo, created_at, telefone`,
+      [nome || null, email || null, role || null, ativo !== undefined ? ativo : null, telefone !== undefined ? telefone : null, req.params.id]
     );
     
     if (result.rows.length === 0) {
@@ -127,7 +171,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/utilizadores/:id
  * Deletar utilizador
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
   try {
     const result = await pool.query(
       'DELETE FROM utilizadores WHERE id = $1 RETURNING id',
@@ -168,6 +212,10 @@ router.get('/:id/assinatura', async (req, res) => {
  * Guardar assinatura digital do utilizador
  */
 router.put('/:id/assinatura', async (req, res) => {
+  // Apenas o próprio utilizador ou ADMIN pode guardar a assinatura
+  if (req.user.role !== 'ADMIN' && req.user.id !== parseInt(req.params.id)) {
+    return res.status(403).json({ error: 'Permissão insuficiente' });
+  }
   const { assinatura } = req.body;
   if (!assinatura) return res.status(400).json({ error: 'Assinatura em falta' });
   try {

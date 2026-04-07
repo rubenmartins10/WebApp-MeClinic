@@ -12,7 +12,7 @@ class User {
    */
   static async findByEmail(email) {
     const result = await pool.query(
-      'SELECT * FROM utilizadores WHERE email = $1',
+      'SELECT id, nome, email, role, ativo, password_hash, mfa_enabled, mfa_secret, telefone FROM utilizadores WHERE email = $1',
       [email]
     );
     return result.rows[0] || null;
@@ -44,7 +44,7 @@ class User {
    * Criar novo utilizador
    */
   static async create(nome, email, password, role = 'USER') {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
 

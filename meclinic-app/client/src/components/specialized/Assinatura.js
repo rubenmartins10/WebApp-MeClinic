@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useContext } from 'react';
 import { ThemeContext } from '../../contexts/ThemeContext';
 import { LanguageContext } from '../../contexts/LanguageContext';
 import { Eraser, Save, Edit3, Plus, Trash2, User, X, Star } from 'lucide-react';
+import apiService from '../../services/api';
 
 
 
@@ -12,6 +13,7 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
   const { t } = useContext(LanguageContext);
 
   const currentUser = JSON.parse(localStorage.getItem('meclinic_user')) || {};
+  const isAdmin = currentUser.role === 'ADMIN';
   // Array of { id, signature, nome }
   const [signatures, setSignatures] = useState([]);
   const [mode, setMode] = useState('loading'); // 'loading' | 'view' | 'draw'
@@ -34,29 +36,21 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
 
   const persistSignatures = async (newList) => {
     const payload = JSON.stringify({ signatures: newList });
-    const token = localStorage.getItem('meclinic_token');
-    const res = await fetch(`/api/utilizadores/${currentUser.id}/assinatura`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ assinatura: payload })
-    });
-    return res.ok;
+    await apiService.put(`/api/utilizadores/${currentUser.id}/assinatura`, { assinatura: payload });
+    return true;
   };
 
   useEffect(() => {
     if (!currentUser.id) { setMode('view'); return; }
-    const token = localStorage.getItem('meclinic_token');
-    fetch(`/api/utilizadores/${currentUser.id}/assinatura`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(r => r.json())
+    apiService.get('/api/utilizadores/assinaturas-clinica')
       .then(data => {
-        const list = parseStored(data.assinatura);
+        const list = Array.isArray(data.assinaturas) ? data.assinaturas : [];
         setSignatures(list);
         if (list.length > 0) onSaveSignature(list[0].signature);
         setMode('view');
       })
       .catch(() => setMode('view'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
 
   // Init canvas when entering draw mode
@@ -201,7 +195,7 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
     return <div style={{ padding: '20px', textAlign: 'center', color: theme.subText, fontSize: '13px', animation: 'fadeIn 0.2s' }}>{t('settings.signature.loading')}</div>;
   }
 
-  if (mode === 'draw') {
+  if (mode === 'draw' && isAdmin) {
     return (
       <div key="draw" style={{ display: 'flex', flexDirection: 'column', gap: '14px', animation: 'fadeIn 0.2s' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -252,13 +246,15 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
   // view mode
   return (
     <div key="view" style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.2s' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="button"
-          onClick={() => { setEditingId(null); setNomeInput(''); setMode('draw'); }}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#2563eb', border: 'none', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: '500', padding: '7px 14px', borderRadius: '8px' }}>
-          <Plus size={15} /> {t('settings.signature.add')}
-        </button>
-      </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button"
+            onClick={() => { setEditingId(null); setNomeInput(''); setMode('draw'); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#2563eb', border: 'none', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: '500', padding: '7px 14px', borderRadius: '8px' }}>
+            <Plus size={15} /> {t('settings.signature.add')}
+          </button>
+        </div>
+      )}
 
       {signatures.length === 0 && (
         <p style={{ color: theme.subText, fontSize: '13px', margin: 0 }}>{t('settings.signature.none')}</p>
@@ -287,17 +283,19 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
 
           <img src={sig.signature} alt="Assinatura" style={{ maxHeight: '90px', maxWidth: '100%', display: 'block' }} />
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button"
-              onClick={() => { setEditingId(sig.id); setNomeInput(sig.nome); setMode('draw'); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: `1px solid ${theme.border}`, color: theme.text, cursor: 'pointer', fontSize: '12px', padding: '5px 10px', borderRadius: '7px' }}>
-              <Edit3 size={13} /> {t('settings.signature.edit')}
-            </button>
-            <button type="button" onClick={() => deleteSignature(sig.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '5px 10px', borderRadius: '7px' }}>
-              <Trash2 size={13} /> {t('settings.signature.remove')}
-            </button>
-          </div>
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button"
+                onClick={() => { setEditingId(sig.id); setNomeInput(sig.nome); setMode('draw'); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: `1px solid ${theme.border}`, color: theme.text, cursor: 'pointer', fontSize: '12px', padding: '5px 10px', borderRadius: '7px' }}>
+                <Edit3 size={13} /> {t('settings.signature.edit')}
+              </button>
+              <button type="button" onClick={() => deleteSignature(sig.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '5px 10px', borderRadius: '7px' }}>
+                <Trash2 size={13} /> {t('settings.signature.remove')}
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

@@ -7,9 +7,14 @@ const logger = require('../utils/logger');
 const tokenStore = require('../utils/tokenStore');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || JWT_SECRET;
 const ACCESS_TOKEN_EXPIRY = '1h';
 const REFRESH_TOKEN_EXPIRY = process.env.JWT_EXPIRY || '7d';
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias em ms
+// Per-account brute-force protection (M-04)
+const loginAttempts = new Map();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
 
 /**
  * AuthController - Lógica de autenticação
@@ -44,8 +49,7 @@ class AuthController {
         token,
         mfa: {
           enabled: true,
-          qrCodeUrl,
-          secret: mfaSecret
+          qrCodeUrl
         }
       });
 
@@ -59,17 +63,31 @@ class AuthController {
    */
   static async login(req, res, next) {
     try {
-      const { email, password, mfaToken } = req.body;
+      const { email, password, mfaToken, location } = req.body;
+
+      // Verificar lockout por conta (M-04)
+      const attemptKey = (email || '').toLowerCase();
+      const attempts = loginAttempts.get(attemptKey) || { count: 0, lockedUntil: null };
+      if (attempts.lockedUntil && Date.now() < attempts.lockedUntil) {
+        const remaining = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
+        throw new AppError(`Conta temporariamente bloqueada. Tente novamente em ${remaining} min.`, 429);
+      }
 
       // Buscar utilizador
       const user = await User.findByEmail(email);
       if (!user) {
+        attempts.count++;
+        if (attempts.count >= MAX_LOGIN_ATTEMPTS) { attempts.lockedUntil = Date.now() + LOCKOUT_MS; attempts.count = 0; }
+        loginAttempts.set(attemptKey, attempts);
         throw new AppError('Credenciais incorretas.', 401);
       }
 
       // Verificar password
       const validPassword = await User.verifyPassword(password, user.password_hash);
       if (!validPassword) {
+        attempts.count++;
+        if (attempts.count >= MAX_LOGIN_ATTEMPTS) { attempts.lockedUntil = Date.now() + LOCKOUT_MS; attempts.count = 0; }
+        loginAttempts.set(attemptKey, attempts);
         throw new AppError('Credenciais incorretas.', 401);
       }
 
@@ -85,6 +103,9 @@ class AuthController {
         }
       }
 
+      // Auth bem-sucedida — limpar lockout (M-04)
+      loginAttempts.delete(attemptKey);
+
       // Gerar access token (1h) + refresh token (7d)
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
@@ -94,13 +115,13 @@ class AuthController {
 
       const refreshToken = jwt.sign(
         { id: user.id, type: 'refresh' },
-        JWT_SECRET,
+        REFRESH_TOKEN_SECRET,
         { expiresIn: REFRESH_TOKEN_EXPIRY }
       );
       tokenStore.set(refreshToken, user.id, REFRESH_TOKEN_TTL_MS);
 
-      // Registar atividade de login (async, sem await para não bloquear resposta)
-      AuthController.logLoginActivity(user.id, req).catch(err => logger.error('Log de login falhou:', { message: err.message }));
+      // Registar atividade de login e obter session_id
+      const sessionId = await AuthController.logLoginActivity(user.id, req, location);
 
       res.json({
         message: 'Login realizado com sucesso!',
@@ -108,10 +129,12 @@ class AuthController {
           id: user.id,
           nome: user.nome,
           email: user.email,
-          role: user.role
+          role: user.role,
+          telefone: user.telefone || null
         },
         token,
-        refreshToken
+        refreshToken,
+        sessionId
       });
 
     } catch (err) {
@@ -142,33 +165,41 @@ class AuthController {
 
   /**
    * Registar atividade de login
+   * @returns {string|null} session_id criado
    */
-  static async logLoginActivity(userId, req) {
+  static async logLoginActivity(userId, req, location) {
     try {
       const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown';
       const userAgent = req.headers['user-agent'] || 'Unknown';
       
-      // Tentar extrair informações do dispositivo do user-agent
-      let deviceInfo = 'Browser Desconhecido';
-      if (userAgent.includes('Chrome')) deviceInfo = 'Chrome';
-      if (userAgent.includes('Firefox')) deviceInfo = 'Firefox';
-      if (userAgent.includes('Safari')) deviceInfo = 'Safari';
-      if (userAgent.includes('Edge')) deviceInfo = 'Edge';
-      if (userAgent.includes('Windows')) deviceInfo += ' - Windows';
-      if (userAgent.includes('Mac')) deviceInfo += ' - macOS';
-      if (userAgent.includes('Android')) deviceInfo = 'Android App';
-      if (userAgent.includes('iPhone')) deviceInfo = 'iPhone Safari';
-      
+      // Browser detection (order matters: Edge/Opera before Chrome)
+      let browser = 'Browser Desconhecido';
+      if (userAgent.includes('Edg/')) browser = 'Edge';
+      else if (userAgent.includes('OPR/') || userAgent.includes('Opera')) browser = 'Opera';
+      else if (userAgent.includes('Chrome')) browser = 'Chrome';
+      else if (userAgent.includes('Firefox')) browser = 'Firefox';
+      else if (userAgent.includes('Safari')) browser = 'Safari';
+
+      let os = '';
+      if (userAgent.includes('Windows')) os = 'Windows';
+      else if (userAgent.includes('Mac')) os = 'macOS';
+      else if (userAgent.includes('Android')) os = 'Android';
+      else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+      else if (userAgent.includes('Linux')) os = 'Linux';
+
+      const deviceInfo = os ? `${browser} · ${os}` : browser;
       const sessionId = require('crypto').randomBytes(16).toString('hex');
+      const loc = (typeof location === 'string' && location.trim()) ? location.trim().substring(0, 200) : 'Desconhecido';
 
       await pool.query(
-        `INSERT INTO activity_log (user_id, action_type, description, device_info, ip_address, user_agent, status, session_id, location)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [userId, 'LOGIN', 'Login bem-sucedido', deviceInfo, ipAddress, userAgent, 'success', sessionId, 'Portugal']
+        `INSERT INTO activity_log (user_id, action_type, description, device_info, ip_address, user_agent, status, session_id, location, is_active, last_seen)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW())`,
+        [userId, 'LOGIN', 'Login bem-sucedido', deviceInfo, ipAddress, userAgent.substring(0, 499), 'success', sessionId, loc]
       );
+      return sessionId;
     } catch (err) {
-      // Falhar silenciosamente para não interromper o login
       logger.error('Erro ao registar atividade de login:', { message: err.message });
+      return null;
     }
   }
 
@@ -187,7 +218,7 @@ class AuthController {
       // Validar assinatura JWT
       let decoded;
       try {
-        decoded = jwt.verify(refreshToken, JWT_SECRET);
+        decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, { algorithms: ['HS256'] });
       } catch {
         tokenStore.revoke(refreshToken);
         throw new AppError('Refresh token inválido', 401, { reason: 'invalid_refresh' });

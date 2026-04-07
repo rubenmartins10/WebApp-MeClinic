@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
@@ -20,6 +20,38 @@ const Auth = ({ onLogin }) => {
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Pedir geolocalização ao carregar a página
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`, {
+              headers: { 'Accept-Language': 'pt' }
+            });
+            const geo = await resp.json();
+            const city = geo.address?.city || geo.address?.town || geo.address?.village || '';
+            const country = geo.address?.country || '';
+            setUserLocation(city && country ? `${city}, ${country}` : country || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+          } catch {
+            setUserLocation(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+          }
+        },
+        () => { /* Permissão recusada — localização ficará como 'Desconhecido' no backend */ }
+      );
+    }
+  }, []);
+
+  const pwdRules = [
+    { key: 'len',     label: 'Mínimo 7 caracteres',  test: v => v.length >= 7 },
+    { key: 'upper',   label: '1 letra maiúscula',     test: v => /[A-Z]/.test(v) },
+    { key: 'num',     label: '1 número',              test: v => /[0-9]/.test(v) },
+    { key: 'special', label: '1 carácter especial',   test: v => /[^A-Za-z0-9]/.test(v) },
+  ];
+  const pwdValid = (v) => pwdRules.every(r => r.test(v));
 
   const showNotif = (type, message) => {
     setNotification({ show: true, type, message });
@@ -40,19 +72,22 @@ const Auth = ({ onLogin }) => {
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, ...(authMode === 'LOGIN' && userLocation ? { location: userLocation } : {}) })
       });
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error || data.errors || data.message || 'Ocorreu um erro.');
 
       if (authMode === 'REGISTER') {
+        if (!pwdValid(formData.password)) { setError('A palavra-passe não cumpre os requisitos de segurança.'); setLoading(false); return; }
         setQrCode(data.mfa?.qrCodeUrl || data.qrCodeUrl);
         setFormData({ ...formData, password: '', mfaToken: '' });
       } else {
         localStorage.setItem('token', data.token);
         if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
+        if (data.sessionId) localStorage.setItem('meclinic_session_id', data.sessionId);
         localStorage.setItem('meclinic_user', JSON.stringify(data.user));
+        localStorage.setItem('meclinic_login_at', new Date().toISOString());
         if (onLogin) onLogin(data.user);
         navigate('/dashboard');
       }
@@ -84,6 +119,10 @@ const Auth = ({ onLogin }) => {
       showNotif('error', t('auth.reset.mismatch'));
       return;
     }
+    if (!pwdValid(formData.password)) {
+      showNotif('error', 'A palavra-passe não cumpre os requisitos de segurança.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -107,7 +146,18 @@ const Auth = ({ onLogin }) => {
   const iconStyle = { position: 'absolute', left: '15px', top: '15px', color: '#64748b' };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: theme.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.3s ease', position: 'relative', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: theme.isDark ? '#060d1f' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.3s ease', position: 'relative', padding: '20px', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes floatOrb { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(40px,-60px) scale(1.1)} 66%{transform:translate(-30px,40px) scale(0.95)} }
+        @keyframes floatOrb2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-50px,40px) scale(0.9)} 66%{transform:translate(60px,-30px) scale(1.05)} }
+        @keyframes floatOrb3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,50px) scale(1.08)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+      {/* Background orbs */}
+      <div style={{ position:'fixed', top:'-10%', left:'-5%', width:'420px', height:'420px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(37,99,235,0.25) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 70%)', animation:'floatOrb 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:'500px', height:'500px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)', animation:'floatOrb2 18s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', top:'40%', right:'15%', width:'300px', height:'300px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)', animation:'floatOrb3 22s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', top:'20%', left:'20%', width:'250px', height:'250px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 70%)', animation:'floatOrb2 26s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }} />
       
       <button onClick={toggleTheme} style={{ position: 'absolute', top: '30px', right: '30px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.text, padding: '12px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', transition: 'all 0.2s' }}>
         {theme.isDark ? <Sun size={24} color="#fbbf24" /> : <Moon size={24} color="#64748b" />}
@@ -120,10 +170,10 @@ const Auth = ({ onLogin }) => {
         </div>
       )}
 
-      <div style={{ backgroundColor: theme.cardBg, padding: '50px 40px', borderRadius: '24px', width: '100%', maxWidth: '420px', boxShadow: theme.isDark ? '0 25px 50px -12px rgba(0,0,0,0.8)' : '0 25px 50px -12px rgba(0,0,0,0.1)', border: `1px solid ${theme.border}`, transition: 'all 0.3s ease' }}>
+      <div style={{ backgroundColor: theme.cardBg, padding: '50px 40px', borderRadius: '24px', width: '100%', maxWidth: '420px', boxShadow: theme.isDark ? '0 25px 50px -12px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)' : '0 25px 50px -12px rgba(0,0,0,0.12)', border: `1px solid ${theme.border}`, transition: 'all 0.3s ease', position: 'relative', zIndex: 1 }}>
         
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <img src={logo} alt="MeClinic Logo" style={{ height: '60px', marginBottom: '15px', filter: theme.isDark ? 'drop-shadow(0px 0px 2px rgba(255,255,255,0.3))' : 'none' }} />
+          <img src={logo} alt="MeClinic Logo" style={{ height: '150px', marginBottom: '10px', filter: theme.isDark ? 'drop-shadow(0px 4px 12px rgba(180,120,60,0.5)) drop-shadow(0px 0px 3px rgba(255,255,255,0.15))' : 'drop-shadow(0px 4px 16px rgba(180,120,60,0.35))', transition: 'filter 0.3s' }} />
           
           {authMode === 'REGISTER' && (
             <><h1 style={{ margin: '0 0 10px 0', color: theme.text, fontSize: '24px', fontWeight: '800' }}>{t('auth.register.title')}</h1>
@@ -182,6 +232,32 @@ const Auth = ({ onLogin }) => {
                   <Lock size={20} style={iconStyle} />
                   <input type="password" name="password" placeholder={t('auth.login.pass')} value={formData.password} onChange={handleChange} style={inputStyle} required />
                 </div>
+                {authMode === 'REGISTER' && formData.password.length > 0 && (() => {
+                  const met = pwdRules.filter(r => r.test(formData.password)).length;
+                  const strengthColor = met <= 1 ? '#ef4444' : met === 2 ? '#f59e0b' : met === 3 ? '#3b82f6' : '#10b981';
+                  return (
+                    <div style={{ marginTop: '-14px', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+                        {[0,1,2,3].map(i => (
+                          <div key={i} style={{ flex: 1, height: '3px', borderRadius: '2px', backgroundColor: i < met ? strengthColor : theme.border, transition: 'background-color 0.3s' }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {pwdRules.map(r => {
+                          const ok = r.test(formData.password);
+                          return (
+                            <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: `1.5px solid ${ok ? '#10b981' : theme.border}`, backgroundColor: ok ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                                {ok && <svg width="8" height="8" viewBox="0 0 8 8"><polyline points="1.5,4 3,5.5 6.5,2" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <span style={{ fontSize: '12px', color: ok ? theme.subText : theme.subText, opacity: ok ? 1 : 0.5, transition: 'opacity 0.2s' }}>{r.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {authMode === 'LOGIN' && (
                   <div style={{ position: 'relative', marginBottom: '10px' }}>
                     <Shield size={20} style={iconStyle} />
@@ -236,6 +312,32 @@ const Auth = ({ onLogin }) => {
                   <Lock size={20} style={iconStyle} />
                   <input type="password" placeholder={t('auth.reset.new_pass')} required style={inputStyle} value={formData.password} onChange={handleChange} name="password" />
                 </div>
+                {formData.password.length > 0 && (() => {
+                  const met = pwdRules.filter(r => r.test(formData.password)).length;
+                  const strengthColor = met <= 1 ? '#ef4444' : met === 2 ? '#f59e0b' : met === 3 ? '#3b82f6' : '#10b981';
+                  return (
+                    <div style={{ marginTop: '-14px', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+                        {[0,1,2,3].map(i => (
+                          <div key={i} style={{ flex: 1, height: '3px', borderRadius: '2px', backgroundColor: i < met ? strengthColor : theme.border, transition: 'background-color 0.3s' }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {pwdRules.map(r => {
+                          const ok = r.test(formData.password);
+                          return (
+                            <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: `1.5px solid ${ok ? '#10b981' : theme.border}`, backgroundColor: ok ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                                {ok && <svg width="8" height="8" viewBox="0 0 8 8"><polyline points="1.5,4 3,5.5 6.5,2" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <span style={{ fontSize: '12px', color: theme.subText, opacity: ok ? 1 : 0.5, transition: 'opacity 0.2s' }}>{r.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div style={{ position: 'relative' }}>
                   <Lock size={20} style={iconStyle} />
                   <input type="password" placeholder={t('auth.reset.confirm_pass')} required style={inputStyle} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} name="confirmPassword" />

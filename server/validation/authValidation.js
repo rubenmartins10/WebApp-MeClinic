@@ -32,6 +32,9 @@ exports.loginSchema = Joi.object({
   password: commonPatterns.password,
   mfaToken: Joi.string().optional().pattern(/^\d{6}$/).messages({
     'string.pattern.base': 'MFA token deve ter 6 dígitos'
+  }),
+  location: Joi.string().optional().max(200).allow('').messages({
+    'string.max': 'Localização demasiado longa'
   })
 }).strict();
 

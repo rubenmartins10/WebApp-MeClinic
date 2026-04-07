@@ -61,7 +61,7 @@ router.post(
 router.put(
   '/:id',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -78,7 +78,7 @@ router.put(
 router.put(
   '/:id/marcar-realizada',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -110,7 +110,7 @@ router.put(
 router.put(
   '/:id/cancelar',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();

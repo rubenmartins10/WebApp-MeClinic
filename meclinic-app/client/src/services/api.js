@@ -12,6 +12,8 @@ const clearAuth = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('meclinic_user');
+  localStorage.removeItem('meclinic_login_at');
+  localStorage.removeItem('meclinic_session_id');
   window.location.href = '/';
 };
 

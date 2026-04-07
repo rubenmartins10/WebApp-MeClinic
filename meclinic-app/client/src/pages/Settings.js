@@ -4,7 +4,8 @@ import {
   Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, AlertCircle, Lock, Download,
   Trash2, Activity, LogIn, AlertTriangle, Music, Zap, Wind, Sparkles, Play,
   Circle, Music2, Waves, Disc, Airplay, Repeat, TrendingUp, TrendingDown,
-  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3
+  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3,
+  Monitor // eslint-disable-line no-unused-vars
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -24,7 +25,10 @@ const Settings = () => {
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [showPushModal, setShowPushModal] = useState(false);
+  const [showLogoutAllModal, setShowLogoutAllModal] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
   const isAdmin = user.role === 'ADMIN';
@@ -33,12 +37,35 @@ const Settings = () => {
   const [perfilData, setPerfilData] = useState({
     nome: user.nome || '',
     email: user.email || '',
+    telefone: user.telefone || '',
     cargo: user.role || 'Assistente',
     idioma: language,
     timeFormat: localStorage.getItem('meclinic_time_format') || '24h',
-    ultimoLogin: '2024-01-15T10:30:00Z',
-    dataAcesso: '12 de Janeiro de 2024'
   });
+
+  // Último login em tempo real
+  const formatLoginTime = (isoStr) => {
+    if (!isoStr) return 'N/A';
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return 'agora mesmo';
+    if (diffMins < 60) return `há ${diffMins} min`;
+    if (diffHours < 24) return `há ${diffHours}h`;
+    if (diffDays < 7) return `há ${diffDays} dias`;
+    return d.toLocaleString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  const [ultimoLoginDisplay, setUltimoLoginDisplay] = useState(() => formatLoginTime(localStorage.getItem('meclinic_login_at')));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUltimoLoginDisplay(formatLoginTime(localStorage.getItem('meclinic_login_at')));
+    }, 60000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Estado de segurança
   const [segurancaData, setSegurancaData] = useState({
@@ -91,19 +118,40 @@ const Settings = () => {
   const [loginHistory, setLoginHistory] = useState([]);
   const [, setLoadingActivity] = useState(true);
 
+  // Detecção de browser correta (Edge/Opera têm 'Chrome' no UA — verificar primeiro)
+  const detectBrowser = (ua = navigator.userAgent) => {
+    if (/Edg\//.test(ua))    return 'Microsoft Edge';
+    if (/OPR\/|Opera/.test(ua)) return 'Opera';
+    if (/Brave/.test(ua))   return 'Brave';
+    if (/Chrome\//.test(ua)) return 'Google Chrome';
+    if (/Firefox\//.test(ua)) return 'Firefox';
+    if (/Safari\//.test(ua)) return 'Safari';
+    return 'Browser';
+  };
+
+  const detectOS = (ua = navigator.userAgent) => {
+    if (/Windows NT/.test(ua)) return 'Windows';
+    if (/Mac OS X/.test(ua)) return 'macOS';
+    if (/Linux/.test(ua)) return 'Linux';
+    if (/Android/.test(ua)) return 'Android';
+    if (/iPhone|iPad/.test(ua)) return 'iOS';
+    return 'Desconhecido';
+  };
+
   // Sessão atual — sempre visível independentemente do backend
+  const currentSessionId = localStorage.getItem('meclinic_session_id');
   const currentSession = {
     id: 'current',
+    session_id: currentSessionId,
     user: user.nome || 'Utilizador',
     role: user.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'ASSISTENTE',
-    device: navigator.userAgent.includes('Chrome') ? 'Google Chrome'
-          : navigator.userAgent.includes('Firefox') ? 'Mozilla Firefox'
-          : navigator.userAgent.includes('Safari') ? 'Safari'
-          : 'Browser',
+    device: detectBrowser(),
+    os: detectOS(),
     location: 'Este dispositivo',
     lastActivity: new Date(),
-    loginTime: new Date(),
+    loginTime: new Date(localStorage.getItem('meclinic_login_at') || new Date()),
     status: 'active',
+    really_active: true,
     current: true
   };
 
@@ -113,17 +161,24 @@ const Settings = () => {
       try {
         const data = await apiService.get('/api/auth/activity');
 
-        const formattedSessions = (data.activeSessions || []).map((session, index) => ({
-          id: session.id || index,
-          user: session.user_name || 'Utilizador',
-          role: session.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
-          device: session.device_info || 'Browser',
-          location: session.location || 'Desconhecido',
-          lastActivity: new Date(session.last_activity),
-          loginTime: new Date(session.login_time),
-          status: 'active',
-          current: session.user_id === user.id && index === 0
-        }));
+        const formattedSessions = (data.activeSessions || []).map((session, index) => {
+          const isCurrent = currentSessionId && session.session_id === currentSessionId;
+          return {
+            id: session.id || index,
+            session_id: session.session_id,
+            user: session.user_name || 'Utilizador',
+            user_id: session.user_id,
+            role: session.role === 'Admin' ? 'ADMIN' : 'ASSISTENTE',
+            device: session.device_info || 'Browser',
+            location: session.location || 'Desconhecido',
+            lastActivity: new Date(session.last_activity),
+            loginTime: new Date(session.login_time),
+            status: session.really_active ? 'active' : 'inactive',
+            really_active: !!session.really_active,
+            is_active: session.is_active,
+            current: isCurrent
+          };
+        });
 
         const formattedHistory = (data.loginHistory || []).map((login, index) => ({
           id: login.id || index,
@@ -136,10 +191,17 @@ const Settings = () => {
           status: login.status || 'success'
         }));
 
-        setSessionsAtivas(formattedSessions.length > 0 ? formattedSessions : [currentSession]);
+        // Garantir que a sessão atual aparece e está marcada como ativa
+        const hasCurrentSession = formattedSessions.some(s => s.current);
+        if (!hasCurrentSession) {
+          setSessionsAtivas([currentSession, ...formattedSessions]);
+        } else {
+          setSessionsAtivas(formattedSessions);
+        }
         setLoginHistory(formattedHistory);
-      } catch {
+      } catch (err) {
         setSessionsAtivas([currentSession]);
+        setLoginHistory([]);
       } finally {
         setLoadingActivity(false);
       }
@@ -148,6 +210,21 @@ const Settings = () => {
     fetchActivityData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
+
+  // Heartbeat — manter sessão actual como "ativa" a cada 2 minutos
+  useEffect(() => {
+    const sessionId = localStorage.getItem('meclinic_session_id');
+    if (!sessionId) return;
+
+    const sendHeartbeat = () => {
+      apiService.post('/api/auth/heartbeat', { sessionId }).catch(() => {});
+    };
+
+    // Enviar heartbeat imediatamente e depois a cada 2 minutos
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Calcular força de senha
   const calculatePasswordStrength = (password) => {
@@ -243,12 +320,75 @@ const Settings = () => {
       setTimeFormat(perfilData.timeFormat || timeFormat);
     }
 
+    if (activeTab === 'perfil' && isAdmin) {
+      if (perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, ''))) {
+        showNotif('error', 'Número de telemóvel inválido.');
+        return;
+      }
+      if (!perfilData.nome || !perfilData.nome.trim()) {
+        showNotif('error', 'O nome não pode estar vazio.');
+        return;
+      }
+      const changed = perfilData.nome !== (user.nome || '') ||
+                      perfilData.email !== (user.email || '') ||
+                      perfilData.telefone !== (user.telefone || '');
+      if (changed) {
+        try {
+          await apiService.put(`/api/utilizadores/${user.id}`, {
+            nome: perfilData.nome,
+            email: perfilData.email,
+            telefone: perfilData.telefone
+          });
+          const updatedUser = { ...user, nome: perfilData.nome, email: perfilData.email, telefone: perfilData.telefone };
+          localStorage.setItem('meclinic_user', JSON.stringify(updatedUser));
+        } catch {
+          showNotif('error', t('settings.alert.server_error'));
+          return;
+        }
+      }
+    }
+
     showNotif('success', t('settings.alert.success'));
   };
 
   const handleLogoutAllSessions = () => {
-    if (window.confirm('Desconectar todos os dispositivos? Terá de fazer login novamente neste dispositivo.')) {
+    setShowLogoutAllModal(true);
+  };
+
+  const confirmarLogoutAll = async () => {
+    setShowLogoutAllModal(false);
+    try {
+      const mySessionId = localStorage.getItem('meclinic_session_id');
+      await apiService.post('/api/auth/terminate-all-sessions', { exceptSessionId: mySessionId });
+      // Atualizar lista: manter apenas a sessão atual
+      setSessionsAtivas(prev => prev.filter(s => s.current));
       showNotif('success', 'Todos os dispositivos foram desconectados.');
+    } catch {
+      showNotif('error', 'Erro ao terminar sessões.');
+    }
+  };
+
+  const handleLogoutSingleSession = async (session) => {
+    // Sessão atual — faz logout do próprio utilizador
+    if (session.current) {
+      try {
+        const sessionId = localStorage.getItem('meclinic_session_id');
+        await apiService.post('/api/auth/logout', { sessionId });
+      } catch { /* ignorar */ }
+      localStorage.removeItem('meclinic_user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('meclinic_login_at');
+      localStorage.removeItem('meclinic_session_id');
+      window.location.href = '/';
+    } else {
+      // Terminar sessão remota via API
+      try {
+        await apiService.post('/api/auth/terminate-session', { sessionId: session.session_id });
+        setSessionsAtivas(prev => prev.filter(s => s.session_id !== session.session_id));
+        showNotif('success', `Sessão de "${session.user}" terminada.`);
+      } catch {
+        showNotif('error', 'Erro ao terminar sessão.');
+      }
     }
   };
 
@@ -497,26 +637,34 @@ const Settings = () => {
   };
 
   const handleDeleteAccount = () => {
-    setShowDeleteConfirm(false);
-    const confirmDelete = window.confirm(
-      'ATENÇÃO: Esta ação é irreversível e eliminará permanentemente a sua conta e todos os seus dados.\n\nEscreva "CONFIRMAR_ELIMINACAO" para proceder.'
-    );
-    
-    if (confirmDelete) {
-      const userInput = prompt('Confirme digitando: CONFIRMAR_ELIMINACAO');
-      if (userInput === 'CONFIRMAR_ELIMINACAO') {
-        // Aqui fazer uma chamada ao API para eliminar a conta
+    // Nova confirmação via modal input: require exact phrase
+    if (deleteLoading) return;
+    if (deleteConfirmText.trim().toUpperCase() !== 'CONFIRMAR_ELIMINACAO') {
+      showNotif('error', 'Por favor escreva CONFIRMAR_ELIMINACAO para confirmar.');
+      return;
+    }
+
+    // Simular chamada ao backend (substituir por API real quando disponível)
+    (async () => {
+      try {
+        setDeleteLoading(true);
         showNotif('warning', 'Conta em processo de eliminação...');
-        // TODO: Implementar chamada ao backend
+        // Se existir endpoint de eliminação, descomente e use:
+        // await apiService.delete(`/api/utilizadores/${user.id}`);
         setTimeout(() => {
           localStorage.removeItem('meclinic_user');
           localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('meclinic_session_id');
+          localStorage.removeItem('meclinic_login_at');
           window.location.href = '/login';
-        }, 2000);
-      } else {
-        showNotif('error', 'Confirmação incorreta. Eliminação cancelada.');
+        }, 1200);
+      } catch (err) {
+        console.error(err);
+        showNotif('error', 'Erro ao eliminar conta.');
+        setDeleteLoading(false);
       }
-    }
+    })();
   };
 
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.nome || 'User')}&background=2563eb&color=fff&rounded=true&bold=true&size=128`;
@@ -656,6 +804,57 @@ const Settings = () => {
 
   return (
     <div style={{ padding: '20px', color: theme.text, maxWidth: '1400px', margin: '0 auto' }}>
+
+      {/* Modal de permissão push — substitui o popup feio do browser */}
+      {showLogoutAllModal && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, backdropFilter: 'blur(6px)',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            width: '420px', borderRadius: '20px',
+            background: theme.isDark ? '#0f172a' : '#ffffff',
+            border: `1px solid ${theme.isDark ? 'rgba(239,68,68,0.3)' : '#e2e8f0'}`,
+            boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+            animation: 'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)'
+          }}>
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #ef4444, #f97316)' }} />
+            <div style={{ padding: '32px' }}>
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '16px', margin: '0 auto 20px',
+                background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(249,115,22,0.15))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid rgba(239,68,68,0.2)'
+              }}>
+                <LogOut size={28} color="#ef4444" />
+              </div>
+              <h3 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '20px', fontWeight: '700', color: theme.isDark ? '#ffffff' : theme.text }}>
+                Desconectar todos os dispositivos
+              </h3>
+              <p style={{ margin: '0 0 28px 0', textAlign: 'center', color: theme.subText, fontSize: '14px', lineHeight: '1.6' }}>
+                Todos os dispositivos onde tem sessão ativa serão desconectados. Terá de fazer login novamente neste dispositivo.
+              </p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setShowLogoutAllModal(false)}
+                  style={{ flex: 1, padding: '13px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarLogoutAll}
+                  style={{ flex: 1, padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #ef4444, #f97316)', color: 'white', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de permissão push — substitui o popup feio do browser */}
       {showPushModal && (
@@ -849,7 +1048,7 @@ const Settings = () => {
                       {t('settings.profile.avatar_desc')}
                     </p>
                     <div style={{ fontSize: '12px', color: theme.subText }}>
-                      <div>Último login: <strong>{perfilData.dataAcesso}</strong></div>
+                      <div>Último login: <strong>{ultimoLoginDisplay}</strong></div>
                     </div>
                   </div>
                 </div>
@@ -872,10 +1071,11 @@ const Settings = () => {
                         <User size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '22px' }} />
                         <input
                           type="text"
-                          style={{ ...inputStyle, paddingLeft: '45px', opacity: 0.7, cursor: 'not-allowed' }}
+                          style={{ ...inputStyle, paddingLeft: '45px', ...(!isAdmin ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
                           value={perfilData.nome}
-                          readOnly
-                          disabled
+                          onChange={isAdmin ? e => setPerfilData({ ...perfilData, nome: e.target.value }) : undefined}
+                          readOnly={!isAdmin}
+                          disabled={!isAdmin}
                         />
                       </div>
                     </div>
@@ -885,22 +1085,45 @@ const Settings = () => {
                         <Mail size={18} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '22px' }} />
                         <input
                           type="email"
-                          style={{ ...inputStyle, paddingLeft: '45px', opacity: 0.7, cursor: 'not-allowed' }}
+                          style={{ ...inputStyle, paddingLeft: '45px', ...(!isAdmin ? { opacity: 0.7, cursor: 'not-allowed' } : {}) }}
                           value={perfilData.email}
-                          readOnly
-                          disabled
+                          onChange={isAdmin ? e => setPerfilData({ ...perfilData, email: e.target.value }) : undefined}
+                          readOnly={!isAdmin}
+                          disabled={!isAdmin}
                         />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Telemóvel</label>
+                      <div style={{ position: 'relative' }}>
+                        <Phone size={18} color={isAdmin && perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, '')) ? '#ef4444' : theme.subText} style={{ position: 'absolute', left: '15px', top: '22px' }} />
+                        <input
+                          type="tel"
+                          placeholder={isAdmin ? '+351 9XX XXX XXX' : '—'}
+                          style={{ ...inputStyle, paddingLeft: '45px', ...(!isAdmin ? { opacity: 0.7, cursor: 'not-allowed' } : {}), ...(isAdmin && perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, '')) ? { borderColor: '#ef4444' } : {}) }}
+                          value={perfilData.telefone}
+                          onChange={isAdmin ? e => setPerfilData({ ...perfilData, telefone: e.target.value }) : undefined}
+                          readOnly={!isAdmin}
+                          disabled={!isAdmin}
+                        />
+                        {isAdmin && perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, '')) && (
+                          <span style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                            Número inválido. Ex: +351 912 345 678
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ padding: '15px 20px', backgroundColor: 'rgba(251, 146, 60, 0.1)', borderRadius: '8px', border: '1px solid rgba(251, 146, 60, 0.3)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <AlertCircle size={18} color="#f97316" />
-                  <span style={{ fontSize: '13px', color: '#ea580c' }}>
-                    {t('settings.profile.contact_admin')}
-                  </span>
-                </div>
+                {!isAdmin && (
+                  <div style={{ padding: '15px 20px', backgroundColor: 'rgba(251, 146, 60, 0.1)', borderRadius: '8px', border: '1px solid rgba(251, 146, 60, 0.3)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <AlertCircle size={18} color="#f97316" />
+                    <span style={{ fontSize: '13px', color: '#ea580c' }}>
+                      {t('settings.profile.contact_admin')}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1580,104 +1803,145 @@ const Settings = () => {
             {/* TAB ATIVIDADE */}
             {activeTab === 'atividade' && (
               <div style={{ animation: 'fadeIn 0.3s' }}>
-                <h2 style={{ margin: '0 0 30px 0', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px', color: theme.isDark ? '#ffffff' : theme.text }}>
+                <h2 style={{ margin: '0 0 8px 0', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px', color: theme.isDark ? '#ffffff' : theme.text }}>
                   Atividade da Conta
                 </h2>
+                <p style={{ margin: '0 0 28px 0', color: theme.subText, fontSize: '14px' }}>
+                  Monitorize os acessos e sessões ativas da tua conta.
+                </p>
 
-                {/* ── Sessões Ativas ── */}
+                {/* ── Sessões ── */}
                 <div style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 6px #10b981' }} />
-                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Sessões Ativas
-                    </h4>
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 8px', borderRadius: '20px' }}>
-                      {sessionsAtivas.length}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 0 3px rgba(16,185,129,0.2)' }} />
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>Sessões</span>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#10b981', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '2px 10px', borderRadius: '20px' }}>
+                      {sessionsAtivas.filter(s => s.really_active || s.current).length} ativa{sessionsAtivas.filter(s => s.really_active || s.current).length !== 1 ? 's' : ''}
                     </span>
+                    <span style={{ fontSize: '11px', color: theme.subText }}>
+                      / {sessionsAtivas.length} total
+                    </span>
+                    {sessionsAtivas.length > 1 && isAdmin && (
+                      <button
+                        onClick={handleLogoutAllSessions}
+                        style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.07)', color: '#ef4444', cursor: 'pointer', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}
+                        onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.5)' })}
+                        onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.3)' })}
+                      >
+                        <LogOut size={11} /> Terminar todas
+                      </button>
+                    )}
                   </div>
 
-                  {sessionsAtivas.map((session) => (
-                    <div key={session.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '16px',
-                      padding: '16px 20px',
-                      backgroundColor: session.current
-                        ? (theme.isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.04)')
-                        : theme.pageBg,
-                      borderRadius: '14px',
-                      border: `1px solid ${session.current ? 'rgba(37,99,235,0.35)' : theme.border}`,
-                      marginBottom: '10px'
-                    }}>
-                      {/* Avatar */}
-                      <div style={{ position: 'relative', flexShrink: 0 }}>
-                        <div style={{
-                          width: '44px', height: '44px', borderRadius: '12px',
-                          background: session.role === 'ADMIN'
-                            ? 'linear-gradient(135deg,#7c3aed,#a78bfa)'
-                            : 'linear-gradient(135deg,#1d4ed8,#60a5fa)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: 'white', fontWeight: '800', fontSize: '18px'
-                        }}>
-                          {session.user.charAt(0).toUpperCase()}
-                        </div>
-                        <div style={{
-                          position: 'absolute', bottom: '-2px', right: '-2px',
-                          width: '12px', height: '12px', borderRadius: '50%',
-                          backgroundColor: '#10b981', border: `2px solid ${theme.cardBg}`
-                        }} />
-                      </div>
-
-                      {/* Info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: '700', fontSize: '14px', color: theme.isDark ? '#f1f5f9' : theme.text }}>
-                            {session.user}
-                          </span>
-                          {session.current && (
-                            <span style={{ fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#2563eb', color: 'white', letterSpacing: '0.3px' }}>
-                              ESTE DISPOSITIVO
-                            </span>
-                          )}
-                          <span style={{
-                            fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
-                            backgroundColor: session.role === 'ADMIN' ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)',
-                            color: session.role === 'ADMIN' ? '#a78bfa' : '#60a5fa'
+                  {sessionsAtivas.map((session) => {
+                    const loginDate = session.loginTime instanceof Date ? session.loginTime : new Date(session.loginTime);
+                    const isAdmin_ = session.role === 'ADMIN';
+                    const isReallyActive = session.really_active || session.current;
+                    const dotColor = isReallyActive ? '#10b981' : '#ef4444';
+                    return (
+                      <div key={session.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '18px',
+                        padding: '20px 22px',
+                        background: session.current
+                          ? (theme.isDark ? 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(37,99,235,0.05))' : 'rgba(37,99,235,0.04)')
+                          : theme.pageBg,
+                        borderRadius: '16px',
+                        border: `1px solid ${session.current ? 'rgba(37,99,235,0.25)' : theme.border}`,
+                        marginBottom: '10px',
+                        boxShadow: session.current ? '0 4px 20px rgba(37,99,235,0.08)' : 'none',
+                        transition: 'all 0.2s',
+                        opacity: isReallyActive ? 1 : 0.7
+                      }}>
+                        {/* Avatar */}
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <div style={{
+                            width: '48px', height: '48px', borderRadius: '14px',
+                            background: isAdmin_
+                              ? 'linear-gradient(135deg, #6d28d9, #8b5cf6)'
+                              : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'white', fontWeight: '800', fontSize: '18px',
+                            boxShadow: isAdmin_
+                              ? '0 4px 12px rgba(139,92,246,0.35)'
+                              : '0 4px 12px rgba(59,130,246,0.35)'
                           }}>
-                            {session.role === 'ADMIN' ? '🔐 Admin' : '👤 Assistente'}
-                          </span>
+                            {session.user.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{
+                            position: 'absolute', bottom: '-3px', right: '-3px',
+                            width: '13px', height: '13px', borderRadius: '50%',
+                            backgroundColor: dotColor, border: `2px solid ${theme.cardBg}`,
+                            boxShadow: isReallyActive ? '0 0 0 2px rgba(16,185,129,0.3)' : '0 0 0 2px rgba(239,68,68,0.3)'
+                          }} />
                         </div>
-                        <div style={{ fontSize: '12px', color: theme.subText, display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                          <span>🖥️ {session.device}</span>
-                          <span>📍 {session.location}</span>
-                          <span>🕐 Login: {session.loginTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      </div>
 
-                      {/* Desconectar */}
-                      {session.current && (
-                        <button onClick={handleLogoutAllSessions} style={{
-                          flexShrink: 0, padding: '7px 14px', borderRadius: '8px',
-                          border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)',
-                          color: '#f59e0b', cursor: 'pointer', fontSize: '12px', fontWeight: '700',
-                          display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.2s'
-                        }}>
-                          <LogOut size={13} /> Desconectar tudo
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: '700', fontSize: '15px', color: theme.isDark ? '#f1f5f9' : theme.text }}>
+                              {session.user}
+                            </span>
+                            {session.current && (
+                              <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 9px', borderRadius: '20px', background: 'linear-gradient(135deg, #2563eb, #3b82f6)', color: 'white', letterSpacing: '0.5px' }}>
+                                ESTE DISPOSITIVO
+                              </span>
+                            )}
+                            <span style={{
+                              fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: '20px',
+                              background: isAdmin_ ? 'rgba(139,92,246,0.12)' : 'rgba(59,130,246,0.12)',
+                              color: isAdmin_ ? '#a78bfa' : '#60a5fa',
+                              border: `1px solid ${isAdmin_ ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)'}`
+                            }}>
+                              {isAdmin_ ? 'Admin' : 'Assistente'}
+                            </span>
+                            {!isReallyActive && (
+                              <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: '20px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                Inativa
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: theme.subText }}>
+                              <Monitor size={13} /> {session.device}{session.os ? ` · ${session.os}` : ''}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: theme.subText }}>
+                              <MapPin size={13} /> {session.location}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: theme.subText }}>
+                              <Clock size={13} /> Login: {loginDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                              {' · '}
+                              {loginDate.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Desconectar — admin pode terminar qualquer sessão; utilizador só a sua */}
+                        {(session.current || isAdmin) && (
+                          <button onClick={() => handleLogoutSingleSession(session)} style={{
+                            flexShrink: 0, padding: '8px 16px', borderRadius: '10px',
+                            border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)',
+                            color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: '700',
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            transition: 'all 0.2s', whiteSpace: 'nowrap'
+                          }}
+                          onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.5)' })}
+                          onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)' })}
+                          >
+                            <LogOut size={13} /> Terminar sessão
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Divisor */}
-                <div style={{ height: '1px', background: theme.border, margin: '0 0 28px' }} />
-
-                {/* ── Histórico de Login ── */}
+                {/* ── Histórico de Logins ── */}
+                <div style={{ height: '1px', background: theme.border, marginBottom: '28px' }} />
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                     <LogIn size={15} color={theme.subText} />
-                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Histórico de Logins
-                    </h4>
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 8px', borderRadius: '20px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>Histórico de Logins</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: '700', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 10px', borderRadius: '20px' }}>
                       {loginHistory.length}
                     </span>
                   </div>
@@ -1685,48 +1949,78 @@ const Settings = () => {
                   {loginHistory.length === 0 ? (
                     <div style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      padding: '40px 20px', borderRadius: '14px',
-                      border: `1px dashed ${theme.border}`, color: theme.subText, gap: '10px'
+                      padding: '48px 20px', borderRadius: '16px',
+                      border: `1px dashed ${theme.border}`, color: theme.subText, gap: '12px',
+                      background: theme.pageBg
                     }}>
-                      <Activity size={32} color={theme.border} />
-                      <span style={{ fontSize: '14px', fontWeight: '600' }}>Sem histórico registado</span>
-                      <span style={{ fontSize: '12px', textAlign: 'center', maxWidth: '280px' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: theme.cardBg, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Activity size={26} color={theme.subText} style={{ opacity: 0.4 }} />
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: theme.isDark ? '#94a3b8' : theme.subText }}>Sem histórico registado</span>
+                      <span style={{ fontSize: '12px', textAlign: 'center', maxWidth: '260px', lineHeight: '1.6' }}>
                         Os próximos logins serão registados aqui com data, dispositivo e localização.
                       </span>
                     </div>
                   ) : (
-                    loginHistory.map((login) => (
-                      <div key={login.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '14px',
-                        padding: '14px 18px', borderRadius: '12px',
-                        border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, marginBottom: '8px'
-                      }}>
-                        <div style={{
-                          width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-                          backgroundColor: login.status === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    loginHistory.map((login) => {
+                      const loginDate = login.data instanceof Date ? login.data : new Date(login.data);
+                      const now = new Date();
+                      const diffMs = now - loginDate;
+                      const diffDays = Math.floor(diffMs / 86400000);
+                      const diffHours = Math.floor(diffMs / 3600000);
+                      const timeAgo = diffDays > 0
+                        ? `há ${diffDays} dia${diffDays > 1 ? 's' : ''}`
+                        : diffHours > 0
+                          ? `há ${diffHours}h`
+                          : 'hoje';
+                      return (
+                        <div key={login.id} style={{
+                          display: 'flex', alignItems: 'center', gap: '16px',
+                          padding: '16px 20px', borderRadius: '14px',
+                          border: `1px solid ${theme.border}`, background: theme.pageBg,
+                          marginBottom: '8px', transition: 'border-color 0.2s'
                         }}>
-                          {login.status === 'success'
-                            ? <CheckCircle size={18} color="#10b981" />
-                            : <XCircle size={18} color="#ef4444" />}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: '700', fontSize: '13px', color: theme.isDark ? '#f1f5f9' : theme.text, marginBottom: '3px' }}>
-                            {login.user}
-                            <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: '600', color: login.status === 'success' ? '#10b981' : '#ef4444' }}>
-                              {login.status === 'success' ? '✓ Sucesso' : '✗ Falha'}
-                            </span>
+                          <div style={{
+                            width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                            background: 'rgba(37,99,235,0.1)',
+                            border: '1px solid rgba(37,99,235,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            <LogIn size={19} color="#3b82f6" />
                           </div>
-                          <div style={{ fontSize: '11px', color: theme.subText, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                            <span>🖥️ {login.dispositivo}</span>
-                            <span>📍 {login.localizacao}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                              <span style={{ fontWeight: '700', fontSize: '13px', color: theme.isDark ? '#f1f5f9' : theme.text }}>
+                                {login.user}
+                              </span>
+                              <span style={{
+                                fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                                background: login.role === 'ADMIN' ? 'rgba(139,92,246,0.1)' : 'rgba(59,130,246,0.1)',
+                                color: login.role === 'ADMIN' ? '#a78bfa' : '#60a5fa',
+                                border: `1px solid ${login.role === 'ADMIN' ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)'}`
+                              }}>
+                                {login.role === 'ADMIN' ? 'Admin' : 'Assistente'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: theme.subText }}>
+                                <Monitor size={11} /> {login.dispositivo}
+                              </span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: theme.subText }}>
+                                <MapPin size={11} /> {login.localizacao}
+                              </span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: theme.subText }}>
+                                <Clock size={11} /> {timeAgo}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '11px', color: theme.subText, textAlign: 'right', flexShrink: 0, lineHeight: '1.5' }}>
+                            {loginDate.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}<br/>
+                            <span style={{ fontWeight: '700' }}>{loginDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                         </div>
-                        <div style={{ fontSize: '11px', color: theme.subText, textAlign: 'right', flexShrink: 0 }}>
-                          {login.dataFormatada}
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
