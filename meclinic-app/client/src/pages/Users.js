@@ -13,6 +13,8 @@ const Users = () => {
   const [notification, setNotification] = useState({ show: false, type: '', message: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showChangeRoleConfirm, setShowChangeRoleConfirm] = useState(null); // { id, nome, newRole }
+  const [mfaForDelete, setMfaForDelete] = useState('');
+  const [mfaForRole, setMfaForRole] = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [novoUser, setNovoUser] = useState({ nome: '', email: '', password: '', role: 'ASSISTENTE' });
@@ -50,12 +52,13 @@ const Users = () => {
     }
 
     try {
-      await apiService.delete(`/api/utilizadores/${showDeleteConfirm}`);
+      await apiService.delete(`/api/utilizadores/${showDeleteConfirm}`, { 'x-mfa-token': mfaForDelete });
       showNotif('success', t('users.msg.removed'));
       carregarUtilizadores();
     } catch (err) {
       showNotif('error', t('users.msg.remove_err'));
     } finally {
+      setMfaForDelete('');
       setShowDeleteConfirm(null);
     }
   };
@@ -63,12 +66,16 @@ const Users = () => {
   const confirmarMudancaRole = async () => {
     if (!showChangeRoleConfirm) return;
     try {
-      await apiService.put(`/api/utilizadores/${showChangeRoleConfirm.id}`, { role: showChangeRoleConfirm.newRole });
+      await apiService.put(`/api/utilizadores/${showChangeRoleConfirm.id}`, {
+        role: showChangeRoleConfirm.newRole,
+        mfaToken: mfaForRole
+      });
       showNotif('success', t('users.msg.role_changed'));
       carregarUtilizadores();
     } catch {
       showNotif('error', t('users.msg.role_err'));
     } finally {
+      setMfaForRole('');
       setShowChangeRoleConfirm(null);
     }
   };
@@ -121,9 +128,17 @@ const Users = () => {
             <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
             <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>{t('users.delete.title')}</h2>
             <p style={{ color: theme.subText, marginBottom: '25px' }}>{t('users.delete.desc')}</p>
+            <input
+              type="text"
+              maxLength="6"
+              value={mfaForDelete}
+              onChange={(e) => setMfaForDelete(e.target.value.replace(/\D/g, ''))}
+              placeholder="Código MFA (6 dígitos)"
+              style={{ ...inputStyle, textAlign: 'center', letterSpacing: '6px', fontWeight: 'bold', marginBottom: '14px' }}
+            />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowDeleteConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.delete.cancel')}</button>
-              <button onClick={confirmarEliminacao} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.delete.confirm')}</button>
+              <button onClick={() => { setShowDeleteConfirm(null); setMfaForDelete(''); }} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.delete.cancel')}</button>
+              <button onClick={confirmarEliminacao} disabled={mfaForDelete.length !== 6} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', flex: 1, fontWeight: 'bold', cursor: mfaForDelete.length === 6 ? 'pointer' : 'not-allowed', opacity: mfaForDelete.length === 6 ? 1 : 0.65 }}>{t('users.delete.confirm')}</button>
             </div>
           </div>
         </div>
@@ -139,9 +154,17 @@ const Users = () => {
                 .replace('{nome}', showChangeRoleConfirm.nome)
                 .replace('{role}', showChangeRoleConfirm.newRole === 'ADMIN' ? t('users.card.role.admin') : t('users.card.role.assistant'))}
             </p>
+            <input
+              type="text"
+              maxLength="6"
+              value={mfaForRole}
+              onChange={(e) => setMfaForRole(e.target.value.replace(/\D/g, ''))}
+              placeholder="Código MFA (6 dígitos)"
+              style={{ ...inputStyle, textAlign: 'center', letterSpacing: '6px', fontWeight: 'bold', marginBottom: '14px' }}
+            />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowChangeRoleConfirm(null)} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.role.change.cancel')}</button>
-              <button onClick={confirmarMudancaRole} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#8b5cf6', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.role.change.confirm')}</button>
+              <button onClick={() => { setShowChangeRoleConfirm(null); setMfaForRole(''); }} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#64748b', color: 'white', flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>{t('users.role.change.cancel')}</button>
+              <button onClick={confirmarMudancaRole} disabled={mfaForRole.length !== 6} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#8b5cf6', color: 'white', flex: 1, fontWeight: 'bold', cursor: mfaForRole.length === 6 ? 'pointer' : 'not-allowed', opacity: mfaForRole.length === 6 ? 1 : 0.65 }}>{t('users.role.change.confirm')}</button>
             </div>
           </div>
         </div>

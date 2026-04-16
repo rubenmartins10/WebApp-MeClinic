@@ -146,7 +146,19 @@ const Auth = ({ onLogin }) => {
   const iconStyle = { position: 'absolute', left: '15px', top: '15px', color: '#64748b' };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: theme.isDark ? '#060d1f' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.3s ease', position: 'relative', padding: '20px', overflow: 'hidden' }}>
+    <div style={{
+      minHeight: '100vh',
+      background: theme.isDark
+        ? '#060d1f'
+        : 'radial-gradient(circle at 15% 15%, rgba(59,130,246,0.16) 0%, rgba(59,130,246,0) 35%), radial-gradient(circle at 85% 20%, rgba(124,58,237,0.14) 0%, rgba(124,58,237,0) 35%), radial-gradient(circle at 80% 80%, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 35%), linear-gradient(135deg, #f8fbff 0%, #eef4ff 45%, #f4f0ff 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'background 0.3s ease',
+      position: 'relative',
+      padding: '20px',
+      overflow: 'hidden'
+    }}>
       <style>{`
         @keyframes floatOrb { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(40px,-60px) scale(1.1)} 66%{transform:translate(-30px,40px) scale(0.95)} }
         @keyframes floatOrb2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-50px,40px) scale(0.9)} 66%{transform:translate(60px,-30px) scale(1.05)} }
@@ -154,10 +166,10 @@ const Auth = ({ onLogin }) => {
         @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
       {/* Background orbs */}
-      <div style={{ position:'fixed', top:'-10%', left:'-5%', width:'420px', height:'420px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(37,99,235,0.25) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 70%)', animation:'floatOrb 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
-      <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:'500px', height:'500px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)', animation:'floatOrb2 18s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
-      <div style={{ position:'fixed', top:'40%', right:'15%', width:'300px', height:'300px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)', animation:'floatOrb3 22s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
-      <div style={{ position:'fixed', top:'20%', left:'20%', width:'250px', height:'250px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 70%)', animation:'floatOrb2 26s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', top:'-10%', left:'-5%', width:'420px', height:'420px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(37,99,235,0.25) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(37,99,235,0.24) 0%, transparent 72%)', animation:'floatOrb 14s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:'500px', height:'500px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 72%)', animation:'floatOrb2 18s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', top:'40%', right:'15%', width:'300px', height:'300px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(16,185,129,0.16) 0%, transparent 72%)', animation:'floatOrb3 22s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', top:'20%', left:'20%', width:'250px', height:'250px', borderRadius:'50%', background: theme.isDark ? 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(245,158,11,0.14) 0%, transparent 72%)', animation:'floatOrb2 26s ease-in-out infinite reverse', pointerEvents:'none', zIndex:0 }} />
       
       <button onClick={toggleTheme} style={{ position: 'absolute', top: '30px', right: '30px', backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, color: theme.text, padding: '12px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', transition: 'all 0.2s' }}>
         {theme.isDark ? <Sun size={24} color="#fbbf24" /> : <Moon size={24} color="#64748b" />}

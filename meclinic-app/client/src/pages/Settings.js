@@ -4,7 +4,7 @@ import {
   Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, AlertCircle, Lock, Download,
   Trash2, Activity, LogIn, AlertTriangle, Music, Zap, Wind, Sparkles, Play,
   Circle, Music2, Waves, Disc, Airplay, Repeat, TrendingUp, TrendingDown,
-  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3, Monitor
+  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3, Monitor, Info, Dot
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -25,6 +25,7 @@ const Settings = () => {
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteMfaToken, setDeleteMfaToken] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showPushModal, setShowPushModal] = useState(false);
   const [showLogoutAllModal, setShowLogoutAllModal] = useState(false);
@@ -646,6 +647,11 @@ const [perfilData, setPerfilData] = useState({
     if (deleteLoading) return;
     if (deleteConfirmText.trim().toUpperCase() !== 'CONFIRMAR_ELIMINACAO') {
       showNotif('error', 'Por favor escreva CONFIRMAR_ELIMINACAO para confirmar.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(deleteMfaToken)) {
+      showNotif('error', 'Insira o código MFA de 6 dígitos.');
       return;
     }
 
@@ -2133,16 +2139,16 @@ const [perfilData, setPerfilData] = useState({
               color: theme.subText
             }}>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#ef4444' }}>✕</span> Perfil e informações pessoais
+                <Dot size={16} color="#ef4444" /> Perfil e informações pessoais
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#ef4444' }}>✕</span> Histórico de sessões
+                <Dot size={16} color="#ef4444" /> Histórico de sessões
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#ef4444' }}>✕</span> Preferências de notificações
+                <Dot size={16} color="#ef4444" /> Preferências de notificações
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#ef4444' }}>✕</span> Todos os registos associados
+                <Dot size={16} color="#ef4444" /> Todos os registos associados
               </li>
             </ul>
 
@@ -2154,10 +2160,37 @@ const [perfilData, setPerfilData] = useState({
               padding: '12px',
               margin: '0 0 24px 0',
               fontSize: '12px',
-              color: theme.subText
+              color: theme.subText,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              justifyContent: 'center'
             }}>
-              ℹ️ Após a confirmação, você será desconectado automaticamente e receberá um email de confirmação.
+              <Info size={14} color="#ef4444" />
+              Após a confirmação, será desconectado automaticamente e receberá um email de confirmação.
             </div>
+
+            <input
+              type="text"
+              maxLength="6"
+              value={deleteMfaToken}
+              onChange={(e) => setDeleteMfaToken(e.target.value.replace(/\D/g, ''))}
+              placeholder="Código MFA (6 dígitos)"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.pageBg,
+                color: theme.text,
+                outline: 'none',
+                textAlign: 'center',
+                letterSpacing: '6px',
+                fontWeight: 'bold',
+                fontSize: '18px',
+                margin: '0 0 16px 0'
+              }}
+            />
 
             {/* Botões */}
             <div style={{
@@ -2166,7 +2199,7 @@ const [perfilData, setPerfilData] = useState({
               justifyContent: 'center'
             }}>
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => { setShowDeleteConfirm(false); setDeleteMfaToken(''); setDeleteConfirmText(''); }}
                 style={{
                   flex: 1,
                   padding: '12px 24px',
@@ -2186,6 +2219,7 @@ const [perfilData, setPerfilData] = useState({
               </button>
               <button
                 onClick={handleDeleteAccount}
+                disabled={deleteMfaToken.length !== 6}
                 style={{
                   flex: 1,
                   padding: '12px 24px',
@@ -2193,13 +2227,14 @@ const [perfilData, setPerfilData] = useState({
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
-                  cursor: 'pointer',
+                  cursor: deleteMfaToken.length === 6 ? 'pointer' : 'not-allowed',
+                  opacity: deleteMfaToken.length === 6 ? 1 : 0.65,
                   fontSize: '14px',
                   fontWeight: 'bold',
                   transition: 'all 0.2s'
                 }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
+                onMouseEnter={(e) => { if (deleteMfaToken.length === 6) e.target.style.backgroundColor = '#dc2626'; }}
+                onMouseLeave={(e) => { e.target.style.backgroundColor = '#ef4444'; }}
               >
                 Eliminar Permanentemente
               </button>

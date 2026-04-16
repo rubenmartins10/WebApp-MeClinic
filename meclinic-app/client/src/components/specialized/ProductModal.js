@@ -185,12 +185,14 @@ const ProductModal = ({ isOpen, onClose, onSave, productToEdit, scannedBarcode, 
             </div>
           </div>
 
-          <label style={labelStyle}>Fotografia do Produto (Gerada ou Manual)</label>
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', marginTop: '15px' }}>
-            <div style={{ width: '80px', height: '80px', borderRadius: '10px', backgroundColor: theme.pageBg, display: 'flex', justifyContent: 'center', alignItems: 'center', border: `1px solid ${theme.border}`, overflow: 'hidden', flexShrink: 0 }}>
-              {formData.imagem_url ? <img src={formData.imagem_url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={30} color={theme.subText} />}
+          <label style={labelStyle}>Fotografia do Produto</label>
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginTop: '10px', marginBottom: '10px' }}>
+            <div style={{ width: '96px', height: '96px', borderRadius: '12px', backgroundColor: theme.pageBg, display: 'flex', justifyContent: 'center', alignItems: 'center', border: `1px solid ${theme.border}`, overflow: 'hidden', flexShrink: 0 }}>
+              {formData.imagem_url ? <img src={formData.imagem_url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={34} color={theme.subText} />}
             </div>
-            <input type="text" style={{ ...inputStyle, flex: 1, marginTop: '15px', fontSize: '11px', color: theme.subText }} value={formData.imagem_url || ''} onChange={e => setFormData({...formData, imagem_url: e.target.value})} placeholder="Cole aqui o link de uma imagem da internet se quiser substituir..." />
+            <div style={{ fontSize: '12px', color: theme.subText, lineHeight: '1.5' }}>
+              A imagem é sugerida automaticamente com base no nome do produto.
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
