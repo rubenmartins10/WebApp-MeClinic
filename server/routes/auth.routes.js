@@ -197,9 +197,9 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
   const isAdmin = req.user.role === 'ADMIN';
 
   try {
-    // Sessões activas: is_active = true E last_seen nos últimos 5 minutos
+    // Sessões activas deduplicadas por session_id (evita repetições infinitas da mesma conta/sessão)
     const activeSessions = await pool.query(
-      `SELECT 
+      `SELECT DISTINCT ON (al.session_id)
         al.id,
         al.user_id,
         u.nome as user_name,
@@ -216,9 +216,10 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
       WHERE al.action_type = 'LOGIN' 
         AND al.status = 'success'
         AND al.created_at > NOW() - INTERVAL '30 days'
-      ORDER BY al.is_active DESC, al.last_seen DESC
-      LIMIT 20`,
-      []
+        AND ($1::boolean = TRUE OR al.user_id = $2)
+      ORDER BY al.session_id, al.last_seen DESC, al.created_at DESC
+      LIMIT 50`,
+      [isAdmin, userId]
     );
 
     // Histórico de login do utilizador (últimos 30 dias)

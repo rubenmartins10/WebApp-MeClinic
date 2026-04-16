@@ -141,9 +141,38 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
  * Atualizar utilizador
  */
 router.put('/:id', requireRole('ADMIN'), async (req, res) => {
-  const { nome, email, role, ativo, telefone } = req.body;
-  
+  const { nome, email, role, ativo, telefone, mfaToken } = req.body;
+
+  if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
+    return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
+  }
+
   try {
+    const adminRes = await pool.query(
+      'SELECT mfa_enabled, mfa_secret FROM utilizadores WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (!adminRes.rows.length) {
+      return res.status(401).json({ error: 'Administrador não encontrado' });
+    }
+
+    const admin = adminRes.rows[0];
+    if (!admin.mfa_enabled || !admin.mfa_secret) {
+      return res.status(401).json({ error: 'MFA não configurado para este administrador' });
+    }
+
+    const mfaValid = speakeasy.totp.verify({
+      secret: admin.mfa_secret,
+      encoding: 'base32',
+      token: String(mfaToken),
+      window: 1
+    });
+
+    if (!mfaValid) {
+      return res.status(401).json({ error: 'Código MFA inválido' });
+    }
+
     const result = await pool.query(
       `UPDATE utilizadores 
        SET nome = COALESCE($1, nome), 
@@ -155,11 +184,11 @@ router.put('/:id', requireRole('ADMIN'), async (req, res) => {
        RETURNING id, nome, email, role, ativo, created_at, telefone`,
       [nome || null, email || null, role || null, ativo !== undefined ? ativo : null, telefone !== undefined ? telefone : null, req.params.id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Utilizador não encontrado' });
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar utilizador:', error);
@@ -172,16 +201,47 @@ router.put('/:id', requireRole('ADMIN'), async (req, res) => {
  * Deletar utilizador
  */
 router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
+  const mfaToken = req.body?.mfaToken || req.headers['x-mfa-token'];
+
+  if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
+    return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
+  }
+
   try {
+    const adminRes = await pool.query(
+      'SELECT mfa_enabled, mfa_secret FROM utilizadores WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (!adminRes.rows.length) {
+      return res.status(401).json({ error: 'Administrador não encontrado' });
+    }
+
+    const admin = adminRes.rows[0];
+    if (!admin.mfa_enabled || !admin.mfa_secret) {
+      return res.status(401).json({ error: 'MFA não configurado para este administrador' });
+    }
+
+    const mfaValid = speakeasy.totp.verify({
+      secret: admin.mfa_secret,
+      encoding: 'base32',
+      token: String(mfaToken),
+      window: 1
+    });
+
+    if (!mfaValid) {
+      return res.status(401).json({ error: 'Código MFA inválido' });
+    }
+
     const result = await pool.query(
       'DELETE FROM utilizadores WHERE id = $1 RETURNING id',
       [req.params.id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Utilizador não encontrado' });
     }
-    
+
     res.json({ message: 'Utilizador removido com sucesso' });
   } catch (error) {
     console.error('Erro ao remover utilizador:', error);

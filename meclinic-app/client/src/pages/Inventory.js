@@ -320,18 +320,15 @@ const Inventory = () => {
               </div>
 
               <div>
-                <label style={labelStyle}>{t('inventory.modal.img_url') || 'URL Imagem'}</label>
-                <input className="form-input" type="text" placeholder="https://link-da-imagem.com" style={inputStyle} value={formData.imagem_url} onChange={e => setFormData({...formData, imagem_url: e.target.value})} />
-                {formData.imagem_url && (
-                  <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, backgroundColor: '#ffffff', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '160px' }}>
-                    <img 
-                      src={formData.imagem_url} 
-                      alt={t('inventory.modal.preview') || 'Pré-visualização'} 
-                      style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'contain' }}
-                      onError={e => { e.target.style.display = 'none'; }}
-                    />
-                  </div>
-                )}
+                <label style={labelStyle}>Link URL</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder="https://link-da-imagem.com"
+                  style={inputStyle}
+                  value={formData.imagem_url}
+                  onChange={e => setFormData({ ...formData, imagem_url: e.target.value })}
+                />
               </div>
 
               <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>

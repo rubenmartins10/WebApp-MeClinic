@@ -1,140 +1,209 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { X, ZoomIn, ZoomOut, Camera, Info, RefreshCw } from 'lucide-react';
+
+const READER_ID = 'reader';
+const SCAN_REGION = { width: 320, height: 180 };
 
 const BarcodeScanner = ({ onScanSuccess, onClose }) => {
   const [zoom, setZoom] = useState(1);
+  const [cameras, setCameras] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState('');
+  const [isStarting, setIsStarting] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+
   const scannerRef = useRef(null);
-  const videoRef = useRef(null);
 
-  useEffect(() => {
-    // Configuração otimizada para código de barras com melhor qualidade
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        fps: 30, // Aumentado de 10 para 30 FPS (melhor detecção)
-        qrbox: { width: 350, height: 200 }, // Caixa maior para código de barras
-        aspectRatio: 1.333,
-        showTorchButtonIfSupported: true, // Mostrar lanterna se disponível
-        zoom: zoom,
-        
-        // Constraints avançadas para câmara
-        facingMode: { ideal: 'environment' }, // Câmara traseira
-        deviceId: undefined,
+  const activeCamera = useMemo(
+    () => cameras.find(c => c.id === selectedCameraId),
+    [cameras, selectedCameraId]
+  );
 
-        // Opções de qualidade de vídeo
-        videoConstraints: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          facingMode: 'environment',
-          aspectRatio: { ideal: 16/9 }
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
         }
-      },
-      false
-    );
-
-    const handleSuccess = (decodedText) => {
-      console.log('✅ Código de barras lido:', decodedText);
-      scanner.clear();
-      onScanSuccess(decodedText);
-    };
-
-    const handleError = (err) => {
-      // Log apenas se for um erro real, não cada frame vazio
-      if (err && !err.message?.includes('No MultiFormat')) {
-        console.debug('[Scanner]', err.message);
+      } catch (err) {
+        console.debug('[Scanner stop]', err);
       }
-    };
+      try {
+        await scannerRef.current.clear();
+      } catch (err) {
+        console.debug('[Scanner clear]', err);
+      }
+      scannerRef.current = null;
+    }
+    setIsRunning(false);
+  };
 
-    scanner.render(handleSuccess, handleError);
+  const startScanner = async (cameraId) => {
+    if (!cameraId || isStarting) return;
+
+    setIsStarting(true);
+    await stopScanner();
+
+    const scanner = new Html5Qrcode(READER_ID);
     scannerRef.current = scanner;
 
-    // Tentar melhorar a qualidade do vídeo após loading
-    const improveVideoQuality = () => {
-      const videoElement = document.querySelector('#reader video');
-      if (videoElement) {
-        videoElement.style.objectFit = 'cover';
-        videoElement.style.width = '100%';
-        videoElement.style.height = '100%';
-        videoElement.style.filter = 'contrast(1.2) brightness(1.1)';
+    try {
+      await scanner.start(
+        { deviceId: { exact: cameraId } },
+        {
+          fps: 24,
+          qrbox: SCAN_REGION,
+          aspectRatio: 16 / 9,
+          disableFlip: false,
+          videoConstraints: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            facingMode: 'environment',
+            zoom
+          }
+        },
+        (decodedText) => {
+          stopScanner();
+          onScanSuccess(decodedText);
+        },
+        () => {}
+      );
+      setIsRunning(true);
+    } catch (err) {
+      console.error('Erro ao iniciar scanner:', err);
+      setIsRunning(false);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const refreshCameras = async () => {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      setCameras(devices || []);
+
+      if (!devices || devices.length === 0) return;
+
+      if (!selectedCameraId) {
+        const backCam =
+          devices.find(d => /back|traseira|environment|rear/i.test(d.label || '')) || devices[0];
+        setSelectedCameraId(backCam.id);
+      } else if (!devices.some(d => d.id === selectedCameraId)) {
+        setSelectedCameraId(devices[0].id);
       }
-    };
+    } catch (err) {
+      console.error('Erro ao listar câmaras:', err);
+    }
+  };
 
-    // Esperar um pouco para o vídeo carregar
-    setTimeout(improveVideoQuality, 500);
-    const interval = setInterval(improveVideoQuality, 1000);
-
+  useEffect(() => {
+    refreshCameras();
     return () => {
-      clearInterval(interval);
-      scanner.clear().catch(error => console.error('Erro ao fechar scanner:', error));
+      stopScanner();
     };
-  }, [onScanSuccess, zoom]);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCameraId) return;
+    startScanner(selectedCameraId);
+  }, [selectedCameraId, zoom]);
 
   return (
     <div style={{
-      backgroundColor: '#1e293b',
+      backgroundColor: '#162338',
       padding: '20px',
-      borderRadius: '15px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+      borderRadius: '16px',
+      boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
       position: 'relative',
-      maxWidth: '600px'
+      maxWidth: '720px',
+      border: '1px solid rgba(148,163,184,0.2)'
     }}>
-      {/* Header com título e botão fechar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-        <h3 style={{ textAlign: 'center', flex: 1, margin: 0, color: '#e2e8f0', fontSize: '18px' }}>
-          📱 Scanner de Código de Barras
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Camera size={18} /> Scanner de Código de Barras
         </h3>
         <button
           onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#94a3b8',
-            cursor: 'pointer',
-            fontSize: '24px',
-            padding: '0 5px'
-          }}
+          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}
         >
-          <X size={24} />
+          <X size={22} />
         </button>
       </div>
 
-      {/* Instruções */}
-      <p style={{
-        textAlign: 'center',
-        color: '#cbd5e1',
-        fontSize: '13px',
-        marginBottom: '15px',
-        lineHeight: '1.4'
-      }}>
-        Aponte a câmara para o código de barras. Mantenha o dispositivo estável a <strong>10-20cm</strong> de distância.
+      <p style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '13px', marginBottom: '14px', lineHeight: 1.4 }}>
+        Aponte a câmara para o código de barras e mantenha o dispositivo estável entre <strong>10–20cm</strong>.
       </p>
 
-      {/* Scanner */}
-      <div id="reader" style={{
-        width: '100%',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        backgroundColor: '#0f172a',
-        aspectRatio: '16/9',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: '15px',
-        border: '2px solid #475569'
-      }} ref={videoRef} />
-
-      {/* Controles de Zoom */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: '10px',
-        marginBottom: '10px'
-      }}>
-        <button
-          onClick={() => setZoom(Math.max(1, zoom - 0.5))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '12px', marginBottom: '12px' }}>
+        <div
+          id={READER_ID}
           style={{
-            padding: '10px 15px',
+            width: '100%',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            backgroundColor: '#0b1220',
+            aspectRatio: '16/9',
+            border: '1px solid #334155'
+          }}
+        />
+
+        <div style={{ background: '#0f1b30', borderRadius: '12px', border: '1px solid #334155', padding: '12px' }}>
+          <label style={{ color: '#cbd5e1', fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+            Câmara
+          </label>
+          <select
+            value={selectedCameraId}
+            onChange={(e) => setSelectedCameraId(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid #475569',
+              background: '#1e293b',
+              color: '#e2e8f0',
+              marginBottom: '10px'
+            }}
+          >
+            {cameras.map(cam => (
+              <option key={cam.id} value={cam.id}>
+                {cam.label || `Câmara ${cam.id}`}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={refreshCameras}
+            style={{
+              width: '100%',
+              padding: '9px 10px',
+              borderRadius: '8px',
+              border: '1px solid #475569',
+              background: '#1e293b',
+              color: '#e2e8f0',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '10px'
+            }}
+          >
+            <RefreshCw size={15} /> Atualizar câmaras
+          </button>
+
+          <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.5 }}>
+            <div><strong>Estado:</strong> {isStarting ? 'A iniciar...' : isRunning ? 'Ativo' : 'Parado'}</div>
+            <div><strong>Câmara:</strong> {activeCamera?.label || 'Não selecionada'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
+        <button
+          onClick={() => setZoom(Math.max(1, Number((zoom - 0.25).toFixed(2))))}
+          style={{
+            padding: '10px 14px',
             backgroundColor: '#334155',
             color: '#e2e8f0',
             border: 'none',
@@ -143,31 +212,30 @@ const BarcodeScanner = ({ onScanSuccess, onClose }) => {
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            transition: 'background-color 0.3s'
+            fontSize: '13px',
+            fontWeight: 'bold'
           }}
-          onMouseOver={(e) => e.target.style.backgroundColor = '#475569'}
-          onMouseOut={(e) => e.target.style.backgroundColor = '#334155'}
         >
-          <ZoomOut size={18} /> Afastar
+          <ZoomOut size={16} /> Afastar
         </button>
 
         <span style={{
-          padding: '10px 15px',
+          padding: '10px 14px',
           backgroundColor: '#475569',
           color: '#e2e8f0',
           borderRadius: '8px',
           fontWeight: 'bold',
-          fontSize: '14px'
+          fontSize: '13px',
+          minWidth: '100px',
+          textAlign: 'center'
         }}>
-          Zoom: {zoom.toFixed(1)}x
+          Zoom: {zoom.toFixed(2)}x
         </span>
 
         <button
-          onClick={() => setZoom(Math.min(3, zoom + 0.5))}
+          onClick={() => setZoom(Math.min(3, Number((zoom + 0.25).toFixed(2))))}
           style={{
-            padding: '10px 15px',
+            padding: '10px 14px',
             backgroundColor: '#334155',
             color: '#e2e8f0',
             border: 'none',
@@ -176,44 +244,29 @@ const BarcodeScanner = ({ onScanSuccess, onClose }) => {
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            transition: 'background-color 0.3s'
+            fontSize: '13px',
+            fontWeight: 'bold'
           }}
-          onMouseOver={(e) => e.target.style.backgroundColor = '#475569'}
-          onMouseOut={(e) => e.target.style.backgroundColor = '#334155'}
         >
-          <ZoomIn size={18} /> Aproximar
+          <ZoomIn size={16} /> Aproximar
         </button>
       </div>
 
-      {/* Dicas */}
       <div style={{
-        backgroundColor: '#1e293b',
+        backgroundColor: '#13233b',
         padding: '12px',
-        borderRadius: '8px',
+        borderRadius: '10px',
         borderLeft: '4px solid #3b82f6',
-        marginTop: '10px'
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'flex-start'
       }}>
-        <p style={{
-          color: '#cbd5e1',
-          fontSize: '12px',
-          margin: '0 0 5px 0',
-          fontWeight: 'bold'
-        }}>
-          💡 Dicas para melhor detecção:
-        </p>
-        <ul style={{
-          margin: '5px 0 0 0',
-          paddingLeft: '20px',
-          color: '#94a3b8',
-          fontSize: '12px',
-          lineHeight: '1.4'
-        }}>
-          <li>Mantenha boa iluminação (use a lanterna se necessário)</li>
-          <li>Código deve estar dentro da linha branca</li>
-          <li>Não incline muito o celular - mantenha paralelo</li>
-          <li>Se ainda não funcionar, use zoom para aproximar</li>
+        <Info size={14} color="#60a5fa" style={{ marginTop: 2 }} />
+        <ul style={{ margin: 0, paddingLeft: '16px', color: '#94a3b8', fontSize: '12px', lineHeight: 1.5 }}>
+          <li>Mantenha boa iluminação para melhor leitura.</li>
+          <li>Centralize o código de barras dentro da área de captura.</li>
+          <li>Evite inclinar o telemóvel durante a leitura.</li>
+          <li>Se necessário, ajuste o zoom para focar o código.</li>
         </ul>
       </div>
     </div>
