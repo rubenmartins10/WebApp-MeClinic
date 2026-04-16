@@ -4,8 +4,7 @@ import {
   Mail, Phone, MapPin, FileText, ShieldAlert, LogOut, Eye, EyeOff, AlertCircle, Lock, Download,
   Trash2, Activity, LogIn, AlertTriangle, Music, Zap, Wind, Sparkles, Play,
   Circle, Music2, Waves, Disc, Airplay, Repeat, TrendingUp, TrendingDown,
-  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3,
-  Monitor // eslint-disable-line no-unused-vars
+  BarChart2, Feather, Sunset, Sliders, Star, Droplets, Guitar, ChevronDown, Edit3, Monitor
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -34,14 +33,15 @@ const Settings = () => {
   const isAdmin = user.role === 'ADMIN';
 
   // Estado do perfil
-  const [perfilData, setPerfilData] = useState({
-    nome: user.nome || '',
-    email: user.email || '',
-    telefone: user.telefone || '',
-    cargo: user.role || 'Assistente',
-    idioma: language,
-    timeFormat: localStorage.getItem('meclinic_time_format') || '24h',
-  });
+const [perfilData, setPerfilData] = useState({
+  nome: user.nome || '',
+  email: user.email || '',
+  telefone: user.telefone || '',
+  cargo: user.role || 'Assistente',
+  idioma: language,
+  timeFormat: localStorage.getItem('meclinic_time_format') || '24h',
+  dataAcesso: localStorage.getItem('meclinic_login_at') ? 'a carregar...' : 'N/A',
+});
 
   // Último login em tempo real
   const formatLoginTime = (isoStr) => {
@@ -66,6 +66,11 @@ const Settings = () => {
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sincronizar último acesso no perfil (usado no PDF)
+  useEffect(() => {
+    setPerfilData(prev => ({ ...prev, dataAcesso: ultimoLoginDisplay }));
+  }, [ultimoLoginDisplay]);
 
   // Estado de segurança
   const [segurancaData, setSegurancaData] = useState({
@@ -488,7 +493,7 @@ const Settings = () => {
         ['Email:', perfilData.email],
         ['Cargo:', perfilData.cargo],
         ['Idioma:', idiomaLabel],
-        ['Último Acesso:', perfilData.dataAcesso]
+        ['Último Acesso:', perfilData.dataAcesso || 'N/A']
       ];
       
       profileData.forEach(([label, value]) => {
