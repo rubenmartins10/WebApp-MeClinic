@@ -43,7 +43,7 @@ class User {
   /**
    * Criar novo utilizador
    */
-  static async create(nome, email, password, role = 'ASSISTENTE') {
+  static async create(nome, email, password, role = 'Assistente') {
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
@@ -52,7 +52,7 @@ class User {
       `INSERT INTO utilizadores (nome, email, password_hash, mfa_enabled, mfa_secret, role, perfil) 
        VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING id, nome, email, role`,
-      [nome, email, password_hash, true, secret.base32, role, role === 'ADMIN' ? 'Admin' : 'Assistente']
+      [nome, email, password_hash, true, secret.base32, role, role === 'Admin' ? 'Admin' : 'Assistente']
     );
 
     return {

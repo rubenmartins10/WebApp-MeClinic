@@ -33,7 +33,7 @@ class AuthController {
       }
 
       // Criar utilizador
-      const { user, mfaSecret, mfaUrl } = await User.create(nome, email, password, 'ASSISTENTE');
+      const { user, mfaSecret, mfaUrl } = await User.create(nome, email, password, 'Assistente');
 
       // Gerar QR code para MFA
       const qrCodeUrl = await QRCode.toDataURL(mfaUrl);
