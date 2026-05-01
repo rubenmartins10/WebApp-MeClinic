@@ -149,10 +149,6 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
 router.put('/:id', requireRole('ADMIN'), async (req, res) => {
   const { nome, email, role, ativo, telefone, mfaToken } = req.body;
 
-  if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
-    return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
-  }
-
   try {
     const adminRes = await pool.query(
       'SELECT mfa_enabled, mfa_secret FROM utilizadores WHERE id = $1',
@@ -164,19 +160,21 @@ router.put('/:id', requireRole('ADMIN'), async (req, res) => {
     }
 
     const admin = adminRes.rows[0];
-    if (!admin.mfa_enabled || !admin.mfa_secret) {
-      return res.status(401).json({ error: 'MFA não configurado para este administrador' });
-    }
 
-    const mfaValid = speakeasy.totp.verify({
-      secret: admin.mfa_secret,
-      encoding: 'base32',
-      token: String(mfaToken),
-      window: 1
-    });
-
-    if (!mfaValid) {
-      return res.status(401).json({ error: 'Código MFA inválido' });
+    // Só verificar MFA se o admin tiver MFA ativo
+    if (admin.mfa_enabled && admin.mfa_secret) {
+      if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
+        return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
+      }
+      const mfaValid = speakeasy.totp.verify({
+        secret: admin.mfa_secret,
+        encoding: 'base32',
+        token: String(mfaToken),
+        window: 1
+      });
+      if (!mfaValid) {
+        return res.status(401).json({ error: 'Código MFA inválido' });
+      }
     }
 
     const result = await pool.query(
@@ -209,10 +207,6 @@ router.put('/:id', requireRole('ADMIN'), async (req, res) => {
 router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
   const mfaToken = req.body?.mfaToken || req.headers['x-mfa-token'];
 
-  if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
-    return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
-  }
-
   try {
     const adminRes = await pool.query(
       'SELECT mfa_enabled, mfa_secret FROM utilizadores WHERE id = $1',
@@ -224,19 +218,21 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
     }
 
     const admin = adminRes.rows[0];
-    if (!admin.mfa_enabled || !admin.mfa_secret) {
-      return res.status(401).json({ error: 'MFA não configurado para este administrador' });
-    }
 
-    const mfaValid = speakeasy.totp.verify({
-      secret: admin.mfa_secret,
-      encoding: 'base32',
-      token: String(mfaToken),
-      window: 1
-    });
-
-    if (!mfaValid) {
-      return res.status(401).json({ error: 'Código MFA inválido' });
+    // Só verificar MFA se o admin tiver MFA ativo
+    if (admin.mfa_enabled && admin.mfa_secret) {
+      if (!mfaToken || !/^\d{6}$/.test(String(mfaToken))) {
+        return res.status(401).json({ error: 'Código MFA obrigatório (6 dígitos)' });
+      }
+      const mfaValid = speakeasy.totp.verify({
+        secret: admin.mfa_secret,
+        encoding: 'base32',
+        token: String(mfaToken),
+        window: 1
+      });
+      if (!mfaValid) {
+        return res.status(401).json({ error: 'Código MFA inválido' });
+      }
     }
 
     const result = await pool.query(
