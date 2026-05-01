@@ -1,32 +1,14 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "meclinic-app/client/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    },
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
+  "buildCommand": "cd meclinic-app/client && npm install && npm run build",
+  "outputDirectory": "meclinic-app/client/build",
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs20.x"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index.js" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
 }
