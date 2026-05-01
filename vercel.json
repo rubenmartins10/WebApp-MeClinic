@@ -19,8 +19,11 @@
       "dest": "/api/index.js"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/meclinic-app/client/build/$1"
+      "dest": "/index.html"
     }
   ],
   "env": {
