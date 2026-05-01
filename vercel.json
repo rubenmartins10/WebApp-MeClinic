@@ -2,11 +2,6 @@
   "version": 2,
   "buildCommand": "cd meclinic-app/client && npm install && npm run build",
   "outputDirectory": "meclinic-app/client/build",
-  "functions": {
-    "api/index.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" },
     { "source": "/:path*", "destination": "/index.html" }
