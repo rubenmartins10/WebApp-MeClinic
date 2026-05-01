@@ -8,8 +8,8 @@ const logger = require('./utils/logger');
 // serialises as "2026-04-04T23:00:00.000Z", shifting the date back by one day.
 types.setTypeParser(1082, (val) => val);
 
-if (!process.env.DB_PASSWORD) {
-  logger.error('ERRO FATAL: DB_PASSWORD não está definido nas variáveis de ambiente.');
+if (!process.env.DATABASE_URL && !process.env.DB_PASSWORD) {
+  logger.error('ERRO FATAL: DATABASE_URL ou DB_PASSWORD não está definido nas variáveis de ambiente.');
   process.exit(1);
 }
 
@@ -18,17 +18,25 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    }
+  : {
+      user: process.env.DB_USER || 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      database: process.env.DB_DATABASE || process.env.DB_NAME || 'meclinic_db',
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT || 5432,
+    };
+
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_DATABASE || process.env.DB_NAME || 'meclinic_db',
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
-  
+  ...poolConfig,
   // CONFIGURAÇÕES DE RESILIÊNCIA DA BASE DE DADOS
-  max: 20, // Limita o número de conexões em simultâneo
-  idleTimeoutMillis: 30000, // Fecha conexões inativas para não sobrecarregar o PostgreSQL
-  connectionTimeoutMillis: 2000, // Tempo máximo de espera para tentar ligar
+  max: 10,                        // Serverless: menos conexões simultâneas
+  idleTimeoutMillis: 30000,       // Fecha conexões inativas
+  connectionTimeoutMillis: 5000,  // Tempo máximo de espera para ligar
 });
 
 // PREVENÇÃO DE CRASHES: Se a base de dados for abaixo, o Node.js não desliga, apenas regista o erro
