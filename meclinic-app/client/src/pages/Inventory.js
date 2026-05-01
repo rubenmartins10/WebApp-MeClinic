@@ -2,7 +2,6 @@ import React, { useState, useEffect, useContext, useCallback, useRef } from 'rea
 import { Search, Plus, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle, Package, X, Save, Clock, ScanLine, Loader } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
-import BarcodeScanner from '../components/common/BarcodeScanner'; // Scanner otimizado
 import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
 
@@ -121,39 +120,7 @@ const Inventory = () => {
     }
   };
 
-  // Lookup direto para scan da câmara (sem debounce)
-  const handleScannedBarcode = async (codigo) => {
-    setFormData(prev => ({ ...prev, codigo_barras: codigo }));
-    setShowScanner(false);
-    showNotif('success', t('inventory.msg.barcode_read') || 'Código de barras lido com sucesso!');
 
-    if (!produtoToEdit) {
-      setBarcodeLoading(true);
-      try {
-        const data = await apiService.get(`/api/produtos/barcode/${encodeURIComponent(codigo)}`);
-        if (data.found && data.product) {
-          setFormData(prev => ({
-            ...prev,
-            nome: data.product.nome || prev.nome,
-            categoria: data.product.categoria || prev.categoria,
-            unidade_medida: data.product.unidade_medida || prev.unidade_medida,
-            stock_minimo: data.product.stock_minimo || prev.stock_minimo,
-            imagem_url: data.product.imagem_url || prev.imagem_url
-          }));
-          const sourceLabel = data.source === 'local' 
-            ? (t('inventory.msg.barcode_local') || 'Produto reconhecido na base de dados!') 
-            : (t('inventory.msg.barcode_online') || 'Produto identificado online!');
-          showNotif('success', sourceLabel);
-        }
-      } catch {
-        // Silencioso
-      } finally {
-        setBarcodeLoading(false);
-      }
-    }
-  };
-
-  // BarcodeScanner component now handles scanning - old useEffect removed
 
   const produtosFiltrados = produtos;
 
@@ -203,16 +170,22 @@ const Inventory = () => {
         `}
       </style>
 
-      {/* JANELA DA CÂMARA (SCANNER) */}
+      {/* CÂMARA — Em desenvolvimento */}
       {showScanner && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '650px' }}>
-            <BarcodeScanner 
-              onScanSuccess={(codigo) => {
-                handleScannedBarcode(codigo);
-              }}
-              onClose={() => setShowScanner(false)}
-            />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#162338', borderRadius: '16px', padding: '40px 48px', border: '1px solid rgba(148,163,184,0.2)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', maxWidth: '420px', width: '100%', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '16px', backgroundColor: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+              <ScanLine size={32} color="#3b82f6" />
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', color: '#e2e8f0', fontSize: '20px', fontWeight: '700' }}>Scanner de Câmara</h3>
+            <p style={{ margin: '0 0 6px 0', color: '#3b82f6', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Em desenvolvimento</p>
+            <p style={{ margin: '0 0 28px 0', color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>A leitura por câmara ainda não está disponível. Por favor, insira o código de barras manualmente no campo de texto.</p>
+            <button
+              onClick={() => setShowScanner(false)}
+              style={{ padding: '12px 32px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}

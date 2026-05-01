@@ -98,6 +98,11 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
   if (!nome || !email || !password) {
     return res.status(400).json({ error: 'Nome, email e password são obrigatórios' });
   }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
   
   try {
     // Verificar se email já existe

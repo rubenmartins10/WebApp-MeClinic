@@ -43,7 +43,7 @@ class User {
   /**
    * Criar novo utilizador
    */
-  static async create(nome, email, password, role = 'USER') {
+  static async create(nome, email, password, role = 'ASSISTENTE') {
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
     const secret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
