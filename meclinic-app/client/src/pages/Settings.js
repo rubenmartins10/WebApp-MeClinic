@@ -326,11 +326,7 @@ const [perfilData, setPerfilData] = useState({
       setTimeFormat(perfilData.timeFormat || timeFormat);
     }
 
-    if (activeTab === 'perfil' && isAdmin) {
-      if (perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, ''))) {
-        showNotif('error', 'Número de telemóvel inválido.');
-        return;
-      }
+    if (activeTab === 'perfil') {
       if (!perfilData.nome || !perfilData.nome.trim()) {
         showNotif('error', 'O nome não pode estar vazio.');
         return;
