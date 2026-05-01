@@ -36,7 +36,10 @@ app.set('trust proxy', 1);
 
 // CORS
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean)
+  ? [
+      process.env.FRONTEND_URL,
+      'https://web-app-me-clinic.vercel.app'
+    ].filter(Boolean)
   : [
       'http://localhost:3000',
       'http://localhost:3050',
@@ -46,16 +49,12 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
     ].filter(Boolean);
 
 if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-  logger.error('ERRO FATAL: FRONTEND_URL não definido nas variáveis de ambiente em produção.');
-  process.exit(1);
+  logger.warn('AVISO: FRONTEND_URL não definido. A usar domínio Vercel por defeito.');
 }
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) {
-      if (process.env.NODE_ENV !== 'production') return callback(null, true);
-      return callback(new Error('CORS: origem não permitida'));
-    }
+    if (!origin) return callback(null, true);
     const normalizedOrigin = origin.replace(/\/$/, '');
     if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
     callback(new Error(`CORS: origem não permitida: ${origin}`));
