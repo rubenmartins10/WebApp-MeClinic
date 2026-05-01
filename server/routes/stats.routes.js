@@ -9,6 +9,9 @@ router.use(authMiddleware);
 // Dashboard Summary - resumo da semana
 router.get('/dashboard-summary', async (req, res) => {
   const { start } = req.query;
+  if (!start || isNaN(Date.parse(start))) {
+    return res.status(400).json({ error: 'Parâmetro start inválido. Use o formato YYYY-MM-DD.' });
+  }
   try {
     const stats = await pool.query(`
       SELECT 
@@ -28,6 +31,9 @@ router.get('/dashboard-summary', async (req, res) => {
 // Dados de consultas por semana para o gráfico
 router.get('/patients-weekly', async (req, res) => {
   const { start } = req.query;
+  if (!start || isNaN(Date.parse(start))) {
+    return res.status(400).json({ error: 'Parâmetro start inválido. Use o formato YYYY-MM-DD.' });
+  }
   try {
     const result = await pool.query(`
       SELECT TO_CHAR(date_series, 'DD/MM') as date, COALESCE(COUNT(c.id), 0)::int as count 

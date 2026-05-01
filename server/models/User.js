@@ -84,7 +84,7 @@ class User {
       secret: secret,
       encoding: 'base32',
       token: token,
-      window: 2
+      window: 1 // ±30s — janela mínima recomendada
     });
   }
 

@@ -45,5 +45,6 @@
         ".DS_Store": true,
         "dist": true,
         "build": true
-    }
+    },
+    "liveServer.settings.port": 5501
 }

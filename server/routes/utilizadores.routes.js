@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+const logger = require('../utils/logger');
 
 // Middleware de autenticação - todas as rotas requerem login
 router.use(authMiddleware);
@@ -33,7 +34,7 @@ router.get('/', requireRole('ADMIN'), async (req, res) => {
  * Devolve todas as assinaturas de todos os utilizadores da clínica (agregadas)
  * IMPORTANTE: esta rota tem de vir ANTES de /:id para não ser interceptada
  */
-router.get('/assinaturas-clinica', async (req, res) => {
+router.get('/assinaturas-clinica', requireRole('ADMIN', 'DENTISTA'), async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, nome, assinatura FROM utilizadores WHERE assinatura IS NOT NULL'
@@ -55,7 +56,7 @@ router.get('/assinaturas-clinica', async (req, res) => {
     }
     res.json({ assinaturas: all });
   } catch (error) {
-    console.error('Erro ao obter assinaturas da clínica:', error);
+    logger.error('Erro ao obter assinaturas da clínica:', { message: error.message });
     res.status(500).json({ error: 'Erro ao obter assinaturas' });
   }
 });
@@ -82,7 +83,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erro:', error);
+    logger.error('Erro ao obter utilizador:', { message: error.message });
     res.status(500).json({ error: 'Erro ao obter utilizador' });
   }
 });
@@ -131,7 +132,7 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
       mfa: { enabled: true, qrCodeUrl }
     });
   } catch (error) {
-    console.error('Erro ao criar utilizador:', error);
+    logger.error('Erro ao criar utilizador:', { message: error.message });
     res.status(500).json({ error: 'Erro ao criar utilizador' });
   }
 });
@@ -191,7 +192,7 @@ router.put('/:id', requireRole('ADMIN'), async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erro ao atualizar utilizador:', error);
+    logger.error('Erro ao atualizar utilizador:', { message: error.message });
     res.status(500).json({ error: 'Erro ao atualizar utilizador' });
   }
 });
@@ -244,7 +245,7 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
 
     res.json({ message: 'Utilizador removido com sucesso' });
   } catch (error) {
-    console.error('Erro ao remover utilizador:', error);
+    logger.error('Erro ao remover utilizador:', { message: error.message });
     res.status(500).json({ error: 'Erro ao remover utilizador' });
   }
 });
@@ -252,8 +253,12 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
 /**
  * GET /api/utilizadores/:id/assinatura
  * Obter assinatura digital do utilizador
+ * Apenas o próprio utilizador ou ADMIN pode aceder
  */
 router.get('/:id/assinatura', async (req, res) => {
+  if (req.user.role !== 'ADMIN' && req.user.id !== parseInt(req.params.id)) {
+    return res.status(403).json({ error: 'Permissão insuficiente' });
+  }
   try {
     const result = await pool.query(
       'SELECT assinatura FROM utilizadores WHERE id = $1',
@@ -262,7 +267,7 @@ router.get('/:id/assinatura', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
     res.json({ assinatura: result.rows[0].assinatura || null });
   } catch (error) {
-    console.error('Erro ao obter assinatura:', error);
+    logger.error('Erro ao obter assinatura:', { message: error.message });
     res.status(500).json({ error: 'Erro ao obter assinatura' });
   }
 });

@@ -77,8 +77,9 @@ class Produto {
 
     if (filters.search) {
       paramCount++;
-      query += ` AND (nome ILIKE $${paramCount} OR codigo_barras = $${paramCount})`;
-      values.push(`%${filters.search}%`);
+      query += ` AND (nome ILIKE $${paramCount} OR codigo_barras = $${paramCount + 1})`;
+      values.push(`%${filters.search}%`, filters.search);
+      paramCount++;
     }
 
     query += ` ORDER BY nome ASC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
