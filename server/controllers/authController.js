@@ -118,7 +118,7 @@ class AuthController {
         REFRESH_TOKEN_SECRET,
         { expiresIn: REFRESH_TOKEN_EXPIRY }
       );
-      tokenStore.set(refreshToken, user.id, REFRESH_TOKEN_TTL_MS);
+      await tokenStore.set(refreshToken, user.id, REFRESH_TOKEN_TTL_MS);
 
       // Registar atividade de login e obter session_id
       const sessionId = await AuthController.logLoginActivity(user.id, req, location);
@@ -212,7 +212,7 @@ class AuthController {
       if (!refreshToken) throw new AppError('Refresh token não fornecido', 401);
 
       // Validar no store (revogável)
-      const stored = tokenStore.get(refreshToken);
+      const stored = await tokenStore.get(refreshToken);
       if (!stored) throw new AppError('Refresh token inválido ou expirado', 401, { reason: 'invalid_refresh' });
 
       // Validar assinatura JWT
@@ -220,7 +220,7 @@ class AuthController {
       try {
         decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, { algorithms: ['HS256'] });
       } catch {
-        tokenStore.revoke(refreshToken);
+        await tokenStore.revoke(refreshToken);
         throw new AppError('Refresh token inválido', 401, { reason: 'invalid_refresh' });
       }
 
@@ -247,7 +247,7 @@ class AuthController {
   static async logout(req, res, next) {
     try {
       const { refreshToken } = req.body;
-      if (refreshToken) tokenStore.revoke(refreshToken);
+      if (refreshToken) await tokenStore.revoke(refreshToken);
       res.json({ message: 'Logout realizado com sucesso!' });
     } catch (err) {
       next(err);
