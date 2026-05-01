@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+﻿import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Calendar as CalendarIcon, User, Mail, Phone, FileText, Clock, CheckCircle, XCircle, Edit, Trash2, AlertTriangle, Globe, Grid, List as ListIcon, ChevronLeft, ChevronRight, Plus, Minus, Package, X, UploadCloud, File, Pill, MessageCircle, Smile, Save } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext'; 
@@ -114,10 +114,10 @@ const Consultas = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const partesNome = formData.nome.trim().split(' ');
-    if (partesNome.length < 2) { showNotif('Insira o Primeiro e Último nome.', 'error'); return; }
-    if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif('O telemóvel é obrigatório.', 'error'); return; }
-    if (!formData.data) { showNotif('Selecione uma data.', 'error'); return; }
-    if (!formData.hora || formData.hora.length < 5) { showNotif('Selecione uma hora válida.', 'error'); return; }
+    if (partesNome.length < 2) { showNotif(t('consultations.validation.full_name'), 'error'); return; }
+    if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif(t('consultations.validation.phone_required'), 'error'); return; }
+    if (!formData.data) { showNotif(t('consultations.validation.date_required'), 'error'); return; }
+    if (!formData.hora || formData.hora.length < 5) { showNotif(t('consultations.validation.time_required'), 'error'); return; }
 
     const url = isEditing ? `/api/consultas/${editId}` : '/api/consultas';
     const method = isEditing ? 'PUT' : 'POST';
@@ -214,7 +214,7 @@ const Consultas = () => {
         const materiais = await apiService.get(`/api/modelos-procedimento/${c.procedimento_id}/itens`);
         setCheckoutMateriais(Array.isArray(materiais) ? materiais : []);
       } catch (err) {
-        showNotif('Erro ao carregar materiais do procedimento.', 'error');
+        showNotif(t('consultations.msg.materials_err'), 'error');
       }
     }
   };
@@ -246,12 +246,12 @@ const Consultas = () => {
   const handleCheckoutFileUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
     if (!ALLOWED_EXAM_TYPES.includes(file.type)) {
-      showNotif('Tipo de ficheiro não permitido. Use PDF, JPG, PNG ou GIF.', 'error');
+      showNotif(t('consultations.msg.file_type_err'), 'error');
       e.target.value = '';
       return;
     }
     if (file.size > MAX_EXAM_SIZE) {
-      showNotif('Ficheiro demasiado grande. Tamanho máximo: 10 MB.', 'error');
+      showNotif(t('consultations.msg.file_size_err'), 'error');
       e.target.value = '';
       return;
     }
@@ -552,7 +552,7 @@ const Consultas = () => {
             
             <div style={{ padding: '20px 30px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isAvaliacao ? '#3b82f6' : (theme.isDark ? '#0f172a' : '#f8fafc') }}>
               <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: isAvaliacao ? 'white' : theme.text }}>
-                {isAvaliacao ? <><Smile color="white" /> Avaliação & Orçamento</> : <><CheckCircle color="#10b981" /> {sendWhatsapp || sendEmail ? 'Finalizar Consulta e Faturar' : 'Finalizar Consulta'}</>}
+                {isAvaliacao ? <><Smile color="white" /> {t('consultations.btn.assessment')}</> : <><CheckCircle color="#10b981" /> {sendWhatsapp || sendEmail ? t('consultations.btn.finish_bill') : t('consultations.tooltip.finish')}</>}
               </h2>
               <button onClick={() => setCheckoutModal(null)} style={{ background: 'none', border: 'none', color: isAvaliacao ? 'white' : theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
@@ -574,16 +574,16 @@ const Consultas = () => {
                      <Odontograma initialData={odontogramaAvaliacao} onChange={handleMudancaOdontograma} />
                      
                      <div style={{ marginTop: '25px', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', padding: '20px', borderRadius: '12px', border: `1px dashed #3b82f6` }}>
-                       <h4 style={{ margin: '0 0 15px 0', color: '#3b82f6', fontSize: '15px' }}>Pré-visualização do Orçamento</h4>
+                       <h4 style={{ margin: '0 0 15px 0', color: '#3b82f6', fontSize: '15px' }}>{t('consultations.checkout.budget_preview')}</h4>
                        
-                       {orcamentoEstimado.caries > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px' }}><span>{orcamentoEstimado.caries}x Restaurações (Cáries)</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.caries * 50).toFixed(2)} €</span></div>)}
-                       {orcamentoEstimado.endo > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#f97316' }}><span>{orcamentoEstimado.endo}x Endodontias</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.endo * 150).toFixed(2)} €</span></div>)}
-                       {orcamentoEstimado.coroas > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#a855f7' }}><span>{orcamentoEstimado.coroas}x Coroas/Próteses</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.coroas * 400).toFixed(2)} €</span></div>)}
-                       {orcamentoEstimado.implantes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}><span>{orcamentoEstimado.implantes}x Implantes</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.implantes * 600).toFixed(2)} €</span></div>)}
-                       {orcamentoEstimado.extracoes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '15px' }}><span>{orcamentoEstimado.extracoes}x Extrações</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.extracoes * 40).toFixed(2)} €</span></div>)}
-                       {orcamentoEstimado.total === 0 && <div style={{fontSize:'13px', color: theme.subText, marginBottom:'10px'}}>Nenhum tratamento selecionado.</div>}
+                       {orcamentoEstimado.caries > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px' }}><span>{orcamentoEstimado.caries}x {t('consultations.dental.cavities')}</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.caries * 50).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.endo > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#f97316' }}><span>{orcamentoEstimado.endo}x {t('consultations.dental.endo')}</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.endo * 150).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.coroas > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#a855f7' }}><span>{orcamentoEstimado.coroas}x {t('consultations.dental.crowns')}</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.coroas * 400).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.implantes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}><span>{orcamentoEstimado.implantes}x {t('consultations.dental.implants')}</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.implantes * 600).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.extracoes > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '15px' }}><span>{orcamentoEstimado.extracoes}x {t('consultations.dental.extractions')}</span><span style={{ fontWeight: 'bold' }}>{(orcamentoEstimado.extracoes * 40).toFixed(2)} €</span></div>)}
+                       {orcamentoEstimado.total === 0 && <div style={{fontSize:'13px', color: theme.subText, marginBottom:'10px'}}>{t('consultations.checkout.no_treatment')}</div>}
 
-                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', paddingTop: '10px', borderTop: `1px solid ${theme.border}`, color: theme.text }}><strong>TOTAL ESTIMADO:</strong><strong style={{ color: '#10b981' }}>{orcamentoEstimado.total.toFixed(2)} €</strong></div>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', paddingTop: '10px', borderTop: `1px solid ${theme.border}`, color: theme.text }}><strong>{t('consultations.checkout.total_estimate')}</strong><strong style={{ color: '#10b981' }}>{orcamentoEstimado.total.toFixed(2)} €</strong></div>
                      </div>
                   </div>
                 ) : (
@@ -626,20 +626,20 @@ const Consultas = () => {
                 <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold', color: theme.text, textTransform: 'uppercase' }}><Pill size={16} style={{verticalAlign:'middle', marginRight: '5px'}}/> 2. Receita Médica (Opcional)</label>
                 
                 <div style={{ marginBottom: '20px', backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>Farmácia Rápida:</span>
+                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>{t('consultations.rx.quick_pharmacy')}</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>DOR / INFL.</span>
+                      <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.pain')}</span>
                       <button onClick={() => preencherRapidoMed('Ibuprofeno 600mg', '1 comp. de 8/8h, após refeições, SOS.')} style={quickBtnStyle}>+ Ibuprofeno</button>
                       <button onClick={() => preencherRapidoMed('Paracetamol 1000mg', '1 comp. de 8/8h, SOS dor ou febre.')} style={quickBtnStyle}>+ Paracetamol</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>ANTIBIÓTICO</span>
+                      <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.antibiotic')}</span>
                       <button onClick={() => preencherRapidoMed('Amoxicilina + Ác. Clavulânico 875/125mg', '1 comp. de 12/12h, durante 8 dias.')} style={quickBtnStyle}>+ Amox/Clav</button>
                       <button onClick={() => preencherRapidoMed('Azitromicina 500mg', '1 comp. por dia, durante 3 dias.')} style={quickBtnStyle}>+ Azitromicina</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>TÓPICOS</span>
+                      <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.topical')}</span>
                       <button onClick={() => preencherRapidoMed('Clorohexidina 0.12% (Colutório)', 'Bochechar 15ml, 2x/dia após escovagem.')} style={quickBtnStyle}>+ Colutório</button>
                       <button onClick={() => preencherRapidoMed('Ácido Hialurónico (Gel Oral)', 'Aplicar na lesão 3x/dia, não enxaguar.')} style={quickBtnStyle}>+ Ác. Hialurónico</button>
                     </div>
@@ -654,7 +654,7 @@ const Consultas = () => {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setRxMeds([...rxMeds, {nome:'', posologia:''}])} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}><Plus size={14}/> Linha Extra</button>
+                <button onClick={() => setRxMeds([...rxMeds, {nome:'', posologia:''}])} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}><Plus size={14}/>{' '}{t('consultations.rx.add_line')}</button>
 
                 <textarea 
                   value={recommendations} onChange={(e) => setRecommendations(e.target.value)}
@@ -663,7 +663,7 @@ const Consultas = () => {
                 />
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>Assinatura Médica</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>{t('consultations.checkout.medical_signature')}</label>
                   <Assinatura onSaveSignature={setAssinaturaMedica} onNotification={showNotif} />
                 </div>
               </div>
@@ -687,9 +687,9 @@ const Consultas = () => {
             </div>
 
             <div style={{ padding: '20px 30px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '15px', backgroundColor: theme.cardBg }}>
-              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>Cancelar</button>
+              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>{t('common.cancel')}</button>
               <button onClick={finalizarCheckout} disabled={isProcessing || (sendEmail && !emailPaciente)} style={{ flex: 2, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: isAvaliacao ? '#3b82f6' : '#10b981', color: 'white', cursor: (isProcessing || (sendEmail && !emailPaciente)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: isAvaliacao ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(16, 185, 129, 0.3)', opacity: (isProcessing || (sendEmail && !emailPaciente)) ? 0.6 : 1 }}>
-                {isProcessing ? 'A Processar...' : (isAvaliacao ? <><Save size={20} /> Guardar Mapa & Gerar Orçamento (PDF)</> : <><CheckCircle size={20} /> {sendWhatsapp || sendEmail ? 'Finalizar Consulta & Faturar' : 'Finalizar Consulta'}</>)}
+                {isProcessing ? t('consultations.checkout.processing') : (isAvaliacao ? <><Save size={20} /> {t('consultations.btn.save_assessment')}</> : <><CheckCircle size={20} /> {sendWhatsapp || sendEmail ? t('consultations.btn.finish_bill') : t('consultations.tooltip.finish')}</>)}
               </button>
             </div>
 
@@ -832,7 +832,7 @@ const Consultas = () => {
                 <h3 style={{ margin: '0', fontSize: '18px' }}>{t('consultations.list.title')}</h3>
                 <div style={{ display: 'flex', gap: '5px', backgroundColor: theme.pageBg, padding: '5px', borderRadius: '10px' }}>
                   <button onClick={() => setFiltro('dia')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'dia' ? '#2563eb' : 'transparent', color: filtro === 'dia' ? 'white' : theme.subText, transition: 'all 0.2s' }}>Hoje</button>
-                  <button onClick={() => setFiltro('semana')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'semana' ? '#2563eb' : 'transparent', color: filtro === 'semana' ? 'white' : theme.subText, transition: 'all 0.2s' }}>Semana</button>
+                  <button onClick={() => setFiltro('semana')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'semana' ? '#2563eb' : 'transparent', color: filtro === 'semana' ? 'white' : theme.subText, transition: 'all 0.2s' }}>{t('consultations.filter.week_short')}</button>
                   <button onClick={() => setFiltro('mes')} style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', backgroundColor: filtro === 'mes' ? '#2563eb' : 'transparent', color: filtro === 'mes' ? 'white' : theme.subText, transition: 'all 0.2s' }}>Mês</button>
                 </div>
               </div>
@@ -857,7 +857,7 @@ const Consultas = () => {
                         <div>
                           <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: theme.text, textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.paciente_nome}</h4>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '4px' }}>
-                            {isUrgente && !isFinalizada && <span style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444', padding: '2px 7px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11px' }}>🚨 Urgência</span>}
+                            {isUrgente && !isFinalizada && <span style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444', padding: '2px 7px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11px' }}>{t('consultations.urgency.badge')}</span>}
                             <span style={{ backgroundColor: pColor.bg, color: pColor.text, padding: '2px 8px', borderRadius: '6px', fontWeight: 'bold', textDecoration: isFinalizada ? 'line-through' : 'none' }}>{c.procedimento_nome || t('consultations.list.no_procedure')}</span>
                           </div>
                           {c.email && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: theme.subText, fontSize: '12px', marginTop: '2px' }}><Mail size={13} /> {c.email}</div>}
@@ -912,7 +912,7 @@ const Consultas = () => {
             
             <div style={{ padding: '20px 30px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isAvaliacao ? '#3b82f6' : (theme.isDark ? '#0f172a' : '#f8fafc') }}>
               <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: isAvaliacao ? 'white' : theme.text }}>
-                {isAvaliacao ? <><Smile color="white" /> Avaliação & Orçamento</> : <><CheckCircle color="#10b981" /> Finalizar Consulta e Faturar</>}
+                {isAvaliacao ? <><Smile color="white" /> {t('consultations.btn.assessment')}</> : <><CheckCircle color="#10b981" /> {t('consultations.btn.finish_bill')}</>}
               </h2>
               <button onClick={() => setCheckoutModal(null)} style={{ background: 'none', border: 'none', color: isAvaliacao ? 'white' : theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
@@ -980,20 +980,20 @@ const Consultas = () => {
 
                 <label style={{ display: 'block', marginBottom: '10px', fontSize: '13px', fontWeight: 'bold', color: theme.text, textTransform: 'uppercase' }}><Pill size={16} style={{verticalAlign:'middle', marginRight: '5px'}}/> 2. Receita Médica (Opcional)</label>
                 <div style={{ marginBottom: '20px', backgroundColor: theme.cardBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>Farmácia Rápida:</span>
+                  <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: theme.subText, marginBottom: '10px', textTransform: 'uppercase' }}>{t('consultations.rx.quick_pharmacy')}</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>DOR / INFL.</span>
+                      <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.pain')}</span>
                       <button onClick={() => preencherRapidoMed('Ibuprofeno 600mg', '1 comp. de 8/8h, após refeições, SOS.')} style={quickBtnStyle}>+ Ibuprofeno</button>
                       <button onClick={() => preencherRapidoMed('Paracetamol 1000mg', '1 comp. de 8/8h, SOS dor ou febre.')} style={quickBtnStyle}>+ Paracetamol</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>ANTIBIÓTICO</span>
+                      <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.antibiotic')}</span>
                       <button onClick={() => preencherRapidoMed('Amoxicilina + Ác. Clavulânico 875/125mg', '1 comp. de 12/12h, durante 8 dias.')} style={quickBtnStyle}>+ Amox/Clav</button>
                       <button onClick={() => preencherRapidoMed('Azitromicina 500mg', '1 comp. por dia, durante 3 dias.')} style={quickBtnStyle}>+ Azitromicina</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>TÓPICOS</span>
+                      <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', width: '80px' }}>{t('consultations.rx.topical')}</span>
                       <button onClick={() => preencherRapidoMed('Clorohexidina 0.12% (Colutório)', 'Bochechar 15ml, 2x/dia após escovagem.')} style={quickBtnStyle}>+ Colutório</button>
                       <button onClick={() => preencherRapidoMed('Ácido Hialurónico (Gel Oral)', 'Aplicar na lesão 3x/dia, não enxaguar.')} style={quickBtnStyle}>+ Ác. Hialurónico</button>
                     </div>
@@ -1007,14 +1007,14 @@ const Consultas = () => {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setRxMeds([...rxMeds, {nome:'', posologia:''}])} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}><Plus size={14}/> Linha Extra</button>
+                <button onClick={() => setRxMeds([...rxMeds, {nome:'', posologia:''}])} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}><Plus size={14}/>{' '}{t('consultations.rx.add_line')}</button>
                 <textarea 
                   value={recommendations} onChange={(e) => setRecommendations(e.target.value)}
                   placeholder="Recomendações Pós-Consulta..." className="custom-scrollbar"
                   style={{ ...inputStyle, height: '60px', resize: 'none', marginBottom: '20px', padding: '12px', fontSize: '12px', backgroundColor: theme.cardBg }}
                 />
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>Assinatura Médica</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: theme.text, marginBottom: '10px', textTransform: 'uppercase' }}>{t('consultations.checkout.medical_signature')}</label>
                   <Assinatura onSaveSignature={setAssinaturaMedica} onNotification={showNotif} />
                 </div>
               </div>
@@ -1038,9 +1038,9 @@ const Consultas = () => {
             </div>
 
             <div style={{ padding: '20px 30px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '15px', backgroundColor: theme.cardBg }}>
-              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>Cancelar</button>
+              <button onClick={() => setCheckoutModal(null)} disabled={isProcessing} style={{ flex: 1, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', opacity: isProcessing ? 0.5 : 1 }}>{t('common.cancel')}</button>
               <button onClick={finalizarCheckout} disabled={isProcessing || (sendEmail && !emailPaciente)} style={{ flex: 2, padding: '16px', borderRadius: '10px', border: 'none', backgroundColor: isAvaliacao ? '#3b82f6' : '#10b981', color: 'white', cursor: (isProcessing || (sendEmail && !emailPaciente)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: isAvaliacao ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(16, 185, 129, 0.3)', opacity: (isProcessing || (sendEmail && !emailPaciente)) ? 0.6 : 1 }}>
-                {isProcessing ? 'A Processar...' : (isAvaliacao ? <><Save size={20} /> Guardar Mapa & Gerar Orçamento (PDF)</> : <><CheckCircle size={20} /> Finalizar Consulta & Faturar</>)}
+                {isProcessing ? t('consultations.checkout.processing') : (isAvaliacao ? <><Save size={20} /> {t('consultations.btn.save_assessment')}</> : <><CheckCircle size={20} /> {t('consultations.btn.finish_bill')}</>)}
               </button>
             </div>
 
@@ -1074,7 +1074,7 @@ const Consultas = () => {
             {/* Header */}
             <div style={{ backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderBottom: `1px solid ${theme.border}`, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '16px', fontWeight: '800', color: theme.text }}>Urgência Dentária</div>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: theme.text }}>{t('consultations.urgency.title')}</div>
                 <div style={{ fontSize: '11px', color: theme.subText }}>{urgStep === 1 ? 'Registar consultas feitas por urgência' : 'Consulta registada — processar honorários'}</div>
               </div>
               <button onClick={() => setShowUrgenciaModal(false)} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={20} /></button>
@@ -1134,8 +1134,8 @@ const Consultas = () => {
               {/* Botão guardar */}
               <button disabled={urgProcessing} onClick={async () => {
                   const partesNome = urgForm.nome.trim().split(' ');
-                  if (partesNome.length < 2) { showNotif('Insira o Primeiro e Último nome.', 'error'); return; }
-                  if (!urgForm.data || !urgForm.hora) { showNotif('Data e hora são obrigatórias.', 'error'); return; }
+                  if (partesNome.length < 2) { showNotif(t('consultations.validation.full_name'), 'error'); return; }
+                  if (!urgForm.data || !urgForm.hora) { showNotif(t('consultations.validation.date_required'), 'error'); return; }
                   try {
                     setUrgProcessing(true);
                     const res = await apiService.post('/api/consultas', {

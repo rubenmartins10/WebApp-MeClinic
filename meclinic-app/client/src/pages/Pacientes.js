@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+﻿import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Search, User, Phone, Mail, FileText, Calendar, Save, X, Activity, Clock, CheckCircle, XCircle, File as FileIcon, Download, UploadCloud, Trash2, AlertTriangle, Eye, Edit2, Pill, Plus, MessageCircle, Smile } from 'lucide-react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
@@ -190,7 +190,7 @@ const Pacientes = () => {
     e.preventDefault();
     const partesNome = formData.nome.trim().split(' ');
     if (partesNome.length < 2) { showNotif('É obrigatório preencher o Primeiro e Último nome.', 'error'); return; }
-    if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif('O número de telemóvel é obrigatório.', 'error'); return; }
+    if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif(t('consultations.validation.phone_required'), 'error'); return; }
     try {
       await apiService.put(`/api/pacientes/${formData.id}/dados`, formData);
       showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes();
@@ -388,7 +388,7 @@ const Pacientes = () => {
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <div style={{ width: '3px', height: '16px', backgroundColor: '#10b981', borderRadius: '2px' }}></div>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Farmácia Rápida</span>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('patients.rx.quick_pharmacy')}</span>
                 </div>
                 <div style={{ backgroundColor: theme.isDark ? '#1e293b' : '#f8fafc', borderRadius: '14px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
                   {[
@@ -423,7 +423,7 @@ const Pacientes = () => {
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <div style={{ width: '3px', height: '16px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Medicamentos Prescritos</span>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('patients.rx.prescribed')}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {rxMeds.map((med, index) => (
@@ -455,7 +455,7 @@ const Pacientes = () => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                     <div style={{ width: '3px', height: '16px', backgroundColor: '#f59e0b', borderRadius: '2px' }}></div>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Enviar ao Paciente</span>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('patients.rx.send_to_patient')}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     {selectedPaciente?.telefone && (
@@ -510,20 +510,20 @@ const Pacientes = () => {
           <div style={{ backgroundColor: theme.cardBg, width: '100%', maxWidth: '450px', borderRadius: '20px', padding: '35px', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
               <h2 style={{ margin: 0, color: theme.isDark ? '#ffffff' : theme.text, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Edit2 size={24} color="#2563eb" /> Editar Dados
+                <Edit2 size={24} color="#2563eb" /> {t('patients.edit.title')}
               </h2>
               <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer' }}><X size={24} /></button>
             </div>
             <form onSubmit={salvarEdicao}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, marginBottom: '8px', textTransform: 'uppercase' }}>Nome Completo *</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, marginBottom: '8px', textTransform: 'uppercase' }}>{t('patients.modal.full_name')}</label>
               <input type="text" value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} placeholder="Ex: David Fonseca" style={inputStyle} required />
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, marginBottom: '8px', textTransform: 'uppercase' }}>Telemóvel *</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, marginBottom: '8px', textTransform: 'uppercase' }}>{t('patients.modal.phone')}</label>
               <input type="text" value={formData.telefone} onChange={(e) => setFormData({...formData, telefone: e.target.value})} placeholder="Ex: +351 912 345 678" style={inputStyle} required />
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: theme.subText, marginBottom: '8px', textTransform: 'uppercase' }}>Email (Opcional)</label>
               <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="Ex: david@email.com" style={inputStyle} />
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Dados</button>
+                <button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>{t('patients.modal.save_data')}</button>
               </div>
             </form>
           </div>
@@ -534,7 +534,7 @@ const Pacientes = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)' }}>
           <div style={{ backgroundColor: theme.cardBg, padding: '30px', borderRadius: '20px', width: '380px', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             <AlertTriangle size={50} color="#ef4444" style={{ marginBottom: '15px' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>Eliminar Paciente</h2>
+            <h2 style={{ margin: '0 0 10px 0', color: theme.isDark ? '#ffffff' : theme.text }}>{t('patients.delete.title')}</h2>
             <p style={{ color: theme.subText, marginBottom: '25px', fontSize: '14px' }}>Tem a certeza que deseja eliminar o(a) paciente <strong style={{color: theme.text}}>{pacienteToDelete.nome}</strong>? Esta ação apagará todo o histórico.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setShowDeleteConfirm(false); setPacienteToDelete(null); }} style={{ padding: '12px 20px', borderRadius: '10px', border: 'none', backgroundColor: theme.pageBg, color: theme.text, flex: 1, fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
@@ -573,11 +573,11 @@ const Pacientes = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '30px' }}>
                   <div style={{ backgroundColor: theme.pageBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Consultas</div>
+                    <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>{t('patients.stat.consultations')}</div>
                     <div style={{ fontSize: '22px', fontWeight: '900', color: '#8b5cf6' }}>{selectedPaciente.total_consultas}</div>
                   </div>
                   <div style={{ backgroundColor: theme.pageBg, padding: '15px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                    <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Faturado</div>
+                    <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>{t('patients.stat.billed')}</div>
                     <div style={{ fontSize: '22px', fontWeight: '900', color: '#10b981' }}>{selectedPaciente.total_faturado} €</div>
                   </div>
                 </div>
@@ -611,10 +611,10 @@ const Pacientes = () => {
                             <div style={{ color: theme.subText, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> {c.hora_consulta ? formatTime(c.hora_consulta) : '—'}</span>
                             </div>
-                            {c.diagnostico && <div style={{ marginTop: '8px', fontSize: '12px', color: theme.subText, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', padding: '6px 10px', borderRadius: '8px' }}><span style={{ fontWeight: '600', color: theme.text }}>Diagnóstico: </span>{c.diagnostico}</div>}
+                            {c.diagnostico && <div style={{ marginTop: '8px', fontSize: '12px', color: theme.subText, backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', padding: '6px 10px', borderRadius: '8px' }}><span style={{ fontWeight: '600', color: theme.text }}>{t('patients.modal.diagnosis')} </span>{c.diagnostico}</div>}
                           </div>
                         )
-                      }) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><Calendar size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>Sem histórico.</div>)}
+                      }) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><Calendar size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>{t('patients.modal.no_history')}</div>)}
                     </div>
                   </div>
                 )}
@@ -639,7 +639,7 @@ const Pacientes = () => {
                             {isAdmin && (<button onClick={() => apagarExame(exame.id)} style={{ padding: '8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16} /></button>)}
                           </div>
                         </div>
-                      )) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><FileIcon size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>Sem exames.</div>)}
+                      )) : (<div style={{ textAlign: 'center', padding: '40px', color: theme.subText, border: `1px dashed ${theme.border}`, borderRadius: '12px', backgroundColor: theme.cardBg }}><FileIcon size={40} style={{ opacity: 0.3, marginBottom: '15px' }} /><br/>{t('patients.modal.no_exams')}</div>)}
                     </div>
                   </div>
                 )}
@@ -663,7 +663,7 @@ const Pacientes = () => {
         </div>
         <div style={{ position: 'relative', width: '100%', maxWidth: '350px' }}>
           <Search size={20} color={theme.subText} style={{ position: 'absolute', left: '15px', top: '14px' }} />
-          <input type="text" placeholder="Procurar paciente..." style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px', boxSizing: 'border-box' }} value={pesquisa} onChange={(e) => setPesquisa(e.target.value)} />
+          <input type="text" placeholder={t('patients.search.placeholder')} style={{ width: '100%', padding: '14px 15px 14px 45px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: theme.cardBg, color: theme.text, outline: 'none', fontSize: '15px', boxSizing: 'border-box' }} value={pesquisa} onChange={(e) => setPesquisa(e.target.value)} />
         </div>
       </div>
 
@@ -698,7 +698,7 @@ const Pacientes = () => {
                 </tr>
               ))}
               {pacientesFiltrados.length === 0 && (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: theme.subText }}><User size={40} style={{ opacity: 0.3, marginBottom: '10px' }} /><br/>Sem resultados.</td></tr>
+                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: theme.subText }}><User size={40} style={{ opacity: 0.3, marginBottom: '10px' }} /><br/>{t('patients.no_results')}</td></tr>
               )}
             </tbody>
           </table>
