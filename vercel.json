@@ -20,7 +20,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/meclinic-app/client/$1"
+      "dest": "/meclinic-app/client/build/$1"
     }
   ],
   "env": {
