@@ -72,7 +72,12 @@ const Auth = ({ onLogin }) => {
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, ...(authMode === 'LOGIN' && userLocation ? { location: userLocation } : {}) })
+        body: JSON.stringify({
+          ...formData,
+          ...(authMode === 'LOGIN' && userLocation ? { location: userLocation } : {}),
+          // Omitir mfaToken se vazio para não falhar validação Joi
+          ...(formData.mfaToken === '' ? { mfaToken: undefined } : {})
+        })
       });
       const data = await response.json();
 
