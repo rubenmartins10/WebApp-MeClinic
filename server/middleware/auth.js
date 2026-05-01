@@ -12,7 +12,7 @@ const authMiddleware = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     
     if (!token) {
-      throw new AppError('Token não fornecido', 401, { reason: 'missing_token' });
+      return next(new AppError('Token não fornecido', 401, { reason: 'missing_token' }));
     }
     
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
@@ -21,9 +21,9 @@ const authMiddleware = async (req, res, next) => {
     
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      throw new AppError('Token expirado', 401, { reason: 'token_expired' });
+      return next(new AppError('Token expirado', 401, { reason: 'token_expired' }));
     }
-    throw new AppError('Token inválido', 401, { reason: 'invalid_token' });
+    next(new AppError('Token inválido', 401, { reason: 'invalid_token' }));
   }
 };
 

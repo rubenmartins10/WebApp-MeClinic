@@ -45,7 +45,7 @@ class Paciente {
         COALESCE(SUM(f.valor_total), 0)::float as total_faturado,
         MAX(c.data_consulta) as ultima_consulta
       FROM pacientes p
-      INNER JOIN consultas c ON p.id = c.paciente_id AND c.status = 'realizada'
+      LEFT JOIN consultas c ON p.id = c.paciente_id AND c.status = 'realizada'
       LEFT JOIN faturacao f ON c.id = f.consulta_id
       GROUP BY p.id
       ORDER BY p.nome ASC
@@ -64,7 +64,7 @@ class Paciente {
               COUNT(c.id)::int as total_consultas,
               COALESCE(SUM(f.valor_total), 0)::float as total_faturado
        FROM pacientes p
-       INNER JOIN consultas c ON p.id = c.paciente_id AND c.status = 'realizada'
+       LEFT JOIN consultas c ON p.id = c.paciente_id AND c.status = 'realizada'
        LEFT JOIN faturacao f ON c.id = f.consulta_id
        WHERE p.nome ILIKE $1 OR p.email ILIKE $1
        GROUP BY p.id
@@ -210,9 +210,7 @@ class Paciente {
    */
   static async count() {
     const result = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) as total
-       FROM pacientes p
-       INNER JOIN consultas c ON p.id = c.paciente_id AND c.status = 'realizada'`
+      'SELECT COUNT(*) as total FROM pacientes'
     );
     return parseInt(result.rows[0].total);
   }

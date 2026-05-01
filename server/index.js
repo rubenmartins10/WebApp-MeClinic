@@ -44,16 +44,30 @@ app.use(compression({
 }));
 
 // CORS configurado com whitelist de origens seguras
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3050",
-  "http://localhost:3051",
-  "http://localhost:5000",
-  process.env.FRONTEND_URL || "http://localhost:3050"
-];
+// Em produção: apenas FRONTEND_URL (obrigatório no .env)
+// Em desenvolvimento: localhost ports comuns
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      process.env.FRONTEND_URL
+    ].filter(Boolean)
+  : [
+      "http://localhost:3000",
+      "http://localhost:3050",
+      "http://localhost:3051",
+      "http://localhost:5000",
+      process.env.FRONTEND_URL || "http://localhost:3050"
+    ].filter(Boolean);
 
-// Trust proxy em development (npm run dev pode adicionar X-Forwarded-For)
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+  logger.error('ERRO FATAL: FRONTEND_URL não definido nas variáveis de ambiente em produção.');
+  process.exit(1);
+}
+
+// Trust proxy — necessário se o servidor estiver atrás de nginx/Caddy/Cloudflare
+// Em produção trust no primeiro nível de proxy; em dev permitir loopback
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // confiar num nível de proxy (nginx/Caddy)
+} else {
   app.set('trust proxy', 'loopback');
 }
 

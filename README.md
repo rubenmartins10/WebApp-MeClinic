@@ -1,65 +1,68 @@
-# 🏥 MeClinic - Sistema de Gestão Clínica Profissional
+# MeClinic — Sistema de Gestão Clínica
 
 [![Status](https://img.shields.io/badge/Status-Em%20Desenvolvimento-blue)](./docs/roadmap/STATUS_PROJETO.md)
 [![Segurança](https://img.shields.io/badge/Segurança-GDPR%20Compliant-green)](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)
 [![Documentação](https://img.shields.io/badge/Docs-100%25%20Cobertura-blueviolet)](./docs/README.md)
 
-Um sistema moderno, seguro e escalável para gestão completa de clínicas e consultórios.
+Sistema moderno, seguro e escalável para gestão completa de clínicas e consultórios médicos.
 
 ---
 
-## 🚀 Características Principais
+## Características Principais
 
-✅ **Gestão de Pacientes** - Perfil completo, histórico clínico e consultas  
-✅ **Agendamento de Consultas** - Sistema inteligente de calendário  
-✅ **Faturação Automática** - Geração de facturas e relatórios financeiros  
-✅ **Gestão de Inventário** - Controlo de produtos e materiais  
-✅ **Relatórios Automáticos** - PDF e análise financeira semanal  
-✅ **Autenticação Segura** - JWT + Role-based access control  
-✅ **GDPR Compliant** - Conformidade total com regulamentação  
-✅ **Interface Moderna** - React 19 com dark mode e multi-idioma  
-
----
-
-## 📋 Documentação
-
-**Toda a documentação está organizada em `docs/`** com estrutura profissional:
-
-| Tipo | Localização | Descrição |
-|------|------------|-----------|
-| 📖 Guias | `docs/guias/` | Setup, desenvolvimento, best practices |
-| 🔖 Referência | `docs/referencia/` | APIs, banco de dados, arquitetura |
-| 🚀 Roadmap | `docs/roadmap/` | Planos, deployment, segurança |
-
-👉 **[Aceder à Documentação](./docs/README.md)**
+| Módulo | Descrição |
+|--------|-----------|
+| **Gestão de Pacientes** | Perfil completo, histórico clínico e registo de consultas |
+| **Agendamento de Consultas** | Sistema de calendário com controlo de disponibilidade |
+| **Faturação Automática** | Emissão de facturas e relatórios financeiros |
+| **Gestão de Inventário** | Controlo de produtos, materiais e alertas de stock |
+| **Relatórios Automáticos** | Geração de PDF e análise financeira semanal |
+| **Autenticação Segura** | JWT com MFA e controlo de acesso por função (RBAC) |
+| **Conformidade GDPR** | Implementação completa dos requisitos regulamentares |
+| **Interface Moderna** | React 19 com suporte a tema escuro e múltiplos idiomas |
 
 ---
 
-## ⚙️ Quick Start
+## Documentação
+
+Toda a documentação está organizada em `docs/`:
+
+| Tipo | Localização | Conteúdo |
+|------|-------------|----------|
+| Guias | `docs/guias/` | Setup, desenvolvimento, boas práticas |
+| Referência | `docs/referencia/` | APIs, base de dados, arquitectura |
+| Roadmap | `docs/roadmap/` | Planeamento, deployment, segurança |
+
+**[Aceder à Documentação Completa](./docs/README.md)**
+
+---
+
+## Quick Start
 
 ### Pré-requisitos
-- Node.js 18+
-- PostgreSQL 14+
+
+- Node.js 18 ou superior
+- PostgreSQL 14 ou superior
 - npm ou yarn
 
 ### Instalação
 
 ```bash
-# 1. Clonar repositório
+# Clonar repositório
 git clone <repo-url>
 cd MeClinic
 
-# 2. Instalar dependências
+# Instalar dependências
 npm install
 
-# 3. Configurar variáveis de ambiente
+# Configurar variáveis de ambiente
 cp .env.example .env
-# Editar .env com tus credenciais
+# Preencher .env com as credenciais adequadas
 
-# 4. Iniciar base de dados
+# Inicializar base de dados
 npm run db:init
 
-# 5. Iniciar desenvolvimento
+# Iniciar em modo de desenvolvimento
 npm run dev
 ```
 
@@ -68,133 +71,120 @@ npm run dev
 ```
 MeClinic/
 │
-├─ 📚 docs/                 ← Toda a documentação
-│  ├─ guias/
-│  ├─ referencia/
-│  └─ roadmap/
+├── docs/                   # Documentação do projecto
+│   ├── guias/
+│   ├── referencia/
+│   └── roadmap/
 │
-├─ 💻 meclinic-app/         ← Aplicação completa
-│  ├─ client/               ← Frontend React (port 3000)
-│  └─ server/               ← Backend Node.js (port 5000)
+├── meclinic-app/           # Aplicação principal
+│   ├── client/             # Frontend React (porta 3000)
+│   └── server/             # Backend Node.js (porta 5000)
 │
-├─ 🗄️ Database/             ← Scripts SQL e migrations
-├─ ⚙️ config/               ← Ficheiros de configuração
-├─ 🔧 scripts/              ← Scripts de automatização
-├─ ✅ tests/                ← Suite de testes
-│
-└─ 📄 Ficheiros de Configuração
-   ├─ .env                  ← Variáveis de ambiente
-   ├─ package.json
-   ├─ tsconfig.json
-   └─ .eslintrc
+├── Database/               # Scripts SQL e migrations
+├── config/                 # Ficheiros de configuração
+├── scripts/                # Scripts de automatização
+└── tests/                  # Suite de testes
 ```
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Tecnologias
 
 ### Frontend
-- **React 19.2.3** - UI moderna e responsiva
-- **Lucide React** - Ícones profissionais
-- **jsPDF** - Geração de PDFs
-- **React Router 7** - Navegação
+- **React 19.2.3** — Interface de utilizador responsiva
+- **React Router 7** — Navegação entre vistas
+- **Lucide React** — Biblioteca de ícones
+- **jsPDF** — Geração de documentos PDF no cliente
 
 ### Backend
-- **Node.js + Express 5** - Servidor web
-- **PostgreSQL** - Base de dados relacional
-- **Nodemailer** - Envio de emails
-- **JWT** - Autenticação segura
-- **node-cron** - Tarefas agendadas
+- **Node.js + Express 5** — Servidor HTTP
+- **PostgreSQL** — Base de dados relacional
+- **JWT** — Autenticação stateless com refresh tokens
+- **Nodemailer** — Envio de emails transaccionais
+- **node-cron** — Tarefas agendadas
 
-### DevOps
-- **HTTPS/SSL** - Comunicação encriptada
-- **CORS** - Segurança cross-origin
-- **Rate Limiting** - Proteção DDoS
-- **Helmet.js** - Headers de segurança
-
----
-
-## 🔐 Segurança
-
-✅ Autenticação JWT com expiração  
-✅ Controlo de acesso baseado em papéis (RBAC)  
-✅ Validação com Joi em todos os inputs  
-✅ Protecção CSRF  
-✅ Rate limiting  
-✅ Conformidade GDPR  
-
-📖 **[Ver detalhes de segurança](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)**
+### Segurança e Infraestrutura
+- **HTTPS/SSL** — Comunicação encriptada
+- **Helmet.js** — Cabeçalhos HTTP de segurança
+- **CORS** — Controlo de acesso entre origens
+- **Rate Limiting** — Protecção contra abuso de API
 
 ---
 
-## 📊 API Overview
+## Segurança
 
-A API está completamente documentada em `docs/referencia/API.md`
+- Autenticação JWT com expiração e refresh tokens
+- Autenticação multi-factor (MFA/TOTP)
+- Controlo de acesso baseado em funções (RBAC)
+- Validação de inputs com Joi em todos os endpoints
+- Rate limiting nas rotas de autenticação
+- Conformidade com GDPR
+
+**[Ver documentação de segurança](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)**
+
+---
+
+## API
+
+Documentação completa disponível em `docs/referencia/API.md`.
 
 ```
-POST   /api/auth/login              - Login do utilizador
-GET    /api/pacientes               - Listar pacientes
-POST   /api/consultas               - Criar consulta
-GET    /api/reports/weekly-detail   - Relatório financeiro
-POST   /api/reports/send-email      - Enviar email com relatório
+POST   /api/auth/login              # Autenticação de utilizador
+GET    /api/pacientes               # Listagem de pacientes
+POST   /api/consultas               # Criação de consulta
+GET    /api/reports/weekly-detail   # Relatório financeiro semanal
+POST   /api/reports/send-email      # Envio de relatório por email
 ```
 
-📖 **[API Completa](./docs/referencia/API.md)**
+**[Documentação completa da API](./docs/referencia/API.md)**
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 
-- ✅ Sistema de autenticação
-- ✅ Gestão de pacientes e consultas
-- ✅ Faturação e relatórios
-- 🔄 Integração de pagamentos online
-- 🔄 App mobile (React Native)
-- 🔄 Dashboard analytics avançado
-- 🔄 Integração com sistemas de lab
+**Implementado**
+- Sistema de autenticação com MFA
+- Gestão de pacientes e consultas
+- Faturação e relatórios PDF
 
-📖 **[Ver roadmap completo](./docs/roadmap/ROADMAP.md)**
+**Em desenvolvimento**
+- Integração com processadores de pagamento
+- Aplicação móvel (React Native)
+- Dashboard de analytics avançado
+- Integração com sistemas laboratoriais
 
----
-
-## 🤝 Contribuição
-
-Consulta [CONTRIBUTING.md](./docs/CONTRIBUTING.md) para guia completo.
-
-```bash
-1. Fork o repositório
-2. Cria uma branch feature (git checkout -b feature/AmazingFeature)
-3. Commit mudanças (git commit -m 'Add AmazingFeature')
-4. Push para a branch (git push origin feature/AmazingFeature)
-5. Abre um Pull Request
-```
+**[Ver roadmap completo](./docs/roadmap/ROADMAP.md)**
 
 ---
 
-## 📝 Licença
+## Contribuição
 
-Este projeto está sob licença ISC. Ver LICENSE para detalhes.
-
----
-
-## 📞 Contacto & Suporte
-
-- 📧 Email: support@meclinic.dev
-- 📋 Issues: GitHub Issues
-- 💬 Discussões: GitHub Discussions
+Consulte [CONTRIBUTING.md](./CONTRIBUTING.md) para informações sobre o processo de contribuição.
 
 ---
 
-## 📚 Documentação Adicional
+## Licença
 
-- [Setup Completo](./docs/guias/SETUP.md)
-- [Arquitetura do Projeto](./docs/referencia/ESTRUTURA_PROJETO.md)
-- [Deploy em Produção](./docs/roadmap/DEPLOYMENT.md)
-- [Segurança & GDPR](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)
-- [Código de Conduta](./docs/CODE_OF_CONDUCT.md)
+Este projecto está licenciado sob a licença ISC. Consulte o ficheiro LICENSE para detalhes.
 
 ---
 
-**Desenvolvido com ❤️ para clínicas modernas**
+## Contacto e Suporte
 
-*Última atualização: Abril 2026*
+- **Email:** support@meclinic.dev
+- **Issues:** GitHub Issues
+- **Discussões:** GitHub Discussions
+
+---
+
+## Documentação Adicional
+
+- [Guia de Setup](./docs/guias/SETUP.md)
+- [Arquitectura do Projecto](./docs/referencia/ESTRUTURA_PROJETO.md)
+- [Guia de Deployment](./docs/roadmap/DEPLOYMENT.md)
+- [Segurança e GDPR](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)
+- [Código de Conduta](./CODE_OF_CONDUCT.md)
+
+---
+
+*Última actualização: Maio 2026*

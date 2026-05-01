@@ -1,111 +1,109 @@
-# Contribuindo para MeClinic
+# Guia de Contribuição
 
-## Bem-vindo ao MeClinic! 👋
+Obrigado por considerar contribuir para o MeClinic. Este documento descreve o processo e as normas que devem ser seguidas para garantir qualidade e consistência no projecto.
 
-Obrigado por considerar contribuir para o MeClinic, um sistema de gestão de clínica dentária de código aberto.
+Ao participar, é esperado que cumpra o [Código de Conduta](./CODE_OF_CONDUCT.md).
 
-### Código de Conduta
+---
 
-Este projeto adota um [Código de Conduta](./CODE_OF_CONDUCT.md). Ao participar, espera-se que cumpra estas orientações.
+## Como Contribuir
 
-### Como Posso Contribuir?
+### Reportar Problemas
 
-#### 1. **Reportar Erros** 🐛
+Ao identificar um bug, crie uma issue com os seguintes elementos:
 
-Se encontrar um erro, crie uma issue com:
-- Descrição clara do problema
-- Passos para reproduzir
-- Comportamento esperado vs. atual
-- Screenshots/logs se aplicável
-- Ambiente (SO, navegador, versão Node.js)
+- Descrição clara e objectiva do problema
+- Passos para reproduzir o comportamento
+- Comportamento esperado versus comportamento observado
+- Screenshots ou logs relevantes (se aplicável)
+- Informações de ambiente: sistema operativo, versão do Node.js, browser
 
-#### 2. **Sugerir Melhorias** 💡
+### Sugerir Melhorias
 
-Para sugestões de novas funcionalidades:
-- Explique o caso de uso
-- Forneça exemplos de uso
-- Considere quando seria útil
-- Adicione qualquer contexto adicional
+Para propor novas funcionalidades:
 
-#### 3. **Submeter Code Pull Requests** 🔧
+- Descreva o caso de uso que justifica a funcionalidade
+- Forneça exemplos concretos de utilização
+- Explique o impacto esperado para os utilizadores finais
+- Inclua qualquer contexto técnico relevante
 
-**Processo de Desenvolvimento:**
+### Submeter Pull Requests
 
-1. **Fork o repositório**
+**Processo de desenvolvimento:**
+
+1. **Fazer fork do repositório**
    ```bash
    git clone https://github.com/teu-usuario/meclinic.git
    cd meclinic
    ```
 
-2. **Crie uma branch de feature**
+2. **Criar uma branch de trabalho**
    ```bash
    git checkout -b feature/GH-123-descricao-clara
    ```
 
-3. **Siga o Guia de Estilo** (ver [CODE_STYLE.md](./CODE_STYLE.md))
+3. **Seguir as normas de estilo** — consulte [CODE_STYLE.md](./docs/CODE_STYLE.md)
 
-4. **Faça commits semânticos**
+4. **Escrever commits semânticos**
    ```bash
    git commit -m "feat: adiciona validação de email
-   
-   - Implementa RFC 5322 para validação
+
+   - Implementa validação segundo RFC 5322
    - Adiciona testes unitários
-   - Atualiza documentação"
+   - Actualiza documentação relevante"
    ```
 
-5. **Envie para sua fork**
+5. **Enviar para a fork**
    ```bash
    git push origin feature/GH-123-descricao-clara
    ```
 
-6. **Crie um Pull Request** com:
+6. **Criar um Pull Request** com:
    - Título descritivo
-   - Referência à issue (ex: Closes #123)
-   - Descrição clara das mudanças
-   - Screenshots de UI changes
+   - Referência à issue correspondente (ex: `Closes #123`)
+   - Descrição das alterações realizadas
+   - Screenshots para alterações de interface
 
-### Padrões de Desenvolvimento
+---
 
-#### 📝 Commits
+## Normas de Desenvolvimento
 
-Utilizamos **Conventional Commits**:
-- `feat:` Nova funcionalidade
-- `fix:` Correção de bug
-- `docs:` Mudanças na documentação
-- `style:` Formatação, missing semicolons, etc.
-- `refactor:` Refatoração de código sem mudanças de funcionalidade
-- `perf:` Melhorias de desempenho
-- `test:` Adicionar testes
-- `chore:` Atualizações de dependências, build scripts
+### Commits
 
-#### 🌳 Branches
+Este projecto adopta a convenção [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `main` - Produção estável
-- `develop` - Desenvolvimento ativo
-- `feature/*` - Novas funcionalidades
-- `bugfix/*` - Correções de bugs
-- `hotfix/*` - Correções críticas de produção
+| Prefixo | Utilização |
+|---------|------------|
+| `feat:` | Nova funcionalidade |
+| `fix:` | Correcção de bug |
+| `docs:` | Alterações em documentação |
+| `style:` | Formatação, sem alteração de lógica |
+| `refactor:` | Refactorização sem alteração de comportamento |
+| `perf:` | Optimizações de desempenho |
+| `test:` | Adição ou correcção de testes |
+| `chore:` | Dependências, scripts de build, tarefas de manutenção |
 
-#### 📋 Estrutura
+### Branches
 
-Veja [ARCHITECTURE.md](./DOCUMENTACAO/ARQUITETURA.md) para entender a estrutura do projeto.
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Código de produção estável |
+| `develop` | Desenvolvimento activo |
+| `feature/*` | Novas funcionalidades |
+| `bugfix/*` | Correcção de bugs |
+| `hotfix/*` | Correcções críticas em produção |
 
-### Diretrizes de Qualidade
+---
 
-- **Testes**: Sempre escreva testes para novos recursos
-- **Documentação**: Documente mudanças significativas
-- **Performance**: Considere o impacto no desempenho
-- **Segurança**: Nunca commit credenciais ou dados sensíveis
-- **Acessibilidade**: Garanta que UI seja acessível (WCAG 2.1 AA)
-
-### Ambiente de Desenvolvimento
+## Ambiente de Desenvolvimento
 
 **Requisitos:**
-- Node.js v18+
-- PostgreSQL 14+
+
+- Node.js v18 ou superior
+- PostgreSQL 14 ou superior
 - npm ou yarn
 
-**Setup:**
+**Configuração inicial:**
 
 ```bash
 # Instalar dependências
@@ -114,26 +112,36 @@ npm install
 # Configurar variáveis de ambiente
 cp server/.env.example server/.env
 
-# Executar migrations (se aplicável)
+# Executar migrations
 npm run db:migrate
 
-# Iniciar em desenvolvimento
+# Iniciar em modo de desenvolvimento
 npm run dev
 ```
 
-### Recursos
+---
 
-- 📚 [Documentação Técnica](./DOCUMENTACAO/)
-- 🏗️ [Arquitetura do Sistema](./DOCUMENTACAO/ARQUITETURA.md)
-- 🔐 [Segurança](./DOCUMENTACAO/SUMARIO_SEGURANCA.md)
-- 📖 [API Documentation](./DOCUMENTACAO/API.md)
+## Critérios de Qualidade
 
-### Dúvidas?
-
-- Abra uma **discussion** no GitHub
-- Contacte o time de maintainers
-- Consulte a documentação
+- **Testes** — Toda nova funcionalidade deve incluir testes adequados
+- **Documentação** — Alterações significativas devem ser documentadas
+- **Desempenho** — Avaliar o impacto de cada alteração no desempenho geral
+- **Segurança** — Nunca incluir credenciais ou dados sensíveis em commits
+- **Acessibilidade** — As interfaces devem cumprir WCAG 2.1 nível AA
 
 ---
 
-**Obrigado por contribuir para tornar MeClinic melhor! 🚀**
+## Recursos
+
+- [Documentação Técnica](./docs/)
+- [Arquitectura do Sistema](./docs/referencia/ESTRUTURA_PROJETO.md)
+- [Segurança e GDPR](./docs/roadmap/PROTECAO_DADOS_GDPR_COMPLIANCE.md)
+- [Documentação da API](./docs/referencia/API.md)
+
+---
+
+## Dúvidas
+
+- Abra uma **Discussion** no GitHub
+- Contacte os mantenedores através das issues
+- Consulte a documentação disponível em `docs/`

@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false
+    rejectUnauthorized: process.env.NODE_ENV === 'production'
   }
 });
 
@@ -55,8 +55,8 @@ async function generateWeeklyReportPDF() {
           COUNT(DISTINCT CASE WHEN c.status = 'cancelada' THEN c.id END) as consultas_canceladas,
           COUNT(DISTINCT CASE WHEN c.status = 'concluida' THEN c.id END) as consultas_concluidas
         FROM consultas c
-        LEFT JOIN pacientes p ON c.id_paciente = p.id
-        LEFT JOIN faturacao f ON c.id = f.id_consulta
+        LEFT JOIN pacientes p ON c.paciente_id = p.id
+        LEFT JOIN faturacao f ON c.id = f.consulta_id
         WHERE c.data_consulta >= $1 AND c.data_consulta <= $2
       `, [weekStart, weekEnd]);
 
@@ -77,7 +77,7 @@ async function generateWeeklyReportPDF() {
           p.nome,
           COUNT(c.id) as num_consultas
         FROM consultas c
-        JOIN pacientes p ON c.id_paciente = p.id
+        JOIN pacientes p ON c.paciente_id = p.id
         WHERE c.data_consulta >= $1 AND c.data_consulta <= $2
         GROUP BY p.id, p.nome
         ORDER BY num_consultas DESC
@@ -92,7 +92,7 @@ async function generateWeeklyReportPDF() {
           SUM(fp.quantidade * fp.preco_unitario) as total_vendas
         FROM faturacao_produtos fp
         JOIN produtos pr ON fp.id_produto = pr.id
-        JOIN faturacao f ON fp.id_fatura = f.id
+        JOIN faturacao f ON fp.fatura_id = f.id
         WHERE f.data_emissao >= $1 AND f.data_emissao <= $2
         GROUP BY pr.id, pr.nome
         ORDER BY qtde_vendida DESC

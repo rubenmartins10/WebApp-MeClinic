@@ -24,6 +24,9 @@ router.use(authMiddleware);
 // Relatório Semanal Detalhado
 router.get('/weekly-detail', async (req, res) => {
   const { start } = req.query;
+  if (!start || isNaN(Date.parse(start))) {
+    return res.status(400).json({ error: 'Parâmetro start inválido. Use o formato YYYY-MM-DD.' });
+  }
   try {
     const report = await pool.query(`
       SELECT 
@@ -37,8 +40,8 @@ router.get('/weekly-detail', async (req, res) => {
         COUNT(DISTINCT CASE WHEN c.status = 'concluida'  THEN c.id END)::int as consultas_concluidas,
         COUNT(DISTINCT CASE WHEN c.status = 'cancelada'  THEN c.id END)::int as consultas_canceladas
       FROM consultas c 
-      JOIN modelos_procedimento m ON c.procedimento_id = m.id
-      JOIN pacientes p ON c.paciente_id = p.id
+      LEFT JOIN modelos_procedimento m ON c.procedimento_id = m.id
+      LEFT JOIN pacientes p ON c.paciente_id = p.id
       WHERE c.data_consulta::date BETWEEN $1::date AND $1::date + '6 days'::interval
     `, [start]);
     
@@ -104,8 +107,8 @@ router.post('/send-email', requireRole('ADMIN'), async (req, res) => {
 
     res.json({ message: 'Relatório enviado com sucesso.' });
   } catch (err) {
-    console.error("Erro ao enviar relatório:", err);
-    res.status(500).json({ error: "Erro ao enviar e-mail." });
+    logger.error('Erro ao enviar relatório por email:', { message: err.message });
+    res.status(500).json({ error: 'Erro ao enviar e-mail.' });
   }
 });
 
@@ -119,7 +122,7 @@ const { sendWeeklyReportEmail } = require('../controllers/reportsController');
  * Útil para testes
  * POST /api/reports/send-weekly-manual
  */
-router.post('/send-weekly-manual', async (req, res) => {
+router.post('/send-weekly-manual', requireRole('ADMIN'), async (req, res) => {
   try {
     const result = await sendWeeklyReportEmail();
     res.json(result);

@@ -97,7 +97,7 @@ class AuthController {
           throw new AppError('MFA token necessário', 401, { reason: 'mfa_required' });
         }
 
-        const mfaValid = User.verifyMFAToken(user.mfa_secret, mfaToken);
+        const mfaValid = await User.verifyMFAToken(user.mfa_secret, mfaToken);
         if (!mfaValid) {
           throw new AppError('MFA token inválido', 401);
         }

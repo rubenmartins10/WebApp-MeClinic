@@ -1,47 +1,56 @@
-# Código de Conduta do MeClinic
+# Código de Conduta
 
-## Nossa Promessa
+## Compromisso
 
-No interesse de promover um ambiente aberto e acolhedor, nós, como contribuintes e mantenedores, nos comprometemos a tornar a participação em nosso projeto e nossa comunidade uma experiência livre de assédio para todos, independentemente de idade, tamanho corporal, deficiência, etnia, identidade e expressão de gênero, nível de experiência, nacionalidade, aparência pessoal, raça, religião, identidade e orientação sexual.
+Os contribuintes e mantenedores deste projecto comprometem-se a garantir que a participação na comunidade MeClinic seja uma experiência respeitosa e livre de assédio para todos, independentemente de idade, características físicas, deficiência, etnia, identidade e expressão de género, nível de experiência, nacionalidade, aparência pessoal, raça, religião, ou identidade e orientação sexual.
 
-## Nossos Padrões
+---
 
-Exemplos de comportamento que contribuem para criar um ambiente positivo incluem:
+## Normas de Comportamento
 
-- Usar linguagem acolhedora e inclusiva
-- Ser respeitoso com pontos de vista e experiências divergentes
-- Aceitar críticas construtivas com graça
-- Focar no que é melhor para a comunidade
-- Mostrar empatia com outros membros da comunidade
+### Comportamento Esperado
 
-Exemplos de comportamento inaceitável incluem:
+- Utilizar linguagem inclusiva e respeitosa
+- Aceitar diferentes pontos de vista e experiências
+- Receber críticas construtivas com profissionalismo
+- Priorizar o que é melhor para o projecto e para a comunidade
+- Demonstrar empatia para com outros membros
 
-- Assédio de qualquer tipo
-- Linguagem ofensiva ou insultuosa relacionada a características pessoais
-- Ataques pessoais
-- Comentários políticos ou religiosos provocadores
-- Publicação privada de informações de terceiros ("doxing")
-- Conduta sexual inapropriada
-- Outras condutas que possam ser razoavelmente consideradas inapropriadas em um ambiente profissional
+### Comportamento Inaceitável
 
-## Nossas Responsabilidades
+- Assédio de qualquer natureza
+- Comentários depreciativos relacionados com características pessoais
+- Ataques pessoais ou insultos
+- Publicação de informações privadas de terceiros sem consentimento
+- Conduta de natureza sexual não solicitada ou inapropriada
+- Qualquer outra conduta que possa ser razoavelmente considerada inadequada num contexto profissional
 
-Os mantenedores do projeto são responsáveis por esclarecer os padrões de comportamento aceitável e devem tomar ações corretivas apropriadas e justas em resposta a qualquer instância de comportamento inaceitável.
+---
 
-Os mantenedores têm o direito e a responsabilidade de remover, editar ou rejeitar comentários, commits, código, edições de wiki, issues e outras contribuições que não estejam alinhadas com este Código de Conduta, ou de banir temporariamente ou permanentemente qualquer contribuinte por comportamentos que considerem inapropriados, ameaçador, ofensivo ou prejudicial.
+## Responsabilidades dos Mantenedores
 
-## Escopo
+Os mantenedores do projecto são responsáveis por clarificar as normas de comportamento aceitável e por tomar as medidas correctivas adequadas em resposta a qualquer situação de comportamento inaceitável.
 
-Este Código de Conduta aplica-se em todos os espaços do projeto, e também se aplica quando um indivíduo está oficialmente representando o projeto em espaços públicos. Exemplos de representação do projeto incluem o uso de um endereço de e-mail oficial do projeto, postagem através de uma conta oficial de mídia social, ou atuação como representante designado em um evento online ou offline.
+Os mantenedores têm o direito e a responsabilidade de remover, editar ou rejeitar comentários, commits, código, edições de wiki, issues e outras contribuições que não estejam alinhadas com este Código de Conduta, ou de banir temporária ou permanentemente qualquer colaborador cujo comportamento considerem inadequado, ameaçador, ofensivo ou prejudicial.
+
+---
+
+## Âmbito de Aplicação
+
+Este Código de Conduta aplica-se a todos os espaços do projecto, bem como quando um indivíduo representa oficialmente o projecto em espaços públicos. Exemplos de representação incluem a utilização de um endereço de email oficial do projecto, publicações através de contas oficiais em redes sociais, ou a actuação como representante designado em eventos presenciais ou online.
+
+---
 
 ## Aplicação
 
-Instâncias de comportamento abusivo, de assédio ou inaceitável podem ser reportadas entrando em contato com a equipe do projeto em `conduct@meclinic.dev`. Todas as reclamações serão revisadas e investigadas e resultarão em uma resposta que é considerada necessária e apropriada às circunstâncias. A equipe do projeto é obrigada a manter a confidencialidade em relação ao relator de um incidente.
+Situações de comportamento abusivo, assédio ou condutas inaceitáveis devem ser comunicadas à equipa do projecto através do endereço `conduct@meclinic.dev`.
 
-Detalhes adicionais de políticas de aplicação específicas podem ser publicados separadamente.
+Todas as participações serão analisadas e investigadas, resultando numa resposta considerada necessária e proporcional às circunstâncias. A equipa mantém a confidencialidade relativamente à identidade de quem reporta um incidente.
 
-Mantenedores de projeto que não seguem ou aplicam o Código de Conduta de boa fé podem enfrentar repercussões temporárias ou permanentes conforme determinado por outros membros da liderança do projeto.
+Os mantenedores que não apliquem este Código de Conduta de boa fé podem enfrentar consequências temporárias ou permanentes, conforme determinado pelos restantes membros da liderança do projecto.
+
+---
 
 ## Atribuição
 
-Este Código de Conduta é adaptado do [Pacto de Colaborador](https://www.contributor-covenant.org), versão 2.0, disponível em https://www.contributor-covenant.org/version/2/0/code_of_conduct.html
+Este Código de Conduta é adaptado do [Contributor Covenant](https://www.contributor-covenant.org), versão 2.0, disponível em https://www.contributor-covenant.org/version/2/0/code_of_conduct.html
