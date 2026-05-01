@@ -2,7 +2,7 @@ const Joi = require('joi');
 
 // Padrões reutilizáveis
 const commonPatterns = {
-  email: Joi.string().email().required().messages({
+  email: Joi.string().trim().lowercase().email({ tlds: { allow: false } }).required().messages({
     'string.email': 'Email inválido',
     'any.required': 'Email é obrigatório'
   }),

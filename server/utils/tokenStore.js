@@ -1,13 +1,10 @@
 /**
- * Token Store - armazenamento em memória de refresh tokens
- * Adequado para instalação de clínica single-server.
- * Os tokens são invalidados no restart do servidor (comportamento esperado).
+ * Token Store — persistência de refresh tokens na base de dados.
+ * Compatível com ambientes serverless (Vercel) e servidores tradicionais.
+ * Requer a tabela `refresh_tokens` (ver Database/004_create_refresh_tokens.sql).
  */
-
-/**
- * Map de refreshToken → { userId, expiresAt }
- */
-const store = new Map();
+const pool = require('../db');
+const logger = require('./logger');
 
 /**
  * Registar um novo refresh token
@@ -15,44 +12,50 @@ const store = new Map();
  * @param {number} userId
  * @param {number} ttlMs - duração em milissegundos
  */
-function set(token, userId, ttlMs) {
-  store.set(token, { userId, expiresAt: Date.now() + ttlMs });
+async function set(token, userId, ttlMs) {
+  const expiresAt = new Date(Date.now() + ttlMs);
+  await pool.query(
+    `INSERT INTO refresh_tokens (token, user_id, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token) DO UPDATE SET expires_at = $3`,
+    [token, userId, expiresAt]
+  );
 }
 
 /**
  * Verificar se um refresh token é válido e não expirou
  * @param {string} token
- * @returns {{ userId: number }|null}
+ * @returns {Promise<{ userId: number }|null>}
  */
-function get(token) {
-  const entry = store.get(token);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    store.delete(token);
-    return null;
-  }
-  return { userId: entry.userId };
+async function get(token) {
+  const result = await pool.query(
+    `SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()`,
+    [token]
+  );
+  if (result.rows.length === 0) return null;
+  return { userId: result.rows[0].user_id };
 }
 
 /**
  * Invalidar um refresh token (logout)
  * @param {string} token
  */
-function revoke(token) {
-  store.delete(token);
+async function revoke(token) {
+  await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [token]);
 }
 
 /**
- * Limpar tokens expirados (executar periodicamente)
+ * Limpar tokens expirados (executar periodicamente via cron)
  */
-function purgeExpired() {
-  const now = Date.now();
-  for (const [token, entry] of store) {
-    if (now > entry.expiresAt) store.delete(token);
+async function purgeExpired() {
+  try {
+    const result = await pool.query('DELETE FROM refresh_tokens WHERE expires_at <= NOW()');
+    if (result.rowCount > 0) {
+      logger.info(`[tokenStore] ${result.rowCount} refresh token(s) expirado(s) removido(s)`);
+    }
+  } catch (err) {
+    logger.error('[tokenStore] Erro ao limpar tokens expirados:', { message: err.message });
   }
 }
 
-// Limpar expirados a cada 30 minutos
-setInterval(purgeExpired, 30 * 60 * 1000);
-
-module.exports = { set, get, revoke };
+module.exports = { set, get, revoke, purgeExpired };

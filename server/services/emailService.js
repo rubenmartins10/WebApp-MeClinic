@@ -2,6 +2,52 @@ const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
 
 /**
+ * Gera um email HTML com o template padrão MeClinic.
+ *
+ * @param {string} title      - Título principal no cabeçalho (ex: "Receita Médica")
+ * @param {string} bodyHtml   - Conteúdo HTML do corpo do email
+ * @returns {string}          - HTML completo
+ */
+function buildEmailHtml(title, bodyHtml) {
+  const clinicNome = process.env.CLINIC_NAME || 'MeClinic';
+  return `
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+    <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+        <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+            <!-- Header -->
+            <tr>
+              <td style="background:linear-gradient(135deg,#1d4ed8,#1e40af);padding:28px 32px;text-align:center;">
+                <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">${title}</h1>
+                <p style="margin:6px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">${clinicNome}</p>
+              </td>
+            </tr>
+            <!-- Body -->
+            <tr>
+              <td style="background:#ffffff;padding:28px 32px;color:#1e293b;font-size:15px;line-height:1.7;">
+                ${bodyHtml}
+              </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+              <td style="background:#f8fafc;padding:18px 32px;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;color:#94a3b8;font-size:12px;text-align:center;">
+                  Este é um email automático do sistema ${clinicNome}. Por favor, não responda a este email.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+/**
  * Cria o transporter uma única vez (lazy singleton).
  * Lê as variáveis do .env em runtime para que alterações ao ficheiro
  * sejam reflectidas sem recompilar.
@@ -54,4 +100,4 @@ function dataUriToBuffer(dataUri) {
   return Buffer.from(base64, 'base64');
 }
 
-module.exports = { sendEmail, dataUriToBuffer };
+module.exports = { sendEmail, dataUriToBuffer, buildEmailHtml };

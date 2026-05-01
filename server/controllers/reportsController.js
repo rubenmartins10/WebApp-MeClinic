@@ -1,28 +1,14 @@
 const pool = require('../db');
 const PDFDocument = require('pdfkit');
-const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const { sendEmail, buildEmailHtml } = require('../services/emailService');
 
 /**
  * Controller de Relatórios
  * Gera relatórios em PDF e envia por email aos administradores
  */
-
-// Configurar transporter de email - Mailtrap
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
-  port: process.env.SMTP_PORT || 2525,
-  secure: process.env.SMTP_SECURE === 'true' || false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: process.env.NODE_ENV === 'production'
-  }
-});
 
 /**
  * Gerar relatório semanal em PDF
@@ -305,44 +291,19 @@ async function sendWeeklyReportEmail() {
     logger.info(`[REPORT] Enviando relatório para ${admins.length} administrador(es)...`);
 
     // Enviar email para cada administrador
+    const reportDate = new Date().toISOString().split('T')[0];
     const emailPromises = admins.map(admin => {
-      const mailOptions = {
-        from: `MeClinic <${process.env.EMAIL_USER}>`,
-        to: admin.email,
-        subject: `📊 Relatório Semanal MeClinic - ${new Date().toLocaleDateString('pt-PT')}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: #ffffff; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="margin: 0; font-size: 28px;">📊 Relatório Semanal</h1>
-              <p style="margin: 5px 0 0 0; font-size: 14px;">Sistema de Gestão MeClinic</p>
-            </div>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 0 0 10px 10px;">
-              <p style="color: #333; margin: 0 0 15px 0;">Olá ${admin.nome},</p>
-              <p style="color: #666; margin: 0 0 15px 0;">
-                Segue em anexo o relatório semanal da clínica MeClinic com as principais estatísticas, 
-                vendas, pacientes e alertas.
-              </p>
-              <div style="background: #ffffff; border-left: 4px solid #0066cc; padding: 15px; margin: 15px 0; border-radius: 4px;">
-                <p style="color: #0066cc; font-weight: bold; margin: 0 0 5px 0;">📎 Documento anexado:</p>
-                <p style="color: #666; margin: 0;">Relatório_Semanal_${new Date().toISOString().split('T')[0]}.pdf</p>
-              </div>
-              <p style="color: #999; font-size: 12px; margin: 20px 0 0 0; border-top: 1px solid #ddd; padding-top: 10px;">
-                Este é um email automático gerado pelo sistema MeClinic. 
-                Por favor, não responda a este email.
-              </p>
-            </div>
-          </div>
-        `,
-        attachments: [
-          {
-            filename: `Relatório_Semanal_${new Date().toISOString().split('T')[0]}.pdf`,
-            content: pdfBuffer,
-            contentType: 'application/pdf'
-          }
-        ]
-      };
-
-      return transporter.sendMail(mailOptions);
+      const subject = `Relatório Semanal MeClinic — ${new Date().toLocaleDateString('pt-PT')}`;
+      const html = buildEmailHtml('Relatório Semanal', `
+        <p>Olá <strong>${admin.nome}</strong>,</p>
+        <p>Segue em anexo o <strong>relatório semanal</strong> da clínica com as principais estatísticas, faturação, pacientes e alertas de stock.</p>
+        <p style="margin:0;color:#64748b;font-size:13px;">Ficheiro anexo: Relatório_Semanal_${reportDate}.pdf</p>
+      `);
+      return sendEmail(admin.email, subject, html, [{
+        filename: `Relatório_Semanal_${reportDate}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }]);
     });
 
     await Promise.all(emailPromises);

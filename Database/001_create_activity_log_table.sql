@@ -13,11 +13,11 @@ CREATE TABLE IF NOT EXISTS activity_log (
     status VARCHAR(20) DEFAULT 'success', -- 'success', 'failed'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    session_id VARCHAR(100), -- Para rastrear sessões activas
-    INDEX idx_user_id (user_id),
-    INDEX idx_created_at (created_at),
-    INDEX idx_session_id (session_id)
+    session_id VARCHAR(100) -- Para rastrear sessões activas
 );
+CREATE INDEX IF NOT EXISTS idx_activity_user_id    ON activity_log (user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_log (created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_session_id ON activity_log (session_id);
 
 -- Inserir alguns registos de teste (OPCIONAL - apenas para teste)
 INSERT INTO activity_log (user_id, action_type, description, location, device_info, ip_address, status, session_id, created_at)

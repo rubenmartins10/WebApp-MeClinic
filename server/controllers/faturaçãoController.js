@@ -4,7 +4,7 @@ const Paciente = require('../models/Paciente');
 const Produto = require('../models/Produto');
 const { AppError } = require('../errorHandler');
 const pool = require('../db');
-const { sendEmail, dataUriToBuffer } = require('../services/emailService');
+const { sendEmail, dataUriToBuffer, buildEmailHtml } = require('../services/emailService');
 const logger = require('../utils/logger');
 
 /**
@@ -345,26 +345,20 @@ class FaturaçãoController {
             }
 
             const subject = isOrcamento
-              ? `MeClinic \u2014 Plano de Tratamento e Orçamento`
-              : `MeClinic \u2014 Fatura/Recibo da sua Consulta`;
+              ? `MeClinic — Plano de Tratamento e Orçamento`
+              : `MeClinic — Fatura/Recibo da sua Consulta`;
 
-            const html = `
-              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-                <div style="background:#2563eb;padding:24px;border-radius:8px 8px 0 0">
-                  <h1 style="color:white;margin:0;font-size:22px">MeClinic</h1>
-                </div>
-                <div style="padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px">
+            const html = isOrcamento
+              ? buildEmailHtml('Plano de Tratamento e Orçamento', `
                   <p>Exmo(a) <strong>${paciente_nome}</strong>,</p>
-                  ${
-                    isOrcamento
-                      ? `<p>Em anexo encontra o seu <strong>Plano de Tratamento e Orçamento</strong> detalhado, elaborado após a sua avaliação na MeClinic.</p>
-                         <p>Para agendar o início do tratamento, responda a este email ou contacte-nos.</p>`
-                      : `<p>Em anexo encontra a <strong>fatura/recibo</strong> referente à sua consulta de <em>${procedimento_nome || 'Consulta'}</em>.</p>
-                         <p>Obrigado por nos ter escolhido. Estamos sempre disponíveis para qualquer esclarecimento.</p>`
-                  }
-                  <p style="margin-top:32px;color:#64748b;font-size:12px">MeClinic &mdash; Medicina Dentária Avançada</p>
-                </div>
-              </div>`;
+                  <p>Em anexo encontra o seu <strong>Plano de Tratamento e Orçamento</strong> detalhado, elaborado após a sua avaliação na MeClinic.</p>
+                  <p>Para agendar o início do tratamento, responda a este email ou contacte-nos diretamente.</p>
+                `)
+              : buildEmailHtml('Fatura / Recibo de Consulta', `
+                  <p>Exmo(a) <strong>${paciente_nome}</strong>,</p>
+                  <p>Em anexo encontra a <strong>fatura/recibo</strong> referente à sua consulta de <em>${procedimento_nome || 'Consulta'}</em>.</p>
+                  <p>Obrigado por nos ter escolhido. Estamos sempre disponíveis para qualquer esclarecimento.</p>
+                `);
 
             await sendEmail(email_destino, subject, html, attachments);
           } catch (emailErr) {
