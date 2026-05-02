@@ -9,6 +9,7 @@ const clinicConfig = require('../config/clinic');
 const constants = require('../config/constants');
 const frontendConfig = require('../config/frontend');
 const { ClinicConfigValidator } = require('../config/validation');
+const pool = require('../db');
 
 /**
  * Obter DefiniÃ§Ãµes Gerais da ClÃ­nica
@@ -410,5 +411,54 @@ exports.getClinicStatus = (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+};
+
+
+/**
+ * Obter configuração da clínica da base de dados
+ * @access Admin
+ */
+exports.getClinicConfig = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT chave, valor FROM clinic_config ORDER BY chave');
+    const config = {};
+    result.rows.forEach(row => { config[row.chave] = row.valor; });
+    res.json({ success: true, data: config });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Atualizar configuração da clínica na base de dados
+ * @access Admin
+ */
+exports.updateClinicConfig = async (req, res) => {
+  try {
+    const allowed = ['nome', 'nif', 'telefone', 'email', 'morada', 'timezone'];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const chave of allowed) {
+        if (req.body[chave] !== undefined) {
+          await client.query(
+            `INSERT INTO clinic_config (chave, valor, updated_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = NOW()`,
+            [chave, req.body[chave]]
+          );
+        }
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };

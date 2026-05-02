@@ -190,4 +190,32 @@ router.use((req, res) => {
   });
 });
 
+// ============================================
+// CLINIC CONFIG (BD-backed)
+// ============================================
+
+router.get(
+  '/clinic-config',
+  authMiddleware,
+  (req, res, next) => {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    next();
+  },
+  settingsController.getClinicConfig
+);
+
+router.put(
+  '/clinic-config',
+  authMiddleware,
+  (req, res, next) => {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    next();
+  },
+  settingsController.updateClinicConfig
+);
+
 module.exports = router;

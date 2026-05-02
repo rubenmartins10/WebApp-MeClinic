@@ -106,17 +106,13 @@ const [perfilData, setPerfilData] = useState({
   });
 
   // Estado da clínica
-  const [clinicaData, setClinicaData] = useState(() => {
-    const saved = localStorage.getItem('meclinic_settings');
-    try { if (saved) return JSON.parse(saved); } catch {}
-    return {
-      nome: 'MeClinic',
-      nif: '501234567',
-      telefone: '+351 912 345 678',
-      email: 'geral@meclinic.pt',
-      morada: 'Avenida da Liberdade, Lisboa\nPortugal',
-      timezone: 'Europe/Lisbon'
-    };
+  const [clinicaData, setClinicaData] = useState({
+    nome: 'MeClinic',
+    nif: '501234567',
+    telefone: '+351 912 345 678',
+    email: 'geral@meclinic.pt',
+    morada: 'Avenida da Liberdade, Lisboa\nPortugal',
+    timezone: 'Europe/Lisbon'
   });
 
   // Sessões activas em tempo real - Buscar do API
@@ -160,6 +156,15 @@ const [perfilData, setPerfilData] = useState({
     really_active: true,
     current: true
   };
+
+  // Buscar configuração da clínica da BD (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    apiService.get('/api/settings/clinic-config').then(res => {
+      if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Buscar dados reais de atividade quando o componente carrega
   useEffect(() => {
@@ -316,8 +321,12 @@ const [perfilData, setPerfilData] = useState({
 
     if (activeTab === 'clinica') {
       if (!isAdmin) return;
-      localStorage.setItem('meclinic_settings', JSON.stringify(clinicaData));
-      showNotif('success', t('settings.alert.clinic_success'));
+      try {
+        await apiService.put('/api/settings/clinic-config', clinicaData);
+        showNotif('success', t('settings.alert.clinic_success'));
+      } catch {
+        showNotif('error', t('settings.alert.server_error'));
+      }
       return;
     }
 
