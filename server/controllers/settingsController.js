@@ -416,7 +416,7 @@ exports.getClinicStatus = (req, res) => {
 
 
 /**
- * Obter configuração da clínica da base de dados
+ * Obter configuraï¿½ï¿½o da clï¿½nica da base de dados
  * @access Admin
  */
 exports.getClinicConfig = async (req, res) => {
@@ -431,7 +431,7 @@ exports.getClinicConfig = async (req, res) => {
 };
 
 /**
- * Atualizar configuração da clínica na base de dados
+ * Atualizar configuraï¿½ï¿½o da clï¿½nica na base de dados
  * @access Admin
  */
 exports.updateClinicConfig = async (req, res) => {
