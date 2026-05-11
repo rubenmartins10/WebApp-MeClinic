@@ -1209,7 +1209,7 @@ const Consultas = () => {
             <p style={{ margin: '0 0 24px 0', color: theme.subText, fontSize: '14px' }}>{t('consultations.delete.desc')}</p>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Cancelar</button>
-              <button onClick={confirmarApagar} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }>{t('consultations.delete.btn_delete')}</button>
+              <button onClick={confirmarApagar} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t('consultations.delete.btn_delete')}</button>
             </div>
           </div>
         </div>
