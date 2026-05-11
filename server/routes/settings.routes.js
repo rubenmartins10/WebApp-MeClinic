@@ -177,20 +177,6 @@ router.post(
 );
 
 // ============================================
-// TRATAMENTO DE ERROS
-// ============================================
-
-/**
- * 404 - Rota não encontrada
- */
-router.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Rota não encontrada: ' + req.originalUrl,
-  });
-});
-
-// ============================================
 // CLINIC CONFIG (BD-backed)
 // ============================================
 
@@ -217,5 +203,19 @@ router.put(
   },
   settingsController.updateClinicConfig
 );
+
+// ============================================
+// TRATAMENTO DE ERROS
+// ============================================
+
+/**
+ * 404 - Rota não encontrada
+ */
+router.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Rota não encontrada: ' + req.originalUrl,
+  });
+});
 
 module.exports = router;
