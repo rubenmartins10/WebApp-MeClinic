@@ -232,7 +232,7 @@ const [perfilData, setPerfilData] = useState({
     if (!sessionId) return;
 
     const sendHeartbeat = () => {
-      apiService.post('/api/auth/heartbeat', { sessionId }).catch(() => {});
+      apiService.post('/api/auth/heartbeat', { sessionId }, {}, true).catch(() => {});
     };
 
     // Enviar heartbeat imediatamente e depois a cada 2 minutos

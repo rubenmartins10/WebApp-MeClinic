@@ -35,7 +35,7 @@ const tryRefreshToken = async () => {
   }
 };
 
-const apiCall = async (url, method = 'GET', body = null, headers = {}, isRetry = false) => {
+const apiCall = async (url, method = 'GET', body = null, headers = {}, isRetry = false, skipAutoLogout = false) => {
   const token = getToken();
   const defaultHeaders = {
     'Content-Type': 'application/json',
@@ -57,8 +57,8 @@ const apiCall = async (url, method = 'GET', body = null, headers = {}, isRetry =
   // Tentar renovar token automaticamente em 401
   if (res.status === 401 && !isRetry) {
     const refreshed = await tryRefreshToken();
-    if (refreshed) return apiCall(url, method, body, headers, true);
-    clearAuth();
+    if (refreshed) return apiCall(url, method, body, headers, true, skipAutoLogout);
+    if (!skipAutoLogout) clearAuth();
     throw new Error('Sessão expirada. Por favor faça login novamente.');
   }
 
@@ -76,7 +76,7 @@ export const apiService = {
   get: (url, headers) => apiCall(url, 'GET', null, headers),
 
   // POST requests
-  post: (url, body, headers) => apiCall(url, 'POST', body, headers),
+  post: (url, body, headers, skipAutoLogout) => apiCall(url, 'POST', body, headers, false, skipAutoLogout),
 
   // PUT requests
   put: (url, body, headers) => apiCall(url, 'PUT', body, headers),

@@ -195,6 +195,7 @@ app.use('/api/utilizadores',        utilizadoresRoutes);
 app.use('/api/stats',               statsRoutes);
 app.use('/api/reports',             reportsRoutes);
 app.use('/api/notificacoes',        notificacoesRoutes);
+app.use('/api/settings',           require('./routes/settings.routes'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
