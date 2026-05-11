@@ -457,7 +457,11 @@ exports.updateClinicConfig = async (req, res) => {
     } finally {
       client.release();
     }
-    res.json({ success: true });
+    // Devolver os dados actualizados para o cliente não ficar desactualizado
+    const result = await pool.query('SELECT chave, valor FROM clinic_config ORDER BY chave');
+    const config = {};
+    result.rows.forEach(row => { config[row.chave] = row.valor; });
+    res.json({ success: true, data: config });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

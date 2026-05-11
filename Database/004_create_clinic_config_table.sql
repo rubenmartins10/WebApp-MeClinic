@@ -13,9 +13,10 @@ CREATE TABLE IF NOT EXISTS clinic_config (
 -- Dados iniciais (ajustar conforme necessário)
 INSERT INTO clinic_config (chave, valor) VALUES
   ('nome',      'MeClinic'),
-  ('nif',       '501234567'),
-  ('telefone',  '+351 912 345 678'),
+  ('nif',       ''),
+  ('telefone',  '+351 910 802 555'),
   ('email',     'geral@meclinic.pt'),
-  ('morada',    'Avenida da Liberdade, Lisboa\nPortugal'),
+  ('morada',    'Rua Professora Rita Lopes Ribeiro Fonseca, 28
+                4400-694 Vila Nova de Gaia'),
   ('timezone',  'Europe/Lisbon')
 ON CONFLICT (chave) DO NOTHING;

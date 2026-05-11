@@ -1,8 +1,8 @@
-# 🚀 Deployment e Produção
+# Deployment e Produção
 
 Guia completo para colocar MeClinic em produção.
 
-## 📋 Checklist de Pré-Deployment
+## Checklist de Pré-Deployment
 
 ### Segurança
 

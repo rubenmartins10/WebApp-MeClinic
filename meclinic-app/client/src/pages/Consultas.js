@@ -178,7 +178,7 @@ const Consultas = () => {
   // --- MAGIA DO COPYWRITING: LEMBRETE DE CONSULTA ---
   const enviarLembreteWhatsapp = (c, e) => {
     e.stopPropagation(); 
-    if (!c.telefone || c.telefone === t('consultations.list.no_phone')) { showNotif('Sem número válido.', 'error'); return; }
+    if (!c.telefone || c.telefone === t('consultations.list.no_phone')) { showNotif(t('consultations.validation.no_phone'), 'error'); return; }
     const numWhatsApp = c.telefone.replace(/\D/g, '');
     const primeiroNome = c.paciente_nome.split(' ')[0];
     const dataC = new Date(c.data_consulta).toLocaleDateString(activeLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -274,7 +274,7 @@ const Consultas = () => {
 
   const finalizarCheckout = async () => {
     if (!checkoutModal) return;
-    if (sendEmail && !emailPaciente) { showNotif('Insira o email para onde enviar os documentos.', 'error'); return; }
+    if (sendEmail && !emailPaciente) { showNotif(t('consultations.validation.email_docs'), 'error'); return; }
     
     setIsProcessing(true);
     
@@ -562,14 +562,14 @@ const Consultas = () => {
               <div className="custom-scrollbar" style={{ padding: '25px', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
                 
                 <div style={{ backgroundColor: theme.pageBg, padding: '20px', borderRadius: '10px', marginBottom: '20px', borderLeft: `4px solid ${isAvaliacao ? '#3b82f6' : '#10b981'}` }}>
-                  <p style={{ margin: '0 0 10px 0', color: theme.subText }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
-                  <p style={{ margin: '0 0 0 0', color: theme.subText }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
+                  <p style={{ margin: '0 0 10px 0', color: theme.subText }}>{t('consultations.checkout.patient')}: <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
+                  <p style={{ margin: '0 0 0 0', color: theme.subText }}>{t('consultations.checkout.procedure')}: <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
                 </div>
 
                 {isAvaliacao ? (
                   <div>
-                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>Análise Clínica na Cadeira</label>
-                     <p style={{ fontSize: '12px', color: theme.subText, marginBottom: '15px', marginTop: 0 }}>Pinte os dentes que precisam de intervenção para calcular o orçamento abaixo.</p>
+                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>{t('consultations.checkout.clinical_analysis')}</label>
+                     <p style={{ fontSize: '12px', color: theme.subText, marginBottom: '15px', marginTop: 0 }}>{t('consultations.checkout.clinical_analysis_desc')}</p>
                      
                      <Odontograma initialData={odontogramaAvaliacao} onChange={handleMudancaOdontograma} />
                      
@@ -603,7 +603,7 @@ const Consultas = () => {
                           </div>
                         ))}
                       </div>
-                    ) : (<div style={{ padding: '15px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '10px', color: theme.subText, fontSize: '13px', textAlign: 'center', border: `1px dashed ${theme.border}` }}>Nenhum material previsto.</div>)}
+                    ) : (<div style={{ padding: '15px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '10px', color: theme.subText, fontSize: '13px', textAlign: 'center', border: `1px dashed ${theme.border}` }}>{t('consultations.checkout.no_materials')}</div>)}
                     <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>{t('consultations.checkout.payment_method')}</label>
                     <select value={checkoutData.metodo_pagamento} onChange={(e) => setCheckoutData({...checkoutData, metodo_pagamento: e.target.value})} style={{ ...inputStyle, paddingLeft: '12px' }}>
                       <option value={t('consultations.checkout.multibanco')}>{t('consultations.checkout.multibanco')}</option>
@@ -670,7 +670,7 @@ const Consultas = () => {
             </div>
 
             <div style={{ padding: '15px 30px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '12px', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Opções de Envio ao Paciente ({isAvaliacao ? 'Orçamento' : 'Fatura'})</h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '12px', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('consultations.checkout.send_options_label')} ({isAvaliacao ? t('consultations.checkout.budget_type') : t('consultations.checkout.invoice_type')})</h4>
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#16a34a' }}>
                   <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#16a34a' }}/>
@@ -728,7 +728,7 @@ const Consultas = () => {
               <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                 <User size={12} /> Nome Completo <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <input type="text" name="nome" value={formData.nome} onChange={handleChange} placeholder="Primeiro e Último Nome"
+              <input type="text" name="nome" value={formData.nome} onChange={handleChange} placeholder={t("consultations.urgency.form.name_ph")}
                 style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
                 onFocus={e => e.target.style.borderColor = '#2563eb'} onBlur={e => e.target.style.borderColor = theme.border} required />
             </div>
@@ -922,14 +922,14 @@ const Consultas = () => {
               <div className="custom-scrollbar" style={{ padding: '25px', overflowY: 'auto', borderRight: `1px solid ${theme.border}` }}>
                 
                 <div style={{ backgroundColor: theme.pageBg, padding: '20px', borderRadius: '10px', marginBottom: '20px', borderLeft: `4px solid ${isAvaliacao ? '#3b82f6' : '#10b981'}` }}>
-                  <p style={{ margin: '0 0 10px 0', color: theme.subText }}>Paciente: <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
-                  <p style={{ margin: '0 0 0 0', color: theme.subText }}>Procedimento: <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
+                  <p style={{ margin: '0 0 10px 0', color: theme.subText }}>{t('consultations.checkout.patient')}: <strong style={{ color: theme.text }}>{checkoutModal.paciente_nome}</strong></p>
+                  <p style={{ margin: '0 0 0 0', color: theme.subText }}>{t('consultations.checkout.procedure')}: <strong style={{ color: theme.text }}>{checkoutModal.procedimento_nome || t('consultations.list.no_procedure')}</strong></p>
                 </div>
 
                 {isAvaliacao ? (
                   <div>
-                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>Análise Clínica na Cadeira</label>
-                     <p style={{ fontSize: '12px', color: theme.subText, marginBottom: '15px', marginTop: 0 }}>Pinte os dentes que precisam de intervenção para calcular o orçamento abaixo.</p>
+                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>{t('consultations.checkout.clinical_analysis')}</label>
+                     <p style={{ fontSize: '12px', color: theme.subText, marginBottom: '15px', marginTop: 0 }}>{t('consultations.checkout.clinical_analysis_desc')}</p>
                      <Odontograma initialData={odontogramaAvaliacao} onChange={handleMudancaOdontograma} />
                      <div style={{ marginTop: '25px', backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9', padding: '20px', borderRadius: '12px', border: `1px dashed #3b82f6` }}>
                        <h4 style={{ margin: '0 0 15px 0', color: '#3b82f6', fontSize: '15px' }}>Pré-visualização do Orçamento</h4>
@@ -959,7 +959,7 @@ const Consultas = () => {
                           </div>
                         ))}
                       </div>
-                    ) : (<div style={{ padding: '15px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '10px', color: theme.subText, fontSize: '13px', textAlign: 'center', border: `1px dashed ${theme.border}` }}>Nenhum material previsto.</div>)}
+                    ) : (<div style={{ padding: '15px', marginBottom: '20px', backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', borderRadius: '10px', color: theme.subText, fontSize: '13px', textAlign: 'center', border: `1px dashed ${theme.border}` }}>{t('consultations.checkout.no_materials')}</div>)}
                     <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>{t('consultations.checkout.payment_method')}</label>
                     <select value={checkoutData.metodo_pagamento} onChange={(e) => setCheckoutData({...checkoutData, metodo_pagamento: e.target.value})} style={{ ...inputStyle, paddingLeft: '12px' }}>
                       <option value={t('consultations.checkout.multibanco')}>{t('consultations.checkout.multibanco')}</option>
@@ -1021,7 +1021,7 @@ const Consultas = () => {
             </div>
 
             <div style={{ padding: '15px 30px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '12px', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Opções de Envio ao Paciente ({isAvaliacao ? 'Orçamento' : 'Fatura'})</h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '12px', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('consultations.checkout.send_options_label')} ({isAvaliacao ? t('consultations.checkout.budget_type') : t('consultations.checkout.invoice_type')})</h4>
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#16a34a' }}>
                   <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#16a34a' }}/>
@@ -1083,18 +1083,18 @@ const Consultas = () => {
             {urgStep === 1 ? (
             <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Nome do paciente *</label>
-                <input value={urgForm.nome} onChange={e => setUrgForm(f => ({ ...f, nome: e.target.value }))} placeholder="Primeiro e Último Nome"
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.name')}</label>
+                <input value={urgForm.nome} onChange={e => setUrgForm(f => ({ ...f, nome: e.target.value }))} placeholder={t("consultations.urgency.form.name_ph")}
                   style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Telemóvel</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.phone')}</label>
                   <input value={urgForm.telefone} onChange={e => setUrgForm(f => ({ ...f, telefone: e.target.value }))} placeholder="9XX XXX XXX"
                     style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Email</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.email')}</label>
                   <input type="email" value={urgForm.email} onChange={e => setUrgForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com"
                     style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
@@ -1102,10 +1102,10 @@ const Consultas = () => {
 
               {/* Procedimento */}
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Procedimento</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.procedure')}</label>
                 <select value={urgForm.procedimento_id} onChange={e => setUrgForm(f => ({ ...f, procedimento_id: e.target.value }))}
                   style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: urgForm.procedimento_id ? theme.text : '#94a3b8', fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
-                  <option value="">Selecione um procedimento...</option>
+                  <option value="">{t('consultations.form.procedure_ph')}</option>
                   {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </select>
               </div>
@@ -1113,12 +1113,12 @@ const Consultas = () => {
               {/* Data + Hora */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Data *</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.date')}</label>
                   <input type="date" value={urgForm.data} onChange={e => setUrgForm(f => ({ ...f, data: e.target.value }))}
                     style={{ width: '100%', padding: '11px 10px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Hora *</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.time')}</label>
                   <input type="time" value={urgForm.hora} onChange={e => setUrgForm(f => ({ ...f, hora: e.target.value }))}
                     style={{ width: '100%', padding: '11px 10px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '13px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
@@ -1126,8 +1126,8 @@ const Consultas = () => {
 
               {/* Notas */}
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>Notas (opcional)</label>
-                <textarea value={urgForm.motivo} onChange={e => setUrgForm(f => ({ ...f, motivo: e.target.value }))} placeholder="Descrição breve da urgência..."
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{t('consultations.urgency.form.notes')}</label>
+                <textarea value={urgForm.motivo} onChange={e => setUrgForm(f => ({ ...f, motivo: e.target.value }))} placeholder={t("consultations.urgency.form.notes_ph")}
                   style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${theme.border}`, backgroundColor: theme.isDark ? '#0f172a' : '#f8fafc', color: theme.text, fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', boxSizing: 'border-box', height: '70px', resize: 'none' }} />
               </div>
 
@@ -1151,11 +1151,11 @@ const Consultas = () => {
                     setUrgCriada({ ...res.consulta, paciente_nome: urgForm.nome, nome: urgForm.nome, email: urgForm.email || '', telefone: urgForm.telefone || '', procedimento_nome: proc?.nome || '', preco_servico: proc?.preco_servico || 0 });
                     fetchDados();
                     setUrgStep(2);
-                  } catch { showNotif('Erro ao registar urgência.', 'error'); }
+                  } catch { showNotif(t('consultations.msg.urgency_err'), 'error'); }
                   finally { setUrgProcessing(false); }
                 }}
                 style={{ width: '100%', padding: '13px', background: urgProcessing ? '#9ca3af' : 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', borderRadius: '12px', border: 'none', fontWeight: '700', fontSize: '15px', fontFamily: 'Inter, system-ui, sans-serif', cursor: urgProcessing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.35)' }}>
-                {urgProcessing ? 'A guardar...' : 'Registar Urgência'}
+                {urgProcessing ? t('consultations.urgency.btn_saving') : t('consultations.urgency.btn_save')}
               </button>
             </div>
             ) : (
@@ -1164,10 +1164,10 @@ const Consultas = () => {
               <div style={{ backgroundColor: theme.isDark ? '#0f172a' : '#f1f5f9', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${theme.border}` }}>
                 <div style={{ fontSize: '13px', fontWeight: '700', color: theme.text, marginBottom: '4px' }}>{urgCriada?.nome}</div>
                 {urgCriada?.procedimento_nome && <div style={{ fontSize: '12px', color: theme.subText }}>{urgCriada.procedimento_nome}</div>}
-                <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginTop: '6px' }}>Consulta registada com sucesso</div>
+                <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginTop: '6px' }}>{t('consultations.urgency.registered')}</div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>Método de pagamento</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>{t('consultations.urgency.payment_method')}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   {['Multibanco', 'MBWay', 'Numerário', 'Transferência'].map(m => (
                     <button key={m} onClick={() => setUrgMetodoPagamento(m)}
@@ -1205,11 +1205,11 @@ const Consultas = () => {
             <div style={{ width: '56px', height: '56px', backgroundColor: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Trash2 size={24} color="#ef4444" />
             </div>
-            <h3 style={{ margin: '0 0 8px 0', color: theme.text, fontSize: '18px' }}>Apagar consulta?</h3>
-            <p style={{ margin: '0 0 24px 0', color: theme.subText, fontSize: '14px' }}>Esta ação não pode ser revertida.</p>
+            <h3 style={{ margin: '0 0 8px 0', color: theme.text, fontSize: '18px' }}>{t('consultations.delete.title')}</h3>
+            <p style={{ margin: '0 0 24px 0', color: theme.subText, fontSize: '14px' }}>{t('consultations.delete.desc')}</p>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: `1px solid ${theme.border}`, backgroundColor: theme.pageBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Cancelar</button>
-              <button onClick={confirmarApagar} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Apagar</button>
+              <button onClick={confirmarApagar} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }>{t('consultations.delete.btn_delete')}</button>
             </div>
           </div>
         </div>

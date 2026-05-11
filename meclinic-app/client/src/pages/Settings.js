@@ -158,13 +158,17 @@ const [perfilData, setPerfilData] = useState({
   };
 
   // Buscar configuração da clínica da BD (admin only)
-  useEffect(() => {
+  const fetchClinicConfig = () => {
     if (!isAdmin) return;
     apiService.get('/api/settings/clinic-config').then(res => {
       if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchClinicConfig();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
 
   // Buscar dados reais de atividade quando o componente carrega
   useEffect(() => {
@@ -315,14 +319,16 @@ const [perfilData, setPerfilData] = useState({
 
     if (activeTab === 'notificacoes') {
       localStorage.setItem('meclinic_notificacoes', JSON.stringify(notificacoesData));
-      showNotif('success', 'Preferências de notificações guardadas com sucesso.');
+      showNotif('success', t('settings.alert.notif_saved'));
       return;
     }
 
     if (activeTab === 'clinica') {
       if (!isAdmin) return;
       try {
-        await apiService.put('/api/settings/clinic-config', clinicaData);
+        const res = await apiService.put('/api/settings/clinic-config', clinicaData);
+        // O servidor devolve os dados guardados — actualizar estado directamente
+        if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
         showNotif('success', t('settings.alert.clinic_success'));
       } catch {
         showNotif('error', t('settings.alert.server_error'));
@@ -337,7 +343,7 @@ const [perfilData, setPerfilData] = useState({
 
     if (activeTab === 'perfil') {
       if (!perfilData.nome || !perfilData.nome.trim()) {
-        showNotif('error', 'O nome não pode estar vazio.');
+        showNotif('error', t('settings.alert.name_empty'));
         return;
       }
       const changed = perfilData.nome !== (user.nome || '') ||
@@ -373,9 +379,9 @@ const [perfilData, setPerfilData] = useState({
       await apiService.post('/api/auth/terminate-all-sessions', { exceptSessionId: mySessionId });
       // Atualizar lista: manter apenas a sessão atual
       setSessionsAtivas(prev => prev.filter(s => s.current));
-      showNotif('success', 'Todos os dispositivos foram desconectados.');
+      showNotif('success', t('settings.activity.logout_all_success'));
     } catch {
-      showNotif('error', 'Erro ao terminar sessões.');
+      showNotif('error', t('settings.activity.error_logout_all'));
     }
   };
 
@@ -396,9 +402,9 @@ const [perfilData, setPerfilData] = useState({
       try {
         await apiService.post('/api/auth/terminate-session', { sessionId: session.session_id });
         setSessionsAtivas(prev => prev.filter(s => s.session_id !== session.session_id));
-        showNotif('success', `Sessão de "${session.user}" terminada.`);
+        showNotif('success', t('settings.activity.logout_single_success', { user: session.user }));
       } catch {
-        showNotif('error', 'Erro ao terminar sessão.');
+        showNotif('error', t('settings.activity.error_logout_single'));
       }
     }
   };
@@ -408,11 +414,11 @@ const [perfilData, setPerfilData] = useState({
       const enabling = !notificacoesData.push;
       if (enabling) {
         if (!('Notification' in window)) {
-          showNotif('error', 'O seu browser não suporta notificações. Tente Chrome, Firefox ou Safari.');
+          showNotif('error', t('settings.alert.notif_no_support'));
           return;
         }
         if (Notification.permission === 'denied') {
-          showNotif('error', 'Notificações bloqueadas. Ative-as nas definições do browser e recarregue a página.');
+          showNotif('error', t('settings.alert.notif_blocked'));
           return;
         }
         // Show our beautiful modal first
@@ -428,7 +434,7 @@ const [perfilData, setPerfilData] = useState({
     if (Notification.permission === 'default') {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        showNotif('error', 'Permissão de notificações recusada.');
+        showNotif('error', t('settings.alert.notif_denied'));
         return;
       }
     }
@@ -629,7 +635,7 @@ const [perfilData, setPerfilData] = useState({
       // Download
       const filename = `MeClinic-Dados-Pessoais-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      showNotif('success', 'Dados descarregados com sucesso em PDF.');
+      showNotif('success', t('settings.privacy.download_pdf_success'));
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       // Fallback para JSON
@@ -643,7 +649,7 @@ const [perfilData, setPerfilData] = useState({
       element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
       element.setAttribute('download', `meclinic-dados-${new Date().toISOString().split('T')[0]}.json`);
       element.click();
-      showNotif('success', 'Dados descarregados em formato JSON.');
+      showNotif('success', t('settings.privacy.download_json_success'));
     }
   };
 
@@ -651,12 +657,12 @@ const [perfilData, setPerfilData] = useState({
     // Nova confirmação via modal input: require exact phrase
     if (deleteLoading) return;
     if (deleteConfirmText.trim().toUpperCase() !== 'CONFIRMAR_ELIMINACAO') {
-      showNotif('error', 'Por favor escreva CONFIRMAR_ELIMINACAO para confirmar.');
+      showNotif('error', t('settings.privacy.delete_confirm_text_error'));
       return;
     }
 
     if (!/^\d{6}$/.test(deleteMfaToken)) {
-      showNotif('error', 'Insira o código MFA de 6 dígitos.');
+      showNotif('error', t('settings.alert.mfa_required'));
       return;
     }
 
@@ -677,7 +683,7 @@ const [perfilData, setPerfilData] = useState({
         }, 1200);
       } catch (err) {
         console.error(err);
-        showNotif('error', 'Erro ao eliminar conta.');
+        showNotif('error', t('settings.privacy.error_delete'));
         setDeleteLoading(false);
       }
     })();
@@ -848,23 +854,23 @@ const [perfilData, setPerfilData] = useState({
                 <LogOut size={28} color="#ef4444" />
               </div>
               <h3 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '20px', fontWeight: '700', color: theme.isDark ? '#ffffff' : theme.text }}>
-                Desconectar todos os dispositivos
+                {t('settings.activity.logout_all_modal_title')}
               </h3>
               <p style={{ margin: '0 0 28px 0', textAlign: 'center', color: theme.subText, fontSize: '14px', lineHeight: '1.6' }}>
-                Todos os dispositivos onde tem sessão ativa serão desconectados. Terá de fazer login novamente neste dispositivo.
+                {t('settings.activity.logout_all_modal_desc')}
               </p>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
                   onClick={() => setShowLogoutAllModal(false)}
                   style={{ flex: 1, padding: '13px', borderRadius: '10px', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.text, fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
                 >
-                  Cancelar
+                  {t('settings.privacy.btn_cancel')}
                 </button>
                 <button
                   onClick={confirmarLogoutAll}
                   style={{ flex: 1, padding: '13px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #ef4444, #f97316)', color: 'white', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
                 >
-                  Desconectar
+                  {t('settings.activity.btn_disconnect')}
                 </button>
               </div>
             </div>
@@ -904,10 +910,10 @@ const [perfilData, setPerfilData] = useState({
 
               {/* Title */}
               <h2 style={{ textAlign: 'center', color: theme.isDark ? '#f1f5f9' : '#0f172a', fontSize: '20px', fontWeight: '800', margin: '0 0 8px' }}>
-                Ativar Notificações
+                {t('settings.notif.push_modal_title')}
               </h2>
               <p style={{ textAlign: 'center', color: theme.subText, fontSize: '14px', margin: '0 0 24px', lineHeight: '1.6' }}>
-                O MeClinic vai enviar alertas directamente para este dispositivo.
+                {t('settings.notif.push_modal_desc')}
               </p>
 
               {/* Buttons */}
@@ -919,7 +925,7 @@ const [perfilData, setPerfilData] = useState({
                     background: 'transparent', color: theme.subText, cursor: 'pointer', fontWeight: '600', fontSize: '14px'
                   }}
                 >
-                  Agora não
+                  {t('settings.notif.push_modal_later')}
                 </button>
                 <button
                   onClick={confirmPushPermission}
@@ -931,12 +937,12 @@ const [perfilData, setPerfilData] = useState({
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                   }}
                 >
-                  <Bell size={16} /> Permitir Notificações
+                  <Bell size={16} /> {t('settings.notif.push_modal_allow')}
                 </button>
               </div>
 
               <p style={{ textAlign: 'center', fontSize: '11px', color: theme.subText, marginTop: '16px', marginBottom: 0 }}>
-                Podes desativar a qualquer momento nas definições do browser.
+                {t('settings.notif.push_modal_footer')}
               </p>
             </div>
           </div>
@@ -1005,10 +1011,10 @@ const [perfilData, setPerfilData] = useState({
           <div style={{ height: '1px', backgroundColor: theme.border, margin: '15px 0' }}></div>
 
           <button onClick={() => setActiveTab('privacidade')} style={tabStyle(activeTab === 'privacidade')}>
-            <Lock size={18} /> Privacidade & GDPR
+            <Lock size={18} /> {t('settings.tab.privacy')}
           </button>
           <button onClick={() => setActiveTab('atividade')} style={tabStyle(activeTab === 'atividade')}>
-            <Activity size={18} /> Atividade da Conta
+            <Activity size={18} /> {t('settings.tab.activity')}
           </button>
         </div>
 
@@ -1078,7 +1084,7 @@ const [perfilData, setPerfilData] = useState({
                   marginBottom: '25px'
                 }}>
                   <h4 style={{ margin: '0 0 20px 0', color: theme.text, fontSize: '14px', fontWeight: 'bold' }}>
-                    Informações Pessoais
+                    {t('settings.profile.personal_info')}
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
                     <div>
@@ -1110,7 +1116,7 @@ const [perfilData, setPerfilData] = useState({
                       </div>
                     </div>
                     <div>
-                      <label style={labelStyle}>Telemóvel</label>
+                      <label style={labelStyle}>{t('settings.profile.phone')}</label>
                       <div style={{ position: 'relative' }}>
                         <Phone size={18} color={isAdmin && perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, '')) ? '#ef4444' : theme.subText} style={{ position: 'absolute', left: '15px', top: '22px' }} />
                         <input
@@ -1124,7 +1130,7 @@ const [perfilData, setPerfilData] = useState({
                         />
                         {isAdmin && perfilData.telefone && !/^(\+351)?9[1236]\d{7}$/.test(perfilData.telefone.replace(/\s/g, '')) && (
                           <span style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
-                            Número inválido. Ex: +351 912 345 678
+                            {t('settings.profile.phone_invalid')}
                           </span>
                         )}
                       </div>
@@ -1731,7 +1737,7 @@ const [perfilData, setPerfilData] = useState({
                           readOnly={!isAdmin}
                         />
                       </div>
-                      <p style={{ fontSize: '11px', color: theme.subText, marginTop: '-10px' }}>
+                      <p style={{ fontSize: '11px', color: theme.subText, marginTop: '6px' }}>
                         {t('settings.clinic.address_desc')}
                       </p>
                     </div>
@@ -1749,17 +1755,17 @@ const [perfilData, setPerfilData] = useState({
                   paddingBottom: '15px',
                   color: theme.isDark ? '#ffffff' : theme.text
                 }}>
-                  Privacidade & Conformidade GDPR
+                  {t('settings.privacy.title')}
                 </h2>
 
                 <SecurityCard
                   icon={Lock}
-                  title="Proteção de Dados"
-                  status={{ label: 'Conformidade RGPD Completa', color: '#10b981' }}
+                  title={t('settings.privacy.protection')}
+                  status={{ label: t('settings.privacy.compliance'), color: '#10b981' }}
                   color="#10b981"
                 >
                   <p style={{ margin: '0 0 15px 0', fontSize: '13px', color: theme.subText }}>
-                    Os teus dados são protegidos de acordo com o Regulamento Geral de Proteção de Dados (RGPD).
+                    {t('settings.privacy.protection_desc')}
                   </p>
                   <button
                     onClick={handleDownloadData}
@@ -1778,18 +1784,18 @@ const [perfilData, setPerfilData] = useState({
                       transition: 'all 0.2s'
                     }}
                   >
-                    <Download size={14} /> Descarregar Dados Pessoais
+                    <Download size={14} /> {t('settings.privacy.download')}
                   </button>
                 </SecurityCard>
 
                 <SecurityCard
                   icon={Trash2}
-                  title="Eliminar Conta"
-                  status={{ label: 'Operação Irreversível', color: '#ef4444' }}
+                  title={t('settings.privacy.delete')}
+                  status={{ label: t('settings.privacy.irreversible'), color: '#ef4444' }}
                   color="#ef4444"
                 >
                   <p style={{ margin: '0 0 15px 0', fontSize: '13px', color: theme.subText }}>
-                    A eliminação da tua conta é permanente e removerá todos os teus dados do sistema.
+                    {t('settings.privacy.delete_desc')}
                   </p>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
@@ -1810,7 +1816,7 @@ const [perfilData, setPerfilData] = useState({
                     onMouseEnter={(e) => e.target.style.backgroundColor = '#dc2626'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = '#ef4444'}
                   >
-                    <Trash2 size={14} /> Eliminar Conta Permanentemente
+                    <Trash2 size={14} /> {t('settings.privacy.delete_confirm')}
                   </button>
                 </SecurityCard>
               </div>
@@ -1820,17 +1826,17 @@ const [perfilData, setPerfilData] = useState({
             {activeTab === 'atividade' && (
               <div style={{ animation: 'fadeIn 0.3s' }}>
                 <h2 style={{ margin: '0 0 8px 0', borderBottom: `1px solid ${theme.border}`, paddingBottom: '15px', color: theme.isDark ? '#ffffff' : theme.text }}>
-                  Atividade da Conta
+                  {t('settings.activity.title')}
                 </h2>
                 <p style={{ margin: '0 0 28px 0', color: theme.subText, fontSize: '14px' }}>
-                  Monitorize os acessos e sessões ativas da tua conta.
+                  {t('settings.activity.monitoring')}
                 </p>
 
                 {/* ── Sessões ── */}
                 <div style={{ marginBottom: '32px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 0 3px rgba(16,185,129,0.2)' }} />
-                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>Sessões</span>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('settings.activity.sessions_label')}</span>
                     <span style={{ fontSize: '12px', fontWeight: '700', color: '#10b981', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '2px 10px', borderRadius: '20px' }}>
                       {sessionsAtivas.filter(s => s.really_active || s.current).length} ativa{sessionsAtivas.filter(s => s.really_active || s.current).length !== 1 ? 's' : ''}
                     </span>
@@ -1844,7 +1850,7 @@ const [perfilData, setPerfilData] = useState({
                         onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.5)' })}
                         onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.3)' })}
                       >
-                        <LogOut size={11} /> Terminar todas
+                        <LogOut size={11} /> {t('settings.activity.end_all_sessions')}
                       </button>
                     )}
                   </div>
@@ -1899,7 +1905,7 @@ const [perfilData, setPerfilData] = useState({
                             </span>
                             {session.current && (
                               <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 9px', borderRadius: '20px', background: 'linear-gradient(135deg, #2563eb, #3b82f6)', color: 'white', letterSpacing: '0.5px' }}>
-                                ESTE DISPOSITIVO
+                                {t('settings.activity.this_device')}
                               </span>
                             )}
                             <span style={{
@@ -1912,7 +1918,7 @@ const [perfilData, setPerfilData] = useState({
                             </span>
                             {!isReallyActive && (
                               <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: '20px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
-                                Inativa
+                                {t('settings.activity.session_inactive')}
                               </span>
                             )}
                           </div>
@@ -1943,7 +1949,7 @@ const [perfilData, setPerfilData] = useState({
                           onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.5)' })}
                           onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)' })}
                           >
-                            <LogOut size={13} /> Terminar sessão
+                            <LogOut size={13} /> {t('settings.activity.end_session')}
                           </button>
                         )}
                       </div>
@@ -1956,7 +1962,7 @@ const [perfilData, setPerfilData] = useState({
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                     <LogIn size={15} color={theme.subText} />
-                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>Histórico de Logins</span>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: theme.subText, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('settings.activity.login_history_label')}</span>
                     <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: '700', color: theme.subText, background: theme.pageBg, border: `1px solid ${theme.border}`, padding: '2px 10px', borderRadius: '20px' }}>
                       {loginHistory.length}
                     </span>
@@ -1972,9 +1978,9 @@ const [perfilData, setPerfilData] = useState({
                       <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: theme.cardBg, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Activity size={26} color={theme.subText} style={{ opacity: 0.4 }} />
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: theme.isDark ? '#94a3b8' : theme.subText }}>Sem histórico registado</span>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: theme.isDark ? '#94a3b8' : theme.subText }}>{t('settings.activity.no_history')}</span>
                       <span style={{ fontSize: '12px', textAlign: 'center', maxWidth: '260px', lineHeight: '1.6' }}>
-                        Os próximos logins serão registados aqui com data, dispositivo e localização.
+                        {t('settings.activity.no_history_desc')}
                       </span>
                     </div>
                   ) : (
@@ -2122,7 +2128,7 @@ const [perfilData, setPerfilData] = useState({
               fontWeight: 'bold',
               color: theme.isDark ? '#ffffff' : theme.text
             }}>
-              Eliminar Conta Permanentemente?
+              {t('settings.privacy.confirm_delete_title')}
             </h2>
 
             {/* Descrição */}
@@ -2132,7 +2138,7 @@ const [perfilData, setPerfilData] = useState({
               color: theme.subText,
               lineHeight: '1.6'
             }}>
-              Esta ação é <strong>irreversível</strong>. Todos os seus dados, incluindo:
+              Esta ação é <strong>irreversível</strong>. {t('settings.privacy.confirm_delete_action')}
             </p>
 
             <ul style={{
@@ -2144,16 +2150,16 @@ const [perfilData, setPerfilData] = useState({
               color: theme.subText
             }}>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Dot size={16} color="#ef4444" /> Perfil e informações pessoais
+                <Dot size={16} color="#ef4444" /> {t('settings.privacy.confirm_item_profile')}
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Dot size={16} color="#ef4444" /> Histórico de sessões
+                <Dot size={16} color="#ef4444" /> {t('settings.privacy.confirm_item_sessions')}
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Dot size={16} color="#ef4444" /> Preferências de notificações
+                <Dot size={16} color="#ef4444" /> {t('settings.privacy.confirm_item_notifs')}
               </li>
               <li style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Dot size={16} color="#ef4444" /> Todos os registos associados
+                <Dot size={16} color="#ef4444" /> {t('settings.privacy.confirm_item_records')}
               </li>
             </ul>
 
@@ -2172,7 +2178,7 @@ const [perfilData, setPerfilData] = useState({
               justifyContent: 'center'
             }}>
               <Info size={14} color="#ef4444" />
-              Após a confirmação, será desconectado automaticamente e receberá um email de confirmação.
+              {t('settings.privacy.confirm_gdpr_notice')}
             </div>
 
             <input
@@ -2180,7 +2186,7 @@ const [perfilData, setPerfilData] = useState({
               maxLength="6"
               value={deleteMfaToken}
               onChange={(e) => setDeleteMfaToken(e.target.value.replace(/\D/g, ''))}
-              placeholder="Código MFA (6 dígitos)"
+              placeholder={t('settings.privacy.mfa_placeholder')}
               style={{
                 width: '100%',
                 padding: '12px 14px',
@@ -2220,10 +2226,7 @@ const [perfilData, setPerfilData] = useState({
                 onMouseEnter={(e) => e.target.style.backgroundColor = theme.isDark ? '#4b5563' : '#d1d5db'}
                 onMouseLeave={(e) => e.target.style.backgroundColor = theme.isDark ? '#374151' : '#e5e7eb'}
               >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteAccount}
+                {t('settings.privacy.btn_cancel')}
                 disabled={deleteMfaToken.length !== 6}
                 style={{
                   flex: 1,
@@ -2241,7 +2244,7 @@ const [perfilData, setPerfilData] = useState({
                 onMouseEnter={(e) => { if (deleteMfaToken.length === 6) e.target.style.backgroundColor = '#dc2626'; }}
                 onMouseLeave={(e) => { e.target.style.backgroundColor = '#ef4444'; }}
               >
-                Eliminar Permanentemente
+                {t('settings.privacy.btn_delete_permanently')}
               </button>
             </div>
           </div>
