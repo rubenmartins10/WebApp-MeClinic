@@ -2227,6 +2227,8 @@ const [perfilData, setPerfilData] = useState({
                 onMouseLeave={(e) => e.target.style.backgroundColor = theme.isDark ? '#374151' : '#e5e7eb'}
               >
                 {t('settings.privacy.btn_cancel')}
+              </button>
+              <button
                 disabled={deleteMfaToken.length !== 6}
                 style={{
                   flex: 1,
