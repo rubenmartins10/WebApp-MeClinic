@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd server && npm install",
   "buildCommand": "cd meclinic-app/client && npm install && npm run build",
   "outputDirectory": "meclinic-app/client/build",
   "rewrites": [
