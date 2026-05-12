@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd server && npm install && cd ../meclinic-app/client && npm install && npm run build",
+  "installCommand": "npm install && cd server && npm install",
+  "buildCommand": "cd meclinic-app/client && npm install && npm run build",
   "outputDirectory": "meclinic-app/client/build",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.js" },
