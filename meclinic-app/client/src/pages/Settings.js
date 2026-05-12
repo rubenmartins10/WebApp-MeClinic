@@ -326,7 +326,7 @@ const [perfilData, setPerfilData] = useState({
     if (activeTab === 'clinica') {
       if (!isAdmin) return;
       try {
-        const res = await apiService.put('/api/settings/clinic-config', clinicaData);
+        const res = await apiService.put('/api/settings/clinic-config', clinicaData, {}, true);
         // O servidor devolve os dados guardados — actualizar estado directamente
         if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
         showNotif('success', t('settings.alert.clinic_success'));
@@ -355,7 +355,7 @@ const [perfilData, setPerfilData] = useState({
             nome: perfilData.nome,
             email: perfilData.email,
             telefone: perfilData.telefone
-          });
+          }, {}, true);
           const updatedUser = { ...user, nome: perfilData.nome, email: perfilData.email, telefone: perfilData.telefone };
           localStorage.setItem('meclinic_user', JSON.stringify(updatedUser));
         } catch {
@@ -2243,7 +2243,7 @@ const [perfilData, setPerfilData] = useState({
                 }}
                 onMouseEnter={(e) => { if (deleteMfaToken.length === 6) e.target.style.backgroundColor = '#dc2626'; }}
                 onMouseLeave={(e) => { e.target.style.backgroundColor = '#ef4444'; }}
-              >
+                >
                 {t('settings.privacy.btn_delete_permanently')}
               </button>
             </div>

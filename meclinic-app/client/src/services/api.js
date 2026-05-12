@@ -79,10 +79,10 @@ export const apiService = {
   post: (url, body, headers, skipAutoLogout) => apiCall(url, 'POST', body, headers, false, skipAutoLogout),
 
   // PUT requests
-  put: (url, body, headers) => apiCall(url, 'PUT', body, headers),
+  put: (url, body, headers, skipAutoLogout) => apiCall(url, 'PUT', body, headers, false, skipAutoLogout),
 
   // DELETE requests
-  delete: (url, headers) => apiCall(url, 'DELETE', null, headers),
+  delete: (url, headers, skipAutoLogout) => apiCall(url, 'DELETE', null, headers, false, skipAutoLogout),
 
   // Helper to extract array from paginated responses
   getArray: (data) => {
