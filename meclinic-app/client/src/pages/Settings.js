@@ -351,11 +351,11 @@ const [perfilData, setPerfilData] = useState({
                       perfilData.telefone !== (user.telefone || '');
       if (changed) {
         try {
-          await apiService.put(`/api/utilizadores/${user.id}`, {
+          await apiService.put('/api/auth/profile', {
             nome: perfilData.nome,
             email: perfilData.email,
             telefone: perfilData.telefone
-          }, {}, true);
+          });
           const updatedUser = { ...user, nome: perfilData.nome, email: perfilData.email, telefone: perfilData.telefone };
           localStorage.setItem('meclinic_user', JSON.stringify(updatedUser));
         } catch {

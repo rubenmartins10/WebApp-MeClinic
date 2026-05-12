@@ -106,6 +106,39 @@ router.get(
 );
 
 /**
+ * PUT /api/auth/profile
+ * Atualizar perfil do utilizador autenticado (sem MFA, sem role admin)
+ */
+router.put(
+  '/profile',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { nome, email, telefone } = req.body;
+    const userId = req.user.id;
+
+    if (!nome || !nome.trim()) {
+      return res.status(400).json({ error: 'O nome é obrigatório' });
+    }
+
+    const result = await pool.query(
+      `UPDATE utilizadores
+       SET nome = $1,
+           email = COALESCE($2, email),
+           telefone = $3
+       WHERE id = $4
+       RETURNING id, nome, email, role, ativo, created_at, telefone`,
+      [nome.trim(), email || null, telefone || null, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  })
+);
+
+/**
  * POST /api/auth/logout
  * Logout (client remove token)
  */
