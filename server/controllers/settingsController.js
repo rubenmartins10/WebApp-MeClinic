@@ -5,10 +5,10 @@
  * @version 1.0
  */
 
-const clinicConfig = require('../config/clinic');
-const constants = require('../config/constants');
-const frontendConfig = require('../config/frontend');
-const { ClinicConfigValidator } = require('../config/validation');
+const clinicConfig = require('../../config/clinic');
+const constants = require('../../config/constants');
+const frontendConfig = require('../../config/frontend');
+const { ClinicConfigValidator } = require('../../config/validation');
 const pool = require('../db');
 
 /**
