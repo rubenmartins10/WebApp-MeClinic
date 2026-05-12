@@ -62,6 +62,12 @@ const apiCall = async (url, method = 'GET', body = null, headers = {}, isRetry =
     throw new Error('Sessão expirada. Por favor faça login novamente.');
   }
 
+  // 401 no retry (token renovado mas ainda inválido) — nunca redirecionar
+  if (res.status === 401 && isRetry) {
+    if (!skipAutoLogout) clearAuth();
+    throw new Error('Sessão expirada. Por favor faça login novamente.');
+  }
+
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {

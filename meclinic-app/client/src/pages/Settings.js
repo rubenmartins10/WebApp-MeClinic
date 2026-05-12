@@ -355,11 +355,11 @@ const [perfilData, setPerfilData] = useState({
             nome: perfilData.nome,
             email: perfilData.email,
             telefone: perfilData.telefone
-          });
+          }, {}, true);
           const updatedUser = { ...user, nome: perfilData.nome, email: perfilData.email, telefone: perfilData.telefone };
           localStorage.setItem('meclinic_user', JSON.stringify(updatedUser));
-        } catch {
-          showNotif('error', t('settings.alert.server_error'));
+        } catch (err) {
+          showNotif('error', err.message || t('settings.alert.server_error'));
           return;
         }
       }
