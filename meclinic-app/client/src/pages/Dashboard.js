@@ -200,7 +200,7 @@ const Dashboard = () => {
     };
 
     // ── TABLE HEADER ──────────────────────────────────────────────────────
-    const nW1 = FW * 0.52, nW2 = FW * 0.20, nW3 = FW * 0.16, nW4 = FW * 0.12;
+    const nW1 = FW * 0.44, nW2 = FW * 0.18, nW3 = FW * 0.18, nW4 = FW * 0.20;
     const cols = [
       { label: t('dashboard.order.product')?.toUpperCase() || 'PRODUTO',   w: nW1 },
       { label: t('dashboard.order.current')?.toUpperCase() || 'STOCK ATUAL', w: nW2, right: true },

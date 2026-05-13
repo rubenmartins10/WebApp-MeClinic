@@ -1,23 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const nodemailer = require('nodemailer');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const logger = require('../utils/logger');
-
-// Email transporter setup - usando Mailtrap
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
-  port: process.env.SMTP_PORT || 2525,
-  secure: process.env.SMTP_SECURE === 'true' || false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: process.env.NODE_ENV === 'production'
-  }
-});
+const { sendEmail, buildEmailHtml } = require('../services/emailService');
 
 router.use(authMiddleware);
 
@@ -81,29 +67,34 @@ router.get('/weekly-detail', async (req, res) => {
 });
 
 // Envio de Relatório por Email — restrito a ADMIN (M-01)
-router.post('/send-email', requireRole('ADMIN'), async (req, res) => {
-  const { emailDestino, pdfBase64, semana, subject, message } = req.body;
+router.post('/send-email', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+  const { emailDestino, pdfBase64, semana, subject } = req.body;
 
   if (!pdfBase64 || !pdfBase64.includes('base64,')) {
     return res.status(400).json({ error: 'PDF inválido ou em falta.' });
   }
 
   try {
-    // Usar subject e message customizados se fornecidos, caso contrário usar os padrões
-    const emailSubject = subject || `[INTERNO] Relatório Geral de Atividade Meclinic – Semana de ${semana}`;
-    const emailBody = message || `Caro(s) membro(s) da Administração,\n\nInformo que o Relatório Geral da clínica, referente à semana de ${semana}, já se encontra processado e disponível para a vossa análise.\n\nEste documento compila os dados globais da operação, incluindo:\n• Total de procedimentos e consultas realizadas;\n• Sumário de faturação e custos de materiais;\n• Alertas de stock e validade.\n\nPor se tratar de um documento com dados confidenciais do negócio, o resumo financeiro detalhado e seguro encontra-se apenas no PDF em anexo e na plataforma oficial.\n\nFico à disposição para qualquer esclarecimento adicional ou se precisarem de ajuda a extrair algum dado mais específico.\n\nCom os melhores cumprimentos,\nSistema Automático Meclinic`;
+    const reportDate = semana || new Date().toISOString().split('T')[0];
+    const emailSubject = subject || `Relatório Semanal MeClinic — ${new Date(reportDate).toLocaleDateString('pt-PT')}`;
+
+    const userName = req.user?.nome || 'Administrador';
+    const html = buildEmailHtml('Relatório Semanal', `
+      <p>Olá <strong>${userName}</strong>,</p>
+      <p>Segue em anexo o <strong>relatório semanal</strong> da clínica com a análise de desempenho e custos, referente à semana de <strong>${new Date(reportDate).toLocaleDateString('pt-PT')}</strong>.</p>
+      <p>Este documento inclui:</p>
+      <ul style="margin:8px 0 12px 0;padding-left:20px;color:#374151;">
+        <li>Total de consultas e pacientes atendidos</li>
+        <li>Resumo de faturação e custos</li>
+        <li>Alertas de stock e validade</li>
+      </ul>
+      <p style="margin:0;color:#64748b;font-size:13px;">Ficheiro em anexo: <strong>Relatorio_Meclinic_${reportDate}.pdf</strong></p>
+    `);
 
     const reportBuffer = Buffer.from(pdfBase64.split("base64,")[1], "base64");
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: emailDestino,
-      subject: emailSubject,
-      text: emailBody,
-      attachments: [
-        { filename: `Relatorio_Meclinic_${semana}.pdf`, content: reportBuffer }
-      ]
-    });
+    await sendEmail(emailDestino, emailSubject, html, [
+      { filename: `Relatorio_Meclinic_${reportDate}.pdf`, content: reportBuffer, contentType: 'application/pdf' }
+    ]);
 
     res.json({ message: 'Relatório enviado com sucesso.' });
   } catch (err) {

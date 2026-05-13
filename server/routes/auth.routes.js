@@ -263,9 +263,9 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
       [isAdmin, userId]
     );
 
-    // Histórico de login do utilizador (últimos 30 dias)
+    // Histórico de logins — uma entrada por utilizador (a mais recente)
     const loginHistory = await pool.query(
-      `SELECT 
+      `SELECT DISTINCT ON (al.user_id)
         al.id,
         al.user_id,
         u.nome as user_name,
@@ -276,12 +276,12 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
         al.created_at as data
       FROM activity_log al
       JOIN utilizadores u ON al.user_id = u.id
-      WHERE al.user_id = $1 
-        AND al.action_type = 'LOGIN'
+      WHERE al.action_type = 'LOGIN'
         AND al.created_at > NOW() - INTERVAL '30 days'
-      ORDER BY al.created_at DESC
-      LIMIT 20`,
-      [userId]
+        AND ($1::boolean = TRUE OR al.user_id = $2)
+      ORDER BY al.user_id, al.created_at DESC
+      LIMIT 50`,
+      [isAdmin, userId]
     );
 
     res.json({
