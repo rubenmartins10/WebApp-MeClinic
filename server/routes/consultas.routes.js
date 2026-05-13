@@ -121,12 +121,12 @@ router.put(
 /**
  * DELETE /api/consultas/:id
  * Deletar consulta
- * Requer permissões: ADMIN
+ * Requer permissões: ADMIN, ASSISTENTE
  */
 router.delete(
   '/:id',
   (req, res, next) => {
-    if (req.user.role !== 'ADMIN') {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
