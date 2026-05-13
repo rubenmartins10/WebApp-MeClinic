@@ -8,6 +8,7 @@ import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
 import jsPDF from 'jspdf';
 import logo from '../assets/logo.png';
+import { flattenToWhite } from '../utils/signatureUtils';
 
 const Dashboard = () => {
   const { theme } = useContext(ThemeContext);
@@ -27,8 +28,36 @@ const Dashboard = () => {
   
   const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [expiryAlertsList, setExpiryAlertsList] = useState([]);
+  const [assinaturaPreferida, setAssinaturaPreferida] = useState({ img: null, nome: '' });
 
   const activeLocale = getActiveLocale(language);
+
+  useEffect(() => {
+    const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
+    if (!user.id) return;
+    const token = localStorage.getItem('token');
+    fetch(`/api/utilizadores/${user.id}/assinatura`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(async data => {
+        const raw = data.assinatura;
+        if (!raw) return;
+        let sig = null, nome = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.signatures) && parsed.signatures.length > 0) {
+            sig = parsed.signatures[0].signature; nome = parsed.signatures[0].nome || '';
+          } else if (parsed.signature) {
+            sig = parsed.signature; nome = parsed.nome || '';
+          }
+        } catch {
+          if (typeof raw === 'string' && raw.startsWith('data:')) sig = raw;
+        }
+        if (sig) setAssinaturaPreferida({ img: await flattenToWhite(sig), nome });
+      })
+      .catch(() => {});
+  }, []);
 
   const carregarDados = (startDate) => {
     apiService.get(`/api/stats/patients-weekly?start=${startDate}`)
@@ -75,7 +104,7 @@ const Dashboard = () => {
     return null; 
   };
 
-  const gerarEncomendaPDF = () => {
+  const gerarEncomendaPDF = async () => {
     if (stockAlertsList.length === 0) return;
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -141,10 +170,9 @@ const Dashboard = () => {
 
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
     doc.text(`${t('dashboard.order.date') || 'Data:'} ${new Date().toLocaleDateString(activeLocale)}`, mg, ib + 5);
+    doc.text(`Emitido: ${new Date().toLocaleString('pt-PT')}`, W - mg, ib + 5, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
     doc.text(`${stockAlertsList.length} produto(s) com stock abaixo do m\u00ednimo`, mg, ib + 10.5);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
-    doc.text(`Emitido: ${new Date().toLocaleString('pt-PT')}`, W - mg, ib + 8, { align: 'right' });
 
     let curY = ib + 17;
 
@@ -250,12 +278,28 @@ const Dashboard = () => {
     doc.text(`Total: ${stockAlertsList.length} produto(s) a encomendar`, mg + 3, curY + 5.5);
     curY += 14;
 
-    // ── SIGNATURE LINE ────────────────────────────────────────────────────
-    if (curY + 20 > SAFE_BOTTOM) curY = contPage();
-    doc.setDrawColor(...C.midGray); doc.setLineWidth(0.4);
-    doc.line(mg, curY, mg + 80, curY);
-    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
-    doc.text(t('dashboard.order.signature') || 'Assinatura / Aprovação', mg, curY + 5);
+    // ── SIGNATURE ─────────────────────────────────────────────────────────
+    if (curY + 30 > SAFE_BOTTOM) curY = contPage();
+    if (assinaturaPreferida.img) {
+      const sigY = curY;
+      doc.addImage(assinaturaPreferida.img, W / 2 - 30, sigY, 60, 15);
+      const lineY = sigY + 12;
+      doc.setDrawColor(...C.midGray); doc.setLineWidth(0.3); doc.line(W / 2 - 30, lineY, W / 2 + 30, lineY);
+      if (assinaturaPreferida.nome) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.dark);
+        doc.text(assinaturaPreferida.nome, W / 2, lineY + 5, { align: 'center' });
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+        doc.text(t('dashboard.order.signature') || 'Assinatura do Respons\u00e1vel', W / 2, lineY + 10, { align: 'center' });
+      } else {
+        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+        doc.text(t('dashboard.order.signature') || 'Assinatura do Respons\u00e1vel', W / 2, lineY + 5, { align: 'center' });
+      }
+    } else {
+      doc.setDrawColor(...C.midGray); doc.setLineWidth(0.4);
+      doc.line(W / 2 - 30, curY, W / 2 + 30, curY);
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.gray);
+      doc.text(t('dashboard.order.signature') || 'Assinatura do Respons\u00e1vel', W / 2, curY + 5, { align: 'center' });
+    }
 
     // ── FOOTER ────────────────────────────────────────────────────────────
     drawFooter();
