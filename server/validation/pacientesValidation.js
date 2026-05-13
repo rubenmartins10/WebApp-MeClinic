@@ -39,7 +39,7 @@ exports.createPacienteSchema = Joi.object({
 exports.updatePacienteSchema = Joi.object({
   nome: commonPatterns.nome.optional(),
   data_nascimento: commonPatterns.data.optional(),
-  email: commonPatterns.email.optional(),
+  email: Joi.string().email().allow('', null).optional(),
   telefone: commonPatterns.telefone.optional(),
   endereco: Joi.string().max(200).optional(),
   cidade: Joi.string().max(100).optional(),
