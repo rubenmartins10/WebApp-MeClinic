@@ -277,7 +277,7 @@ class FaturaçãoController {
                 if (fuzzyRes.rows.length > 0) prodId = fuzzyRes.rows[0].id;
               }
               if (prodId) {
-                const deduction = Math.round(parseFloat(item.quantidade));
+                const deduction = parseFloat(item.quantidade);
                 await client.query(
                   'UPDATE produtos SET stock_atual = GREATEST(0, stock_atual - $1) WHERE id = $2',
                   [deduction, prodId]
