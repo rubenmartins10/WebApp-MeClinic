@@ -1467,10 +1467,9 @@ const [perfilData, setPerfilData] = useState({
                 <h3 style={{ fontSize: '14px', color: theme.subText, textTransform: 'uppercase', marginBottom: '15px' }}>
                   Canais de Notificação
                 </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '30px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '30px' }}>
                   {[
                     { key: 'email', label: 'Email', icon: Mail },
-                    { key: 'sms', label: 'WhatsApp', icon: Smartphone },
                     { key: 'push', label: 'App', icon: Bell }
                   ].map(channel => (
                     <div
@@ -2054,7 +2053,7 @@ const [perfilData, setPerfilData] = useState({
             )}
 
             {/* Botão de Guardar */}
-            {!(activeTab === 'clinica' && !isAdmin) && activeTab !== 'privacidade' && activeTab !== 'atividade' && (
+            {!(activeTab === 'clinica' && !isAdmin) && !(activeTab === 'assinatura' && !isAdmin) && activeTab !== 'privacidade' && activeTab !== 'atividade' && (
               <div style={{
                 marginTop: '50px',
                 display: 'flex',

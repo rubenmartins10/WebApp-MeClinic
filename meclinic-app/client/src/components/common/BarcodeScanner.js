@@ -118,6 +118,23 @@ const BarcodeScanner = ({ onScanSuccess, onClose }) => {
       maxWidth: '720px',
       border: '1px solid rgba(148,163,184,0.2)'
     }}>
+      {/* Em Desenvolvimento overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: '16px',
+        backgroundColor: 'rgba(11, 18, 32, 0.82)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 10,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px'
+      }}>
+        <span style={{ fontSize: '36px' }}>🚧</span>
+        <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '18px', letterSpacing: '0.5px' }}>Em Desenvolvimento</span>
+        <span style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', maxWidth: '280px', lineHeight: 1.5 }}>
+          Esta funcionalidade estará disponível em breve.
+        </span>
+        <button onClick={onClose} style={{ marginTop: '8px', padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: '#334155', color: '#e2e8f0', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+          Fechar
+        </button>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h3 style={{ margin: 0, color: '#e2e8f0', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Camera size={18} /> Scanner de Código de Barras
