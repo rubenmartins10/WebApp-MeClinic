@@ -4,6 +4,7 @@ import { ThemeContext } from '../contexts/ThemeContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { getActiveLocale } from '../utils/locale';
 import apiService from '../services/api';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 
 const Inventory = () => {
   const { theme } = useContext(ThemeContext);
@@ -170,23 +171,16 @@ const Inventory = () => {
         `}
       </style>
 
-      {/* CÂMARA — Em desenvolvimento */}
+      {/* SCANNER DE CÂMARA */}
       {showScanner && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#162338', borderRadius: '16px', padding: '40px 48px', border: '1px solid rgba(148,163,184,0.2)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', maxWidth: '420px', width: '100%', textAlign: 'center' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '16px', backgroundColor: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
-              <ScanLine size={32} color="#3b82f6" />
-            </div>
-            <h3 style={{ margin: '0 0 10px 0', color: '#e2e8f0', fontSize: '20px', fontWeight: '700' }}>Scanner de Câmara</h3>
-            <p style={{ margin: '0 0 6px 0', color: '#3b82f6', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Em desenvolvimento</p>
-            <p style={{ margin: '0 0 28px 0', color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>A leitura por câmara ainda não está disponível. Por favor, insira o código de barras manualmente no campo de texto.</p>
-            <button
-              onClick={() => setShowScanner(false)}
-              style={{ padding: '12px 32px', borderRadius: '10px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
-            >
-              Fechar
-            </button>
-          </div>
+          <BarcodeScanner
+            onScanSuccess={(codigo) => {
+              setShowScanner(false);
+              handleBarcodeLookup(codigo);
+            }}
+            onClose={() => setShowScanner(false)}
+          />
         </div>
       )}
 
