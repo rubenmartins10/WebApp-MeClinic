@@ -4,6 +4,18 @@ const pool = require('../db');
 const { AppError } = require('../errorHandler');
 
 /**
+ * Normaliza um número de telemóvel removendo prefixo de país e espaços/traços.
+ * Ex: "+351 925 474 521" → "925474521", "00351925474521" → "925474521"
+ */
+const normalizePhone = (phone) => {
+  if (!phone) return '';
+  return phone
+    .replace(/\s+|-|\(|\)/g, '')   // remover espaços, traços, parênteses
+    .replace(/^\+351|^00351/, '')  // remover prefixo +351 ou 00351
+    .replace(/^\+/, '');           // remover qualquer + restante
+};
+
+/**
  * ConsultasController - Lógica de consultas
  */
 class ConsultasController {
@@ -115,10 +127,15 @@ class ConsultasController {
     try {
       const { nome, email, telefone, data, hora, motivo, procedimento_id } = req.body;
 
-      // Encontrar paciente pelo telefone, ou criar se não existir
+      // Normalizar número: remover prefixo de país e espaços para comparação
+      const normalizedInput = normalizePhone(telefone);
+
+      // Encontrar paciente pelo telefone normalizado, ou criar se não existir
       const existingResult = await pool.query(
-        'SELECT id FROM pacientes WHERE telefone = $1 LIMIT 1',
-        [telefone]
+        `SELECT id FROM pacientes
+         WHERE regexp_replace(regexp_replace(telefone, '^\\+351|^00351', ''), '[\\s\\-\\(\\)]', '', 'g') = $1
+         LIMIT 1`,
+        [normalizedInput]
       );
 
       let paciente_id;

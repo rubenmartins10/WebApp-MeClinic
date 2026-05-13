@@ -1,6 +1,18 @@
 const pool = require('../db');
 
 /**
+ * Normaliza número de telemóvel: remove prefixo de país e espaços/traços.
+ * Ex: "+351 925 474 521" → "925474521"
+ */
+const normalizePhone = (phone) => {
+  if (!phone) return null;
+  return phone
+    .replace(/\s+|-|\(|\)/g, '')
+    .replace(/^\+351|^00351/, '')
+    .replace(/^\+/, '') || null;
+};
+
+/**
  * Modelo Paciente
  * Centraliza todas as operações de BD relacionadas com pacientes
  */
@@ -15,7 +27,7 @@ class Paciente {
       `INSERT INTO pacientes (nome, telefone, email, data_nascimento, nif, sns_numero, notas_clinicas, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
        RETURNING *`,
-      [nome, telefone || null, email || null, data_nascimento || null, nif || null, sns_numero || null, notas_clinicas || '']
+      [nome, normalizePhone(telefone), email || null, data_nascimento || null, nif || null, sns_numero || null, notas_clinicas || '']
     );
     
     return result.rows[0];
