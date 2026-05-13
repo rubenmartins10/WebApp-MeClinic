@@ -7,6 +7,7 @@ const AuthController = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/auth');
 const pool = require('../db');
 const nodemailer = require('nodemailer');
+const { buildEmailHtml } = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
@@ -177,10 +178,17 @@ router.post('/forgot-password', async (req, res) => {
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Recuperação de Palavra-passe - MeClinic',
-        html: `<h3>Olá ${userRes.rows[0].nome},</h3>
-               <p>Foi pedido um reset de palavra-passe para a sua conta.</p>
-               <p>O seu código de verificação é: <strong style="font-size: 24px; color: #2563eb;">${code}</strong></p>
-               <p>Este código expira em 15 minutos.</p>`
+        html: buildEmailHtml('Recuperação de Palavra-passe', `
+          <p>Olá <strong>${userRes.rows[0].nome}</strong>,</p>
+          <p>Foi pedido um reset de palavra-passe para a sua conta. Utilize o código abaixo para definir uma nova palavra-passe:</p>
+          <div style="text-align:center;margin:28px 0;">
+            <span style="font-size:34px;font-weight:700;color:#2563eb;letter-spacing:8px;background:#dbeafe;padding:14px 32px;border-radius:10px;display:inline-block;">${code}</span>
+          </div>
+          <p>Este código expira em <strong>15 minutos</strong>.</p>
+          <p style="color:#475569;font-size:13px;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:16px;">
+            Se não foi você a solicitar este reset, ignore este email — a sua palavra-passe não será alterada.
+          </p>
+        `)
       });
       res.json({ message: "Código enviado para o seu e-mail." });
     } catch (emailErr) {

@@ -1,5 +1,5 @@
 const twilio = require('twilio');
-const { sendEmail } = require('./emailService');
+const { sendEmail, buildEmailHtml } = require('./emailService');
 const pool = require('../db');
 const logger = require('../utils/logger');
 
@@ -62,39 +62,30 @@ async function sendStockAlertEmail(produto) {
     }
 
     const subject = `⚠️ Stock Baixo: ${produto.nome}`;
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <div style="background:#b91c1c;color:#fff;padding:20px;border-radius:10px 10px 0 0;text-align:center;">
-          <h1 style="margin:0;font-size:22px;">⚠️ Alerta de Stock Baixo</h1>
-          <p style="margin:6px 0 0;font-size:13px;">Sistema MeClinic</p>
-        </div>
-        <div style="background:#f8f9fa;padding:24px;border-radius:0 0 10px 10px;">
-          <p style="color:#333;margin:0 0 16px;">O produto abaixo atingiu o stock mínimo:</p>
-          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;">
-            <tr style="background:#fee2e2;">
-              <td style="padding:10px 16px;font-weight:bold;color:#991b1b;width:40%;">Produto</td>
-              <td style="padding:10px 16px;color:#333;">${produto.nome}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 16px;font-weight:bold;color:#555;">Categoria</td>
-              <td style="padding:10px 16px;color:#333;">${produto.categoria || '—'}</td>
-            </tr>
-            <tr style="background:#fef2f2;">
-              <td style="padding:10px 16px;font-weight:bold;color:#991b1b;">Stock Atual</td>
-              <td style="padding:10px 16px;color:#b91c1c;font-weight:bold;">${produto.stock_atual}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 16px;font-weight:bold;color:#555;">Stock Mínimo</td>
-              <td style="padding:10px 16px;color:#333;">${produto.stock_minimo}</td>
-            </tr>
-          </table>
-          <p style="color:#666;font-size:13px;margin:20px 0 0;border-top:1px solid #ddd;padding-top:12px;">
-            Por favor, reponha o stock assim que possível.<br>
-            Este é um email automático do sistema MeClinic.
-          </p>
-        </div>
-      </div>
-    `;
+    const html = buildEmailHtml('⚠️ Alerta de Stock Baixo', `
+      <p>O produto abaixo atingiu o stock mínimo e requer reposição urgente:</p>
+      <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;margin:16px 0;">
+        <tr style="background:#fee2e2;">
+          <td style="padding:10px 16px;font-weight:bold;color:#991b1b;width:40%;">Produto</td>
+          <td style="padding:10px 16px;color:#1e293b;">${produto.nome}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:10px 16px;font-weight:bold;color:#475569;">Categoria</td>
+          <td style="padding:10px 16px;color:#1e293b;">${produto.categoria || '—'}</td>
+        </tr>
+        <tr style="background:#fef2f2;">
+          <td style="padding:10px 16px;font-weight:bold;color:#991b1b;">Stock Atual</td>
+          <td style="padding:10px 16px;color:#b91c1c;font-weight:bold;">${produto.stock_atual}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:10px 16px;font-weight:bold;color:#475569;">Stock Mínimo</td>
+          <td style="padding:10px 16px;color:#1e293b;">${produto.stock_minimo}</td>
+        </tr>
+      </table>
+      <p style="color:#475569;font-size:13px;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:16px;">
+        Por favor, reponha o stock assim que possível.
+      </p>
+    `);
 
     await Promise.all(admins.map(admin => sendEmail(admin.email, subject, html)));
     logger.info(`[NOTIF][STOCK] Alerta de stock enviado para ${admins.length} admin(s): ${produto.nome}`);
@@ -129,36 +120,28 @@ async function sendConsultaReminderEmail(consulta) {
       : '';
 
     const subject = `🔔 Lembrete: Consulta em 15 minutos — ${hora}`;
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <div style="background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;padding:20px;border-radius:10px 10px 0 0;text-align:center;">
-          <h1 style="margin:0;font-size:22px;">🔔 Lembrete de Consulta</h1>
-          <p style="margin:6px 0 0;font-size:13px;">Sistema MeClinic</p>
-        </div>
-        <div style="background:#f8f9fa;padding:24px;border-radius:0 0 10px 10px;">
-          <p style="color:#333;margin:0 0 16px;">Olá <strong>${consulta.paciente_nome}</strong>,</p>
-          <p style="color:#333;margin:0 0 20px;">A sua consulta começa em <strong>15 minutos</strong>. Não se atrase!</p>
-          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;">
-            <tr style="background:#dbeafe;">
-              <td style="padding:10px 16px;font-weight:bold;color:#1e40af;width:40%;">Data</td>
-              <td style="padding:10px 16px;color:#333;">${dataFormatada}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 16px;font-weight:bold;color:#555;">Hora</td>
-              <td style="padding:10px 16px;color:#333;font-weight:bold;">${hora}</td>
-            </tr>
-            ${consulta.procedimento_nome ? `
-            <tr style="background:#eff6ff;">
-              <td style="padding:10px 16px;font-weight:bold;color:#555;">Procedimento</td>
-              <td style="padding:10px 16px;color:#333;">${consulta.procedimento_nome}</td>
-            </tr>` : ''}
-          </table>
-          <p style="color:#666;font-size:13px;margin:20px 0 0;border-top:1px solid #ddd;padding-top:12px;">
-            Este é um email automático do sistema MeClinic. Por favor, não responda a este email.
-          </p>
-        </div>
-      </div>
-    `;
+    const html = buildEmailHtml('🔔 Lembrete de Consulta', `
+      <p>Olá <strong>${consulta.paciente_nome}</strong>,</p>
+      <p>A sua consulta começa em <strong>15 minutos</strong>. Não se atrase!</p>
+      <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;margin:16px 0;">
+        <tr style="background:#dbeafe;">
+          <td style="padding:10px 16px;font-weight:bold;color:#1e40af;width:40%;">Data</td>
+          <td style="padding:10px 16px;color:#1e293b;">${dataFormatada}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:10px 16px;font-weight:bold;color:#475569;">Hora</td>
+          <td style="padding:10px 16px;color:#1e293b;font-weight:bold;">${hora}</td>
+        </tr>
+        ${consulta.procedimento_nome ? `
+        <tr style="background:#eff6ff;">
+          <td style="padding:10px 16px;font-weight:bold;color:#475569;">Procedimento</td>
+          <td style="padding:10px 16px;color:#1e293b;">${consulta.procedimento_nome}</td>
+        </tr>` : ''}
+      </table>
+      <p style="color:#475569;font-size:13px;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:16px;">
+        Este é um email automático do sistema MeClinic. Por favor, não responda a este email.
+      </p>
+    `);
 
     await sendEmail(consulta.email, subject, html);
     logger.info(`[NOTIF][CONSULTA] Lembrete enviado para ${consulta.email} (consulta ${consulta.id})`);
