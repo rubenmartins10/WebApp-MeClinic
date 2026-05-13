@@ -80,7 +80,7 @@ class Paciente {
    * Atualizar dados do paciente
    */
   static async update(id, data) {
-    const { nome, telefone, email, data_nascimento, endereco, cidade, nif, notas_clinicas } = data;
+    const { nome, telefone, email, data_nascimento, nif, notas_clinicas } = data;
     
     const result = await pool.query(
       `UPDATE pacientes 
@@ -88,13 +88,11 @@ class Paciente {
            telefone = COALESCE($2, telefone),
            email = COALESCE($3, email),
            data_nascimento = COALESCE($4, data_nascimento),
-           endereco = COALESCE($5, endereco),
-           cidade = COALESCE($6, cidade),
-           nif = COALESCE($7, nif),
-           notas_clinicas = COALESCE($8, notas_clinicas)
-       WHERE id = $9
+           nif = COALESCE($5, nif),
+           notas_clinicas = COALESCE($6, notas_clinicas)
+       WHERE id = $7
        RETURNING *`,
-      [nome, telefone, email, data_nascimento, endereco, cidade, nif, notas_clinicas, id]
+      [nome, telefone, email, data_nascimento, nif, notas_clinicas, id]
     );
     
     return result.rows[0];
