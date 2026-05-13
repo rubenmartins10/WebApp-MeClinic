@@ -238,9 +238,9 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role);
 
   try {
-    // Sessões activas deduplicadas por session_id (evita repetições infinitas da mesma conta/sessão)
+    // Uma sessão por utilizador (a mais recente) — mesma conta = um único card
     const activeSessions = await pool.query(
-      `SELECT DISTINCT ON (al.session_id)
+      `SELECT DISTINCT ON (al.user_id)
         al.id,
         al.user_id,
         u.nome as user_name,
@@ -258,7 +258,7 @@ router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
         AND al.status = 'success'
         AND al.created_at > NOW() - INTERVAL '30 days'
         AND ($1::boolean = TRUE OR al.user_id = $2)
-      ORDER BY al.session_id, al.last_seen DESC, al.created_at DESC
+      ORDER BY al.user_id, al.last_seen DESC, al.created_at DESC
       LIMIT 50`,
       [isAdmin, userId]
     );
