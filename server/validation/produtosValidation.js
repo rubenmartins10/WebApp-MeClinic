@@ -11,27 +11,27 @@ const createProdutoSchema = Joi.object({
     'string.max': 'Nome não pode exceder 200 caracteres',
     'any.required': 'Nome é obrigatório'
   }),
-  codigo_barras: Joi.string().max(50).optional(),
+  codigo_barras: Joi.string().max(50).optional().allow('', null),
   stock_atual: Joi.number().min(0).optional().default(0),
   stock_minimo: Joi.number().min(0).optional().default(5),
   unidade_medida: Joi.string().max(20).optional().default('un').messages({
     'string.max': 'Unidade de medida não pode exceder 20 caracteres'
   }),
-  imagem_url: Joi.string().uri().optional(),
+  imagem_url: Joi.string().uri().optional().allow('', null),
   categoria: Joi.string().max(100).optional().default('Descartáveis'),
-  data_validade: Joi.date().iso().optional()
+  data_validade: Joi.alternatives().try(Joi.date().iso(), Joi.string().allow('', null)).optional()
 }).strict();
 
 // Schema para atualizar produto
 const updateProdutoSchema = Joi.object({
   nome: Joi.string().min(3).max(200).optional(),
-  codigo_barras: Joi.string().max(50).optional(),
+  codigo_barras: Joi.string().max(50).optional().allow('', null),
   stock_atual: Joi.number().min(0).optional(),
   stock_minimo: Joi.number().min(0).optional(),
   unidade_medida: Joi.string().max(20).optional(),
-  imagem_url: Joi.string().uri().optional(),
+  imagem_url: Joi.string().uri().optional().allow('', null),
   categoria: Joi.string().max(100).optional(),
-  data_validade: Joi.date().iso().optional()
+  data_validade: Joi.alternatives().try(Joi.date().iso(), Joi.string().allow('', null)).optional()
 }).strict();
 
 // Schema para atualizar stock

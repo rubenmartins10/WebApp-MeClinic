@@ -82,7 +82,7 @@ const Inventory = () => {
       showNotif('success', produtoToEdit ? (t('inventory.msg.updated') || 'Atualizado!') : (t('inventory.msg.added') || 'Adicionado!'));
       setShowModal(false); setProdutoToEdit(null); setFormData(initialForm); carregarProdutos(paginacao.page || 1);
     } catch (err) {
-      showNotif('error', t('inventory.msg.save_err') || 'Erro ao guardar.');
+      showNotif('error', err.message || t('inventory.msg.save_err') || 'Erro ao guardar.');
     }
   };
 

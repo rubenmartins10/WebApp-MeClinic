@@ -62,7 +62,7 @@ router.get('/:id', ProdutosController.getById);
 router.post(
   '/',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -79,7 +79,7 @@ router.post(
 router.put(
   '/:id',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -96,7 +96,7 @@ router.put(
 router.put(
   '/:id/stock',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -113,7 +113,7 @@ router.put(
 router.delete(
   '/:id',
   (req, res, next) => {
-    if (req.user.role !== 'ADMIN') {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
