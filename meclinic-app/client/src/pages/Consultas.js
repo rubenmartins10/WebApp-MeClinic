@@ -282,6 +282,13 @@ const Consultas = () => {
     const hasRecs = recommendations.trim() !== '';
     const hasReceita = hasMeds || hasRecs;
 
+    const clinicSettings = (() => { try { return JSON.parse(localStorage.getItem('meclinic_settings') || '{}'); } catch { return {}; } })();
+    const clinicNome     = clinicSettings.nome     || 'MeClinic';
+    const clinicMorada   = (clinicSettings.morada  || 'Avenida da Liberdade, 123, Lisboa').replace(/\n/g, '  |  ');
+    const clinicEmail    = clinicSettings.email    || 'geral@meclinic.pt';
+    const clinicTelefone = clinicSettings.telefone || '+351 XXX XXX XXX';
+    const clinicNif      = clinicSettings.nif      || '';
+
     let pdfFaturaBase64 = null;
     let pdfReceitaBase64 = null;
     let nomeReceita = null;
@@ -293,7 +300,7 @@ const Consultas = () => {
       doc.rect(0, 0, 148, 25, 'F'); 
       doc.setTextColor(255, 255, 255); 
       doc.setFontSize(18); doc.setFont(undefined, 'bold'); 
-      doc.text("MECLINIC", 74, 16, { align: 'center' });
+      doc.text(clinicNome.toUpperCase(), 74, 16, { align: 'center' });
       
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(14); doc.setFont(undefined, 'bold'); 
@@ -347,8 +354,8 @@ const Consultas = () => {
       }
 
       doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(148, 163, 184);
-      doc.text("MeClinic - Medicina Dentária Avançada | NIF: 500 123 456", 74, 195, { align: 'center' });
-      doc.text("Avenida da Liberdade, 123, Lisboa | +351 912 345 678 | www.meclinic.pt", 74, 200, { align: 'center' });
+      doc.text(`${clinicNome}${clinicNif ? ` | NIF: ${clinicNif}` : ''}`, 74, 195, { align: 'center' });
+      doc.text(`${clinicMorada} | ${clinicTelefone}${clinicEmail ? ` | ${clinicEmail}` : ''}`, 74, 200, { align: 'center' });
       doc.text("Processado por programa certificado.", 74, 205, { align: 'center' });
       
       pdfFaturaBase64 = doc.output('datauristring');
@@ -364,7 +371,7 @@ const Consultas = () => {
         docRx.rect(0, 0, 148, 25, 'F'); 
         docRx.setTextColor(255, 255, 255); 
         docRx.setFontSize(18); docRx.setFont(undefined, 'bold'); 
-        docRx.text("MECLINIC", 74, 16, { align: 'center' });
+        docRx.text(clinicNome.toUpperCase(), 74, 16, { align: 'center' });
 
         docRx.setTextColor(15, 23, 42);
         docRx.setFontSize(14); docRx.setFont(undefined, 'bold'); 

@@ -161,7 +161,10 @@ const [perfilData, setPerfilData] = useState({
   const fetchClinicConfig = () => {
     if (!isAdmin) return;
     apiService.get('/api/settings/clinic-config').then(res => {
-      if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
+      if (res && res.data) {
+        setClinicaData(prev => ({ ...prev, ...res.data }));
+        localStorage.setItem('meclinic_settings', JSON.stringify({ ...res.data }));
+      }
     }).catch(() => {});
   };
 
@@ -328,7 +331,9 @@ const [perfilData, setPerfilData] = useState({
       try {
         const res = await apiService.put('/api/settings/clinic-config', clinicaData, {}, true);
         // O servidor devolve os dados guardados — actualizar estado directamente
-        if (res && res.data) setClinicaData(prev => ({ ...prev, ...res.data }));
+        const saved = (res && res.data) ? res.data : clinicaData;
+        setClinicaData(prev => ({ ...prev, ...saved }));
+        localStorage.setItem('meclinic_settings', JSON.stringify(saved));
         showNotif('success', t('settings.alert.clinic_success'));
       } catch {
         showNotif('error', t('settings.alert.server_error'));

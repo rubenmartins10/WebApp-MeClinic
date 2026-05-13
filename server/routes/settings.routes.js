@@ -180,15 +180,10 @@ router.post(
 // CLINIC CONFIG (BD-backed)
 // ============================================
 
+// Leitura disponível a todos os utilizadores autenticados (necessário para cabeçalhos dos PDFs)
 router.get(
   '/clinic-config',
   authMiddleware,
-  (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'Acesso negado' });
-    }
-    next();
-  },
   settingsController.getClinicConfig
 );
 

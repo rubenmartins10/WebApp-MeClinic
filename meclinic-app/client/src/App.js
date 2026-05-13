@@ -20,6 +20,7 @@ import Settings from './pages/Settings';
 import Report from './pages/Report';
 import Pacientes from './pages/Pacientes'; // <-- A NOVA PÁGINA AQUI    
 import ConsultaReminders from './components/ConsultaReminders';
+import apiService from './services/api';
 
 const MainLayout = ({ user, onLogout }) => {
   const { theme } = useContext(ThemeContext);
@@ -82,6 +83,17 @@ function App() {
       }
     }
   }, []);
+
+  // Buscar configuração da clínica assim que o utilizador estiver autenticado
+  // (independentemente do role) para garantir cabeçalhos corretos nos PDFs
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    apiService.get('/api/settings/clinic-config').then(res => {
+      if (res && res.data) {
+        localStorage.setItem('meclinic_settings', JSON.stringify(res.data));
+      }
+    }).catch(() => {});
+  }, [isAuthenticated]);
 
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
