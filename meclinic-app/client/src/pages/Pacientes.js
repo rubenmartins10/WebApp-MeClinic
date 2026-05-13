@@ -600,7 +600,7 @@ const Pacientes = () => {
                   <div className="custom-scrollbar" style={{ padding: '30px', overflowY: 'auto', flex: 1 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                       {historico.length > 0 ? historico.map(c => {
-                        const isFinalizada = c.status === 'FINALIZADA';
+                        const isFinalizada = (c.status || '').toLowerCase() === 'realizada';
                         return (
                           <div key={c.id} style={{ backgroundColor: theme.cardBg, padding: '15px 18px', borderRadius: '12px', border: `1px solid ${theme.border}`, borderLeft: `4px solid ${isFinalizada ? '#10b981' : '#3b82f6'}`, boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
