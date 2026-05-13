@@ -73,10 +73,18 @@ const Inventory = () => {
     e.preventDefault();
     try {
       const url = produtoToEdit ? `/api/produtos/${produtoToEdit}` : '/api/produtos';
+      const payload = {
+        ...formData,
+        stock_atual: formData.stock_atual !== '' ? Number(formData.stock_atual) : 0,
+        stock_minimo: formData.stock_minimo !== '' ? Number(formData.stock_minimo) : 0,
+        imagem_url: formData.imagem_url || null,
+        data_validade: formData.data_validade || null,
+        codigo_barras: formData.codigo_barras || null,
+      };
       if (produtoToEdit) {
-        await apiService.put(url, formData);
+        await apiService.put(url, payload);
       } else {
-        await apiService.post(url, formData);
+        await apiService.post(url, payload);
       }
 
       showNotif('success', produtoToEdit ? (t('inventory.msg.updated') || 'Atualizado!') : (t('inventory.msg.added') || 'Adicionado!'));
