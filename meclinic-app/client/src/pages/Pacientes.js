@@ -122,7 +122,7 @@ const Pacientes = () => {
   const guardarNotas = async () => {
     try {
       await apiService.put(`/api/pacientes/${selectedPaciente.id}/notas`, { notas: notasClinicas });
-      showNotif(t('patients.modal.save_notes') + ' OK!'); carregarPacientes();
+      showNotif(t('patients.modal.save_notes') + ' OK!'); carregarPacientes(1, true);
     } catch (err) {}
   };
 
@@ -131,7 +131,7 @@ const Pacientes = () => {
       await apiService.put(`/api/pacientes/${selectedPaciente.id}/odontograma`, { dados: dadosDentes });
       setOdontogramaData(dadosDentes);
       setSelectedPaciente({...selectedPaciente, odontograma_dados: JSON.stringify(dadosDentes)});
-      carregarPacientes(); 
+      carregarPacientes(1, true);
       showNotif('Odontograma guardado permanentemente!');
     } catch(err) { showNotif('Erro ao guardar o Odontograma.', 'error'); }
   };
@@ -175,7 +175,7 @@ const Pacientes = () => {
     try {
       await apiService.delete(`/api/pacientes/${pacienteToDelete.id}`);
       showNotif('Paciente eliminado permanentemente!');
-      setPacienteToDelete(null); setShowDeleteConfirm(false); setSelectedPaciente(null); carregarPacientes();
+      setPacienteToDelete(null); setShowDeleteConfirm(false); setSelectedPaciente(null); carregarPacientes(1, true);
     } catch (err) {}
   };
 
@@ -193,7 +193,7 @@ const Pacientes = () => {
     if (!formData.telefone || formData.telefone.replace(/\s+/g, '').length < 9) { showNotif(t('consultations.validation.phone_required'), 'error'); return; }
     try {
       await apiService.put(`/api/pacientes/${formData.id}/dados`, formData);
-      showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes();
+      showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes(1, true);
       setSelectedPaciente({ ...selectedPaciente, nome: formData.nome, telefone: formData.telefone, email: formData.email });
     } catch (err) {}
   };
