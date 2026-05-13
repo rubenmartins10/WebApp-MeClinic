@@ -139,7 +139,7 @@ const Inventory = () => {
       const unidadesPorCaixa = parseInt(match[1], 10);
       const totalReal = Math.round(unidadesPorCaixa * parseFloat(stockAtual));
       const isAlerta = parseFloat(stockAtual) <= parseFloat(stockMinimo);
-      return { texto: `${totalReal} ${match[2]} ${t('inventory.card.total_calc') || 'total'}`, cor: isAlerta ? '#ef4444' : '#10b981' };
+      return { texto: `${totalReal} ${match[2]} ${t('inventory.card.total_calc') || 'total'}`, cor: isAlerta ? '#ef4444' : null };
     }
     return null; 
   };
@@ -374,6 +374,7 @@ const Inventory = () => {
         {produtosFiltrados.map(p => {
           const totalCalc = calcularTotalUnidades(p.nome, p.stock_atual, p.stock_minimo);
           const stockFloat = parseFloat(p.stock_atual);
+          const isBaixoStock = stockFloat <= parseFloat(p.stock_minimo || 0);
           let stockVisual;
           if (p.unidade_medida === 'cx' || p.nome.match(/\((\d+)\s*[a-zA-Z]+\)/)) { stockVisual = Math.ceil(stockFloat); } 
           else { stockVisual = stockFloat % 1 === 0 ? stockFloat : stockFloat.toFixed(2); }
@@ -407,9 +408,9 @@ const Inventory = () => {
                   <div>
                     <div style={{ fontSize: '11px', color: theme.subText, fontWeight: 'bold', marginBottom: '4px' }}>{t('inventory.card.current_qty') || 'Stock Atual'}</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '24px', fontWeight: '900', color: theme.isDark ? '#ffffff' : theme.text }}>{stockVisual}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '900', color: isBaixoStock ? '#ef4444' : (theme.isDark ? '#ffffff' : theme.text) }}>{stockVisual}</span>
                       <span style={{ fontSize: '14px', color: theme.subText, fontWeight: 'bold' }}>{p.unidade_medida}</span>
-                      {totalCalc && (<span style={{ fontSize: '12px', color: totalCalc.cor, marginLeft: '4px', fontWeight: 'bold' }}>({totalCalc.texto})</span>)}
+                      {totalCalc && (<span style={{ fontSize: '12px', color: totalCalc.cor || theme.subText, marginLeft: '4px', fontWeight: 'bold' }}>({totalCalc.texto})</span>)}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
