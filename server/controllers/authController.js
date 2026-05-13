@@ -106,9 +106,13 @@ class AuthController {
       // Auth bem-sucedida — limpar lockout (M-04)
       loginAttempts.delete(attemptKey);
 
+      // Normalizar role para o sistema simplificado (ADMIN / ASSISTENTE)
+      const roleUpper = (user.role || '').toUpperCase();
+      const normalizedRole = roleUpper === 'ADMIN' || roleUpper === 'SUPER_ADMIN' ? 'ADMIN' : 'ASSISTENTE';
+
       // Gerar access token (1h) + refresh token (7d)
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
+        { id: user.id, email: user.email, role: normalizedRole },
         JWT_SECRET,
         { expiresIn: ACCESS_TOKEN_EXPIRY }
       );
@@ -129,7 +133,7 @@ class AuthController {
           id: user.id,
           nome: user.nome,
           email: user.email,
-          role: user.role,
+          role: normalizedRole,
           telefone: user.telefone || null
         },
         token,

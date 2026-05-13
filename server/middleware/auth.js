@@ -16,9 +16,15 @@ const authMiddleware = async (req, res, next) => {
     }
     
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
-    // Normalizar roles antigos para o novo sistema simplificado
-    if (decoded.role === 'DENTISTA' || decoded.role === 'SUPER_ADMIN') {
-      decoded.role = decoded.role === 'SUPER_ADMIN' ? 'ADMIN' : 'ASSISTENTE';
+    // Normalizar role: uppercase primeiro, depois mapear roles legados
+    const roleUpper = (decoded.role || '').toUpperCase();
+    if (roleUpper === 'SUPER_ADMIN') {
+      decoded.role = 'ADMIN';
+    } else if (roleUpper === 'ADMIN') {
+      decoded.role = 'ADMIN';
+    } else {
+      // qualquer outra coisa (DENTISTA, Assistente, assistente, etc.) → ASSISTENTE
+      decoded.role = 'ASSISTENTE';
     }
     req.user = decoded;
     next();
