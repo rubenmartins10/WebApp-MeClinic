@@ -64,7 +64,7 @@ const Inventory = () => {
   const handleEditClick = (p) => {
     setProdutoToEdit(p.id);
     setFormData({
-      nome: p.nome || '', codigo_barras: p.codigo_barras || '', stock_atual: p.stock_atual || 0, stock_minimo: p.stock_minimo || 5, unidade_medida: p.unidade_medida || 'un', categoria: p.categoria || 'Descartáveis', imagem_url: p.imagem_url || '', data_validade: p.data_validade ? p.data_validade.split('T')[0] : ''
+      nome: p.nome || '', codigo_barras: p.codigo_barras || '', stock_atual: Math.round(p.stock_atual || 0), stock_minimo: Math.round(p.stock_minimo || 5), unidade_medida: p.unidade_medida || 'un', categoria: p.categoria || 'Descartáveis', imagem_url: p.imagem_url || '', data_validade: p.data_validade ? p.data_validade.split('T')[0] : ''
     });
     setShowModal(true);
   };
