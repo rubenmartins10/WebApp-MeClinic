@@ -16,6 +16,10 @@ const authMiddleware = async (req, res, next) => {
     }
     
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    // Normalizar roles antigos para o novo sistema simplificado
+    if (decoded.role === 'DENTISTA' || decoded.role === 'SUPER_ADMIN') {
+      decoded.role = decoded.role === 'SUPER_ADMIN' ? 'ADMIN' : 'ASSISTENTE';
+    }
     req.user = decoded;
     next();
     
