@@ -157,9 +157,8 @@ const [perfilData, setPerfilData] = useState({
     current: true
   };
 
-  // Buscar configuração da clínica da BD (admin only)
+  // Buscar configuração da clínica da BD (todos os utilizadores autenticados)
   const fetchClinicConfig = () => {
-    if (!isAdmin) return;
     apiService.get('/api/settings/clinic-config').then(res => {
       if (res && res.data) {
         setClinicaData(prev => ({ ...prev, ...res.data }));

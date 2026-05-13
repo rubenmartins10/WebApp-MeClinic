@@ -44,7 +44,15 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
     if (!currentUser.id) { setMode('view'); return; }
     apiService.get('/api/utilizadores/assinaturas-clinica')
       .then(data => {
-        const list = Array.isArray(data.assinaturas) ? data.assinaturas : [];
+        let list = Array.isArray(data.assinaturas) ? data.assinaturas : [];
+        if (!isAdmin && list.length > 0) {
+          // Aplicar preferência guardada localmente para ASSISTENTE
+          const preferredId = localStorage.getItem(`meclinic_preferred_sig_${currentUser.id}`);
+          if (preferredId) {
+            const preferred = list.find(s => String(s.id) === preferredId);
+            if (preferred) list = [preferred, ...list.filter(s => String(s.id) !== preferredId)];
+          }
+        }
         setSignatures(list);
         if (list.length > 0) onSaveSignature(list[0].signature);
         setMode('view');
@@ -153,6 +161,14 @@ const Assinatura = ({ onSaveSignature, onNotification }) => {
 
   const setAsDefault = async (id) => {
     const newList = [signatures.find(s => s.id === id), ...signatures.filter(s => s.id !== id)];
+    if (!isAdmin) {
+      // ASSISTENTE: guardar preferência localmente sem modificar o DB
+      localStorage.setItem(`meclinic_preferred_sig_${currentUser.id}`, String(id));
+      setSignatures(newList);
+      onSaveSignature(newList[0].signature);
+      if (onNotification) onNotification(t('settings.signature.saved_preferred'), 'success');
+      return;
+    }
     try {
       const ok = await persistSignatures(newList);
       if (ok) {
