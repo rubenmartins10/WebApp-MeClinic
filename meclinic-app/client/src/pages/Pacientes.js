@@ -195,7 +195,7 @@ const Pacientes = () => {
       await apiService.put(`/api/pacientes/${formData.id}/dados`, formData);
       showNotif('Dados atualizados!'); setShowEditModal(false); carregarPacientes(1, true);
       setSelectedPaciente({ ...selectedPaciente, nome: formData.nome, telefone: formData.telefone, email: formData.email });
-    } catch (err) {}
+    } catch (err) { showNotif(err.message || 'Erro ao guardar dados. Tente novamente.', 'error'); }
   };
 
   const adicionarMed = () => setRxMeds([...rxMeds, { nome: '', posologia: '' }]);
