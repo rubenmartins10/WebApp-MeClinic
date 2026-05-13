@@ -79,8 +79,8 @@ router.post('/', async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO modelos_procedimento (nome, custo_total_estimado, preco_servico, created_at)
-       VALUES ($1, $2, $3, NOW())
+      `INSERT INTO modelos_procedimento (nome, custo_total_estimado, preco_servico)
+       VALUES ($1, $2, $3)
        RETURNING *`,
       [nome, custo_total_estimado || 0, preco_servico || 0]
     );

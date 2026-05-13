@@ -27,7 +27,7 @@ const FichasTecnicas = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
 
   const [assinaturaPreferida, setAssinaturaPreferida] = useState({ img: null, nome: '' });
 
@@ -45,7 +45,7 @@ const FichasTecnicas = () => {
 
   useEffect(() => {
     if (!user.id) return;
-    const token = localStorage.getItem('meclinic_token');
+    const token = localStorage.getItem('token');
     fetch(`/api/utilizadores/${user.id}/assinatura`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -91,7 +91,7 @@ const FichasTecnicas = () => {
       setShowNewModal(false); setNewProcName('');
       carregarDados(); carregarItens(novo);
       mostrarNotificacao('success', t('tech_sheets.msg.created'));
-    } catch (err) { mostrarNotificacao('error', t('inventory.msg.server_err')); }
+    } catch (err) { mostrarNotificacao('error', err.message || t('inventory.msg.server_err')); }
   };
 
   const handleDeleteProcedimento = async () => {
