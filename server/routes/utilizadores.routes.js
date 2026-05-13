@@ -34,7 +34,7 @@ router.get('/', requireRole('ADMIN'), async (req, res) => {
  * Devolve todas as assinaturas de todos os utilizadores da clínica (agregadas)
  * IMPORTANTE: esta rota tem de vir ANTES de /:id para não ser interceptada
  */
-router.get('/assinaturas-clinica', requireRole('ADMIN', 'DENTISTA'), async (req, res) => {
+router.get('/assinaturas-clinica', requireRole('ADMIN', 'ASSISTENTE'), async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, nome, assinatura FROM utilizadores WHERE assinatura IS NOT NULL'
@@ -123,7 +123,7 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
     const mfaSecret = speakeasy.generateSecret({ name: `MeClinic (${email})` });
     const qrCodeUrl = await QRCode.toDataURL(mfaSecret.otpauth_url);
 
-    const safeRole = ['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(role) ? role : 'ASSISTENTE';
+    const safeRole = ['ADMIN', 'ASSISTENTE'].includes(role) ? role : 'ASSISTENTE';
     const result = await pool.query(
       `INSERT INTO utilizadores (nome, email, password_hash, role, ativo, created_at, mfa_enabled, mfa_secret)
        VALUES ($1, $2, $3, $4, true, NOW(), true, $5)

@@ -49,7 +49,7 @@ router.get(
 router.post(
   '/',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA', 'ASSISTENTE'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   validateRequest(createPacienteSchema),
   asyncHandler(PacientesController.create)
 );
@@ -71,7 +71,7 @@ router.get(
 router.put(
   '/:id/dados',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA', 'ASSISTENTE'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   validateRequest(updatePacienteSchema),
   asyncHandler(PacientesController.updateDados)
 );
@@ -83,7 +83,7 @@ router.put(
 router.put(
   '/:id/notas',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   asyncHandler(PacientesController.updateNotas)
 );
 
@@ -94,7 +94,7 @@ router.put(
 router.put(
   '/:id/odontograma',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   asyncHandler(PacientesController.updateOdontograma)
 );
 
@@ -115,7 +115,7 @@ router.get(
 router.post(
   '/:id/exames',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   asyncHandler(PacientesController.addExame)
 );
 
@@ -136,7 +136,7 @@ router.get(
 router.delete(
   '/exames/:idExame',
   authMiddleware,
-  requireRole('ADMIN', 'DENTISTA'),
+  requireRole('ADMIN', 'ASSISTENTE'),
   asyncHandler(PacientesController.deleteExame)
 );
 

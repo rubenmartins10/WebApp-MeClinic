@@ -67,7 +67,7 @@ router.get('/weekly-detail', async (req, res) => {
 });
 
 // Envio de Relatório por Email — restrito a ADMIN (M-01)
-router.post('/send-email', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
+router.post('/send-email', requireRole('ADMIN'), async (req, res) => {
   const { emailDestino, pdfBase64, semana, subject } = req.body;
 
   if (!pdfBase64 || !pdfBase64.includes('base64,')) {

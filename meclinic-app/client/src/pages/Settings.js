@@ -31,7 +31,7 @@ const Settings = () => {
   const [showLogoutAllModal, setShowLogoutAllModal] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('meclinic_user') || '{}'); } catch { return {}; } })();
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(user.role);
+  const isAdmin = user.role === 'ADMIN';
 
   // Estado do perfil
 const [perfilData, setPerfilData] = useState({
@@ -1862,8 +1862,8 @@ const [perfilData, setPerfilData] = useState({
 
                   {sessionsAtivas.map((session) => {
                     const loginDate = session.loginTime instanceof Date ? session.loginTime : new Date(session.loginTime);
-                    const isAdmin_ = ['ADMIN', 'SUPER_ADMIN'].includes(session.role);
-                    const roleLabel = session.role === 'SUPER_ADMIN' ? 'Super Admin' : session.role === 'DENTISTA' ? 'Dentista' : isAdmin_ ? 'Admin' : 'Assistente';
+                    const isAdmin_ = session.role === 'ADMIN';
+                    const roleLabel = isAdmin_ ? 'Admin' : 'Assistente';
                     const isReallyActive = session.really_active || session.current;
                     const dotColor = isReallyActive ? '#10b981' : '#ef4444';
                     return (
@@ -1886,16 +1886,12 @@ const [perfilData, setPerfilData] = useState({
                             width: '48px', height: '48px', borderRadius: '14px',
                             background: isAdmin_
                               ? 'linear-gradient(135deg, #6d28d9, #8b5cf6)'
-                              : session.role === 'DENTISTA'
-                                ? 'linear-gradient(135deg, #065f46, #10b981)'
-                                : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
+                              : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: 'white', fontWeight: '800', fontSize: '18px',
                             boxShadow: isAdmin_
                               ? '0 4px 12px rgba(139,92,246,0.35)'
-                              : session.role === 'DENTISTA'
-                                ? '0 4px 12px rgba(16,185,129,0.35)'
-                                : '0 4px 12px rgba(59,130,246,0.35)'
+                              : '0 4px 12px rgba(59,130,246,0.35)'
                           }}>
                             {session.user.charAt(0).toUpperCase()}
                           </div>
@@ -1920,9 +1916,9 @@ const [perfilData, setPerfilData] = useState({
                             )}
                             <span style={{
                               fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: '20px',
-                              background: isAdmin_ ? 'rgba(139,92,246,0.12)' : session.role === 'DENTISTA' ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
-                              color: isAdmin_ ? '#a78bfa' : session.role === 'DENTISTA' ? '#34d399' : '#60a5fa',
-                              border: `1px solid ${isAdmin_ ? 'rgba(139,92,246,0.25)' : session.role === 'DENTISTA' ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)'}`
+                              background: isAdmin_ ? 'rgba(139,92,246,0.12)' : 'rgba(59,130,246,0.12)',
+                              color: isAdmin_ ? '#a78bfa' : '#60a5fa',
+                              border: `1px solid ${isAdmin_ ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)'}`
                             }}>
                               {roleLabel}
                             </span>
@@ -2027,11 +2023,11 @@ const [perfilData, setPerfilData] = useState({
                               </span>
                               <span style={{
                                 fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
-                                background: ['ADMIN','SUPER_ADMIN'].includes(login.role) ? 'rgba(139,92,246,0.1)' : login.role === 'DENTISTA' ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)',
-                                color: ['ADMIN','SUPER_ADMIN'].includes(login.role) ? '#a78bfa' : login.role === 'DENTISTA' ? '#34d399' : '#60a5fa',
-                                border: `1px solid ${ ['ADMIN','SUPER_ADMIN'].includes(login.role) ? 'rgba(139,92,246,0.25)' : login.role === 'DENTISTA' ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)'}`
+                                background: login.role === 'ADMIN' ? 'rgba(139,92,246,0.1)' : 'rgba(59,130,246,0.1)',
+                                color: login.role === 'ADMIN' ? '#a78bfa' : '#60a5fa',
+                                border: `1px solid ${ login.role === 'ADMIN' ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)'}`
                               }}>
-                                {login.role === 'SUPER_ADMIN' ? 'Super Admin' : login.role === 'DENTISTA' ? 'Dentista' : ['ADMIN'].includes(login.role) ? 'Admin' : 'Assistente'}
+                                {login.role === 'ADMIN' ? 'Admin' : 'Assistente'}
                               </span>
                             </div>
                             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>

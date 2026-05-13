@@ -235,7 +235,7 @@ router.post('/reset-password', async (req, res) => {
  */
 router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role);
+  const isAdmin = req.user.role === 'ADMIN';
 
   try {
     // Uma sessão por utilizador (a mais recente) — mesma conta = um único card

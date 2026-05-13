@@ -44,7 +44,7 @@ router.get('/data/:data', ConsultasController.getByData);
 router.post(
   '/',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -61,7 +61,7 @@ router.post(
 router.put(
   '/:id',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -78,7 +78,7 @@ router.put(
 router.put(
   '/:id/marcar-realizada',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -94,7 +94,7 @@ router.put(
 router.put(
   '/:id/confirmar',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -110,7 +110,7 @@ router.put(
 router.put(
   '/:id/cancelar',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -126,7 +126,7 @@ router.put(
 router.delete(
   '/:id',
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();

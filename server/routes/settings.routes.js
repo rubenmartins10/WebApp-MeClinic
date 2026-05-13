@@ -58,7 +58,7 @@ router.get(
   '/financial',
   authMiddleware,
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -75,7 +75,7 @@ router.get(
   '/security',
   authMiddleware,
   (req, res, next) => {
-    if (req.user.role !== 'SUPER_ADMIN') {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -92,7 +92,7 @@ router.get(
   '/notifications',
   authMiddleware,
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -109,7 +109,7 @@ router.get(
   '/reports',
   authMiddleware,
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -133,7 +133,7 @@ router.get(
   '/user-roles',
   authMiddleware,
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -168,7 +168,7 @@ router.post(
   '/validate',
   authMiddleware,
   (req, res, next) => {
-    if (req.user.role !== 'SUPER_ADMIN') {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();
@@ -191,7 +191,7 @@ router.put(
   '/clinic-config',
   authMiddleware,
   (req, res, next) => {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     next();

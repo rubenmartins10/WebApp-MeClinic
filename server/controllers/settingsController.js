@@ -75,7 +75,7 @@ exports.getFinancialSettings = (req, res) => {
 exports.getSecuritySettings = (req, res) => {
   try {
     // Apenas super admin pode ver configurações de segurança
-    if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ADMIN') {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({
         success: false,
         error: 'Acesso negado. Apenas administradores podem aceder a estas definições.',
@@ -251,10 +251,10 @@ exports.getOperatingHours = (req, res) => {
  */
 exports.validateConfiguration = (req, res) => {
   try {
-    if (req.user.role !== 'SUPER_ADMIN') {
+    if (req.user.role !== 'ADMIN') {
       return res.status(403).json({
         success: false,
-        error: 'Apenas super administrador pode validar configurações.',
+        error: 'Apenas administrador pode validar configurações.',
       });
     }
 

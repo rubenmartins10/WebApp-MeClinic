@@ -60,7 +60,7 @@ router.get(
 router.post(
   '/',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -77,7 +77,7 @@ router.post(
 router.post(
   '/checkout',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -94,7 +94,7 @@ router.post(
 router.put(
   '/:id',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
@@ -111,7 +111,7 @@ router.put(
 router.put(
   '/:id/marcar-paga',
   (req, res, next) => {
-    if (!['ADMIN', 'DENTISTA', 'ASSISTENTE'].includes(req.user.role)) {
+    if (!['ADMIN', 'ASSISTENTE'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     next();
