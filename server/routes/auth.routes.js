@@ -235,7 +235,7 @@ router.post('/reset-password', async (req, res) => {
  */
 router.get('/activity', authMiddleware, asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const isAdmin = req.user.role === 'ADMIN';
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.user.role);
 
   try {
     // Sessões activas deduplicadas por session_id (evita repetições infinitas da mesma conta/sessão)
