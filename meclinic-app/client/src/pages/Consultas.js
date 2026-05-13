@@ -24,7 +24,7 @@ const Consultas = () => {
   const [modelos, setModelos] = useState([]);
   
   const [phonePrefix, setPhonePrefix] = useState('+351');
-  const [formData, setFormData] = useState({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
+  const [formData, setFormData] = useState({ nome: '', email: '', telefone: '', data: '', hora: '09:00', motivo: '', procedimento_id: '' });
   
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -141,7 +141,7 @@ const Consultas = () => {
         else if (diffDias >= 0 && diffDias <= 7) setFiltro('semana');
         else setFiltro('mes');
       }
-      setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' });
+      setFormData({ nome: '', email: '', telefone: '', data: '', hora: '09:00', motivo: '', procedimento_id: '' });
       setPhonePrefix('+351'); 
       setIsEditing(false); 
       setEditId(null); 
@@ -824,7 +824,7 @@ const Consultas = () => {
               <FileText size={18} /> {isProcessing ? 'A guardar...' : (isEditing ? t('consultations.form.btn_save') : t('consultations.form.btn_confirm'))}
             </button>
             {isEditing && (
-              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '', motivo: '', procedimento_id: '' }); setPhonePrefix('+351'); }}
+              <button type="button" onClick={() => { setIsEditing(false); setFormData({ nome: '', email: '', telefone: '', data: '', hora: '09:00', motivo: '', procedimento_id: '' }); setPhonePrefix('+351'); }}
                 style={{ width: '100%', padding: '11px', backgroundColor: 'transparent', color: theme.subText, border: `1.5px solid ${theme.border}`, borderRadius: '12px', cursor: 'pointer', marginTop: '10px', fontWeight: '600', fontSize: '14px', fontFamily: 'Inter, system-ui, sans-serif', transition: 'all 0.2s' }}>
                 {t('consultations.form.btn_cancel')}
               </button>
